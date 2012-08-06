@@ -1,0 +1,6 @@
+html5 torrent library
+impetus was drag and drop files to create and seed a torrent
+only way to do that was to go all out and create a full fledged torrent 
+client in the browser.
+bittorrent protocol is embedded in a websocket. hopefully future desktop 
+clients will support websocket connections!

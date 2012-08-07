@@ -93,9 +93,13 @@
                     }
                 }
             } else {
+                var part = arr.shift();
+                for (var i=0; i<this.directories.length; i++) {
+                    if (this.directories[i].entry.name == part) {
+                        return this.directories[i].get_by_path(arr);
+                    }
+                }
                 debugger;
-                // locate in directories...
-                
             }
         },
         get_althash: function() {

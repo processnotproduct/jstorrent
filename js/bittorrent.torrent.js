@@ -129,8 +129,9 @@ var NewTorrent = Backbone.Model.extend({
                 index = r.length;
             }
         });
-        var bytes = bencode( this.fake_info );
-        var piecedata = bdecode(utf8.parse(bytes.slice(index)));
+        var bytes = bencode( this.fake_info); 
+        //var piecedata = bdecode(utf8.parse(bytes.slice(index)));
+        var piecedata = bdecode(arr2str(bytes.slice(index)));
         var piecedata_a = index + piecedata.length.toString().length + 1;
 
         for (var piecenum=request.piece_range[0]; piecenum<=request.piece_range[1]; piecenum++) {
@@ -171,7 +172,8 @@ var NewTorrent = Backbone.Model.extend({
         var req_b = (piece+1) * sz - 1;
 
         var bytes = bencode( this.fake_info );
-        var piecedata = bdecode(utf8.parse(bytes.slice(index)));
+        //var piecedata = bdecode(utf8.parse(bytes.slice(index)));
+        var piecedata = bdecode(arr2str(bytes.slice(index)));
         var piecedata_a = index + piecedata.length.toString().length + 1; // move forward a ':'
         var piecedata_b = piecedata_a + this.get_num_pieces() * 20 - 1; // piecedata_b is used as an inclusive interval, so don't include the boundary
 

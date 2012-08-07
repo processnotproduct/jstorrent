@@ -151,6 +151,7 @@
             this.handlers = {
                 'UTORRENT_MSG': this.handle_extension_message,
                 'PORT': this.handle_port,
+                'HAVE': this.handle_have,
                 'BITFIELD': this.handle_bitfield
             };
             this.stream.onopen = this.onopen
@@ -258,6 +259,10 @@
         },
         shutdown: function(reason) {
             mylog(1, 'shutting down connection:',reason);
+        },
+        handle_have: function(data) {
+            var index = jspack.Unpack('>i', data.payload);
+            mylog(1, 'handle have index', index);
         },
         handle_bitfield: function(data) {
             mylog(1, 'handle bitfield message');

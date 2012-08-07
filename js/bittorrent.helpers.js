@@ -855,6 +855,10 @@ function hmac_sha1_stream_tail(opad, naked_hash) {
         return String.fromCharCode.apply(null, new Uint16Array(buf));
     }
 
+    window.arr2str = function(buf) {
+        return String.fromCharCode.apply(null, new Uint8Array(buf));
+    }
+
     function str2ab(str) {
         assert(false,'this function suck');
         var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char

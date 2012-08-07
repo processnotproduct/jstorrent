@@ -17,6 +17,8 @@
         protocol_name: 'BitTorrent protocol',
         handshake_length: 1 + 'BitTorrent protocol'.length + 8 + 20 + 20,
         std_piece_size: Math.pow(2,14),
+        //new_torrent_piece_size: Math.pow(2,16),
+        new_torrent_piece_size: Math.pow(2,14),
         metadata_request_piece_size: Math.pow(2,14),
         messages: [
             'CHOKE',
@@ -134,7 +136,8 @@
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
             this.entry = entry; // upload.btapp.js gives us this...
-            this.newtorrent = new NewTorrent({entry:entry});
+            this.newtorrent = new NewTorrent({entry:entry, althash:infohash});
+            this.newtorrent_metadata_size = bencode(this.newtorrent.fake_info).length
             console.log('initialize peer connection with infohash',this.infohash);
             this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
             this.connected = false;
@@ -147,7 +150,8 @@
 
             this.handlers = {
                 'UTORRENT_MSG': this.handle_extension_message,
-                'PORT': this.handle_port
+                'PORT': this.handle_port,
+                'BITFIELD': this.handle_bitfield
             };
             this.stream.onopen = this.onopen
             this.stream.onclose = this.onclose
@@ -159,7 +163,7 @@
             var resp = {'v': 'jstorrent 0.0.1',
                         'm': {},
                         'p': 0}; // we don't have a port to connect to :-(
-            resp['metadata_size'] = this.entry.get_metadata_size(1024 * 1024); // 1meg piece size
+            resp['metadata_size'] = this.newtorrent_metadata_size;
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
@@ -173,9 +177,33 @@
             var len = jspack.Pack('>I', [payload.length+1]);
             var msgcode = constants.message_dict[type]
             var packet = new Uint8Array( len.concat([msgcode]).concat(payload) );
-            mylog(1, 'sending message',type,utf8.parse(payload));
+            //mylog(1, 'sending message',type,utf8.parse(payload));
             var buf = packet.buffer;
             this.stream.send(buf);
+        },
+        serve_metadata_piece: function(metapiece, request) {
+            var tor_meta_codes = { 'request': 0,
+                                   'data': 1,
+                                   'reject': 2 };
+
+            var piecedata = this.newtorrent.get_metadata_piece(metapiece, request);
+
+            var total_size = bencode(this.newtorrent.fake_info).length
+            
+            var meta = { 'total_size': total_size,
+                         'piece': metapiece,
+                         'msg_type': tor_meta_codes.data};
+            mylog(1,'responding to metadata request with meta',meta,piecedata.length);
+            var payload = [this._remote_extension_handshake['m']['ut_metadata']];
+/*
+            var bencoded = bencode(meta);
+            for (var i=0; i<bencoded.byteLength; i++) {
+                payload.push(bencoded[i]);
+            }
+*/
+            payload = payload.concat( bencode(meta) );
+            payload = payload.concat(piecedata);
+            this.send_message('UTORRENT_MSG', payload);
         },
         handle_extension_message: function(data) {
             var ext_msg_type = data.payload[0];
@@ -210,10 +238,7 @@
                             if (this.entry) {
                                 // this is javascript creating the torrent from a file selection or drag n' drop.
                                 var metapiece = info.piece;
-                                this.newtorrent.register_meta_piece_requested(metapiece);
-
-
-
+                                this.newtorrent.register_meta_piece_requested(metapiece, _.bind(this.serve_metadata_piece, this, metapiece) );
                                 // figure out which pieces this corresponds to...
                                 // this.bind('close', function() { this.newtorrent.register_disconnect(metapiece) } );
                             } else {
@@ -233,6 +258,10 @@
         },
         shutdown: function(reason) {
             mylog(1, 'shutting down connection:',reason);
+        },
+        handle_bitfield: function(data) {
+            mylog(1, 'handle bitfield message');
+            this._remote_bitmask = data.payload;
         },
         handle_port: function(data) {
             mylog(1, 'handle port message');

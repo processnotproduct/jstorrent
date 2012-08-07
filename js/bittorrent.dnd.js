@@ -134,6 +134,7 @@
         },
         populate: function(cb) {
             // reads & populates all FileEntry+File objects
+            this._reading = true;
             var item = this.entry;
             var _this = this;
             var reader = item.createReader();
@@ -146,7 +147,7 @@
                         if (it.isDirectory) {
                             var dir = new Directory( { entry: it, parent: _this } );
                             _this.directories.push( dir );
-                            dir.populate(cb);
+                            dir.populate(cb); // XXX callbacks being fired before directories are populated!
                         } else {
                             var file = new File({entry:it, directory:_this});
                             _this.files.push( file );

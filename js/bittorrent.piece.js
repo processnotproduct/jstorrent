@@ -54,43 +54,28 @@ function Piece(torrent, num) {
     this.start_byte = this.torrent.get_piece_len() * this.num
     this.end_byte = this.start_byte + this.sz - 1
     this.hashed = false;
+
     this._data = [];
+    this._requests = [];
+    this._processing_request = false;
+
     assert(this.num < this.torrent.get_num_pieces());
     assert(this.start_byte >= 0)
     assert(this.end_byte >= 0)
 }
 
 Piece.prototype = {
-    get_data: function(callback) {
-        debugger;
-    },
     compute_hash: function(callback) {
-        // get files && offsets spanning these files.
-        this.hasher = new Digest.SHA1();
-        this._compute_hash_callback = callback;
-        this._file_info = this.get_file_info(0, this.sz);
-        assert(this._file_info.length > 0);
-        this.compute_new_file();
+        this.get_data(0, this.sz, _.bind(this.got_data_for_compute_hash, this, callback));
     },
-    compute_file_complete: function(file) {
-        //mylog(1,'compute file complete');
-        for (var i=0; i<file._data.length; i++) {
-            this.hasher.update( file._data[i] );
+    got_data_for_compute_hash: function(callback, piece, request, responses) {
+        var hasher = new Digest.SHA1();
+        for (var i=0; i<responses.length; i++) {
+            hasher.update( responses[i] );
         }
-        this.compute_new_file(file);
-    },
-    compute_new_file: function() {
-        var file_info = this._file_info.shift();
-        if (file_info) {
-            var file = this.torrent.get_file(file_info[0]);
-            file.get_data( _.bind(this.compute_file_complete, this, file), file_info[1] );
-        } else {
-            var callback = this._compute_hash_callback;
-            this.hash = this.hasher.finalize();
-            this.hashed = true;
-            this._compute_hash_callback = null;
-            callback();
-        }
+        this.hash = hasher.finalize();
+        this.hashed = true;
+        callback();
     },
     get_file_info: function(offset, size) {
         // returns file objects + offsets needed to serially read from them
@@ -108,16 +93,48 @@ Piece.prototype = {
         }
         return info
     },
-    
-    get_data_from_file: function(fileno) {
-        // returns the data in this piece that intersects a specific file
+    get_data: function(offset, size, callback) {
+        // gives data needed to service piece requests
+        var file_info = this.get_file_info(offset, size);
+        this._requests.push({'original':[offset,size],'info':file_info,'callback':callback});
+        this.process_requests();
     },
-    get_data: function() {
-        // reads through all the files in this piece and hashes it
-
-        // can get data from FileReader is faster than we can hash it...
-
-        // request large blocks from FileReader, (prepare up to say 8 pieces at once)
-        // hash them independently inside webworker threads.
+    got_file_data: function(request, file, data, payload) {
+        //file._cache[JSON.stringify(data[1])] = 
+        data.response = payload;
+        //request.results.push( payload );
+        this.process_requests();
     },
+    process_requests: function() {
+        if (this._processing_request) {
+            return;
+        } else {
+            if (this._requests.length > 0) {
+                var request = this._requests[ this._requests.length - 1 ];
+
+                var found = null;
+
+                for (var i=0; i<request.info.length; i++) {
+                    var data = request.info[i];
+                    if (! data.response) {
+                        found = data;
+                        break;
+                    }
+                }
+                if (found) {
+                    var file = this.torrent.get_file(data[0]);
+                    file.get_data( _.bind(this.got_file_data, this, request, file, data),
+                                   data[1] );
+                } else {
+                    var callback = request['callback'];
+                    // should we format out the responses?
+                    var responses = [];
+                    for (var i=0; i<request.info.length; i++) {
+                        responses.push( request.info[i].response );
+                    }
+                    callback(this, request, responses);
+                }
+            }
+        }
+    }
 };

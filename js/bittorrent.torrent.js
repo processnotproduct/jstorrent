@@ -17,6 +17,7 @@ var NewTorrent = Backbone.Model.extend({
         this.meta_requests = [];
         this.pieces = [];
         this.files = [];
+        this.num_pieces = this.get_num_pieces();
         this._processing_meta_request = false;
     },
     get_num_pieces: function() {
@@ -120,6 +121,10 @@ var NewTorrent = Backbone.Model.extend({
             piecehasher.enqueue( pieces, _.bind(this.pieces_hashed, this, request) );
 
         }
+    },
+    has_piece: function(piecenum) {
+        assert(piecenum < this.num_pieces);
+        return true;
     },
     get_metadata_piece: function(metapiecenum, request) {
         var sz = constants.metadata_request_piece_size; // metadata requests 

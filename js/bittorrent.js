@@ -128,7 +128,11 @@
         initialize: function(host, port, infohash, entry) {
             _.bindAll(this, 'onopen', 'onclose', 'onmessage', 'onerror', 'on_connect_timeout',
                       'handle_extension_message',
-                      'send_extension_handshake'
+                      'send_extension_handshake',
+                      'handle_bitfield',
+                      'send_bitmask',
+                      'handle_request',
+                      'on_handle_request_data'
                      );
 
             this.stream = new WebSocket('ws://'+host+':'+port+'/api/upload/ws');
@@ -148,11 +152,17 @@
             this._my_extension_handshake = null;
             this._sent_extension_handshake = false;
 
+            this._remote_choked = true;
+            this._remote_interested = false;
+
+            this._sent_bitmask = false;
+
             this.handlers = {
                 'UTORRENT_MSG': this.handle_extension_message,
                 'PORT': this.handle_port,
                 'HAVE': this.handle_have,
-                'BITFIELD': this.handle_bitfield
+                'BITFIELD': this.handle_bitfield,
+                'REQUEST': this.handle_request
             };
             this.stream.onopen = this.onopen
             this.stream.onclose = this.onclose
@@ -175,9 +185,33 @@
             this.send_message('UTORRENT_MSG', [constants.handshake_code].concat(payload));
         },
         send_message: function(type, payload) {
-            var len = jspack.Pack('>I', [payload.length+1]);
+            // if payload is already an array buffer, what to do???
+            var args = [];
+            for (var i=0; i<arguments.length; i++) {
+                args.push(arguments[i]);
+            }
+            if (args.length > 2) {
+                // convenience method for concatenating payload...
+                debugger;
+            }
+
+            mylog(1, 'send message of type',type, payload?payload.length:'');
+            if (type == 'UNCHOKE') {
+                this._remote_choked = false;
+            }
+
+
+            if (payload) {
+                var len = jspack.Pack('>I', [payload.length+1]);
+            } else {
+                var len = jspack.Pack('>I', [1]);
+            }
             var msgcode = constants.message_dict[type]
-            var packet = new Uint8Array( len.concat([msgcode]).concat(payload) );
+            if (payload) {
+                var packet = new Uint8Array( len.concat([msgcode]).concat(payload) );
+            } else {
+                var packet = new Uint8Array( len.concat([msgcode]) );
+            }
             //mylog(1, 'sending message',type,utf8.parse(payload));
             var buf = packet.buffer;
             this.stream.send(buf);
@@ -264,9 +298,57 @@
             var index = jspack.Unpack('>i', data.payload);
             mylog(1, 'handle have index', index);
         },
+        handle_request: function(data) {
+            var index = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 0, 4))[0];
+            var offset = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 4, 4))[0];
+            var size = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8, 4))[0];
+            mylog(1,'handle piece request for piece',index,'offset',offset,'of size',size);
+
+            var piece = this.newtorrent.get_piece(index);
+
+            // read each of these file payloads and respond...
+            // var request_info = {'index':index, 'offset':offset, 'size':size};
+            piece.get_data(offset, size, this.on_handle_request_data);
+        },
+        on_handle_request_data: function(piece, request, responses) {
+            var payload = jspack.Pack('>II', [piece.num, request.original[0]]);
+            for (var i=0; i<responses.length; i++) {
+                var response = new Uint8Array(responses[i]);
+                for (var j=0; j<response.byteLength; j++) {
+                    // inefficient!!!!
+                    payload.push(response[j]);
+                }
+            }
+            this.send_message('PIECE', payload);
+        },
         handle_bitfield: function(data) {
             mylog(1, 'handle bitfield message');
             this._remote_bitmask = data.payload;
+            if (! this._sent_bitmask) {
+                this.send_bitmask();
+                this.send_message('UNCHOKE');
+            }
+        },
+        send_bitmask: function() {
+            this._sent_bitmask = true;
+            // payload is simply one bit for each piece
+            var bitfield = [];
+            var curval = null;
+            var total_pieces = this.newtorrent.get_num_pieces();
+            var total_chars = Math.ceil(total_pieces/8);
+            for (var i=0; i<total_chars; i++) {
+                curval = 0;
+                for (var j=0; j<8; j++) {
+                    var idx = i*8+j;
+                    if (idx < total_pieces) {
+                        if (this.newtorrent.has_piece(idx)) {
+                            curval += Math.pow(2,7-j);
+                        }
+                    }
+                }
+                bitfield.push( curval );
+            }
+            this.send_message('BITFIELD', bitfield);
         },
         handle_port: function(data) {
             mylog(1, 'handle port message');
@@ -307,9 +389,7 @@
         },
         handle_handshake: function(msg) {
             this.handshaking = false;
-
             var blob = msg;
-            
             var data = parse_handshake(msg);
             console.log('parsed handshake',data)
         },

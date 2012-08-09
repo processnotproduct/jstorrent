@@ -122,6 +122,23 @@ var NewTorrent = Backbone.Model.extend({
 
         }
     },
+    parse_bitmask: function(arr) {
+        var pieces = [];
+        for (var i=0; i<arr.length; i++) {
+            var s = arr[i].toString(2)
+            for (var j=0; j<8-s.length; j++) {
+                pieces.push(0); // left pad
+            }
+            for (var j=0; j<s.length; j++) {
+                pieces.push(s[j]=='1'?1:0);
+            }
+        }
+        var extra_pad = pieces.length - this.get_num_pieces();
+        for (var i=0; i<extra_pad; i++) {
+            pieces.pop();
+        }
+        return pieces;
+    },
     has_piece: function(piecenum) {
         assert(piecenum < this.num_pieces);
         return true;

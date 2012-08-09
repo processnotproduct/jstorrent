@@ -23,7 +23,7 @@ _.extend(Backbone.Model.prototype, {
 });
 
 function custom_track(evt) {
-    console.log('custom track',evt);
+    // console.log('custom track',evt);
 }
 
 function to_file_size(size) {
@@ -261,8 +261,15 @@ var FileView = Backbone.View.extend({
         this.$('.torrent_name').dblclick( function(evt) {
             // open up file view
             // _this.model.download();
-            window.name = _this.model.get('properties').get('streaming_url');
-            window.location = 'player.html';
+
+            // do different shiz for different types...
+
+            if (true) {
+                window.location = _this.model.get('properties').get('streaming_url');
+            } else {
+                window.name = _this.model.get('properties').get('streaming_url');
+                window.location = 'player.html';
+            }
         });
 
     },
@@ -458,9 +465,7 @@ jQuery(function() {
         /* drag and drop stuff */
         var dropbox = document.getElementById("dropbox");
 
-        var uploader = new UploadView( { el: $(dropbox), btapp: btapp } );
-
-
+        window.uploadview = new UploadView( { el: $(dropbox), btapp: btapp } );
 
     }
 

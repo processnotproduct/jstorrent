@@ -37,9 +37,10 @@ File.prototype = {
                 var byte_range = item.byte_range;
                 var offset = byte_range[0] - this.start_byte;
                 var bytesRemaining = byte_range[1] - byte_range[0];
+                assert(bytesRemaining > 0);
                 var blob = dndfile.file.slice(offset, offset + bytesRemaining);
                 //item.slice = [offset, bytesRemaining];
-                //mylog(1,'reading blob',offset,bytesRemaining);
+                mylog(1,'reading blob',offset,bytesRemaining);
                 filereader.readAsArrayBuffer(blob);
             }
         }

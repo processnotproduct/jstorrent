@@ -1,7 +1,5 @@
 (function(){
 
-
-
     var DHT = parseInt('0x01');
     var UTORRENT = parseInt('0x10');
     var NAT_TRAVERSAL = parseInt('0x08');
@@ -141,7 +139,9 @@
                       'handle_bitfield',
                       'send_bitmask',
                       'handle_request',
-                      'on_handle_request_data'
+                      'on_handle_request_data',
+                      'handle_have',
+                      'handle_have_all'
                      );
 
             this._host = host;
@@ -254,7 +254,6 @@
         },
         handle_extension_message: function(data) {
             var ext_msg_type = data.payload[0];
-            mylog(1, 'ext msg type', ext_msg_type );
             if (ext_msg_type == constants.handshake_code) {
                 var braw = new Uint8Array(data.payload.buffer.slice( data.payload.byteOffset + 1 ));
                 mylog(2, 'raw extension message:', braw);
@@ -274,7 +273,6 @@
 
                 mylog(2, 'handling', ext_msg_str, 'extension message');
                 if (ext_msg_str == 'ut_metadata') {
-                    mylog(1, 'they are asking for metadata pieces!')
                     var str = utf8.parse(new Uint8Array(data.payload.buffer, data.payload.byteOffset+1));
                     if (str.indexOf('total_size') != -1) {
                         debugger;
@@ -285,6 +283,7 @@
                             if (this.entry) {
                                 // this is javascript creating the torrent from a file selection or drag n' drop.
                                 var metapiece = info.piece;
+                                mylog(1, 'they are asking for metadata pieces!',metapiece);
                                 this.newtorrent.register_meta_piece_requested(metapiece, _.bind(this.serve_metadata_piece, this, metapiece) );
                                 // figure out which pieces this corresponds to...
                                 // this.bind('close', function() { this.newtorrent.register_disconnect(metapiece) } );
@@ -308,10 +307,29 @@
         },
         handle_have_all: function(data) {
             mylog(1, 'handle have all');
+            this._remote_bitmask = [];
+            for (var i=0; i<this.newtorrent.get_num_pieces(); i++) {
+                this._remote_bitmask[i] = 1;
+            }
+            this.trigger('completed');
         },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
             mylog(1, 'handle have index', index);
+            this._remote_bitmask[index] = 1;
+            if (this.remote_complete()) {
+                this.trigger('completed');
+            }
+        },
+        remote_complete: function() {
+            // TODO -- keep a count of zeros and keep it up to date
+            return this._remote_bitmask && this._remote_bitmask;
+            for (var i=0; i<this._remote_bitmask.length; i++) {
+                if (this._remote_bitmask[i] == 0) {
+                    return false;
+                }
+            }
+            return true;
         },
         handle_request: function(data) {
             var index = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 0, 4))[0];
@@ -338,7 +356,8 @@
         },
         handle_bitfield: function(data) {
             mylog(1, 'handle bitfield message');
-            this._remote_bitmask = data.payload;
+            this._remote_bitmask = this.newtorrent.parse_bitmask(data.payload);
+            mylog(1,'parsed bitmask',this._remote_bitmask);
             if (! this._sent_bitmask) {
                 this.send_bitmask();
                 this.send_message('UNCHOKE');

@@ -82,8 +82,16 @@ Piece.prototype = {
         var info = [];
         var my_range = [ this.start_byte + offset, this.start_byte + offset + size ];
 
-        for (var i=0; i<this.torrent._file_byte_accum.length-1; i++) {
-            var file_range = [this.torrent._file_byte_accum[i], this.torrent._file_byte_accum[i+1]];
+        for (var i=0; i<this.torrent._file_byte_accum.length; i++) {
+
+            if (i == this.torrent._file_byte_accum.length - 1) {
+                var high_byte = this.torrent.get_size();
+            } else {
+                var high_byte = this.torrent._file_byte_accum[i+1];
+            }
+            assert(high_byte);
+
+            var file_range = [this.torrent._file_byte_accum[i], high_byte];
 
             // TODO speed this up using binary search and terminate once no more intersections found
             var intersection = intersect( file_range, my_range );
@@ -96,6 +104,7 @@ Piece.prototype = {
     get_data: function(offset, size, callback) {
         // gives data needed to service piece requests
         var file_info = this.get_file_info(offset, size);
+        assert(file_info.length > 0);
         this._requests.push({'original':[offset,size],'info':file_info,'callback':callback});
         this.process_requests();
     },

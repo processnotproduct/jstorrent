@@ -12,11 +12,17 @@
 
     var UploadSession = Backbone.Model.extend({
         initialize: function(opts) {
-            //_.bindAll(this, 'connected', 'create_session');
+            _.bindAll(this, 'completed');
             this.btapp = opts.btapp;
             this.entry = null;
         },
         ready: function(entry) {
+/*
+            window.onbeforeunload = function() {
+                return "Still uploading... If you leave, your upload will be canceled.";
+            }
+*/
+
             if (!this.btapp.client.port) {
                 console.error('update btapp to give port');
             }
@@ -25,9 +31,18 @@
             var defer = this.btapp.get('add').torrent( ab2hex( entry.get_althash() ) );
             defer.then( _.bind(function() {
 
-            this.connection = new WSPeerConnection('127.0.0.1', this.btapp.client.port, entry.get_althash(), this.entry);
-},this) );
+                this.connection = new WSPeerConnection('127.0.0.1', this.btapp.client.port, entry.get_althash(), this.entry);
+                this.connection.bind('completed', this.completed);
+
+            }, this) );
+
+
+
             // this.connection.bind('connected', this.connected);
+        },
+        completed: function() {
+            mylog(1,'upload session FINISHED!!! woot!');
+            window.onbeforeunload = null;
         }
     });
 

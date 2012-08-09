@@ -867,7 +867,14 @@ function hmac_sha1_stream_tail(opad, naked_hash) {
     }
 
     window.arr2str = function(buf) {
-        return String.fromCharCode.apply(null, buf);
+        //return String.fromCharCode.apply(null, buf); // returns maximum stack exceeded
+        var s = ""
+        var l = buf.length;
+        for (var i=0; i<l; i++) {
+            s += String.fromCharCode(buf[i]);
+        }
+        return s;
+        // build array and use join any faster?
     }
 
     function str2ab(str) {

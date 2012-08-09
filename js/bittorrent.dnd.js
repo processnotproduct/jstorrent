@@ -21,7 +21,12 @@
                 console.error('update btapp to give port');
             }
             this.entry = entry
+
+            var defer = this.btapp.get('add').torrent( ab2hex( entry.get_althash() ) );
+            defer.then( _.bind(function() {
+
             this.connection = new WSPeerConnection('127.0.0.1', this.btapp.client.port, entry.get_althash(), this.entry);
+},this) );
             // this.connection.bind('connected', this.connected);
         }
     });
@@ -56,11 +61,13 @@
             return this.file.lastModifiedDate.getTime();
         },
         get_path: function() {
-            if (this.directory) {
+            if (this.directory) { // parent directory!
+                console.log('file',this.directory.entry.fullPath);
                 var parts = this.directory.entry.fullPath.split('/'); // should we remove the root directory?
                 parts.shift(1);
                 parts.shift(1); // also remove root directory!
                 parts.push(this.file.name);
+                console.log(parts);
                 return parts;
             } else {
                 return [this.file.name];
@@ -189,7 +196,7 @@
 
     UploadView = Backbone.View.extend({
         initialize: function(opts) {
-            _.bindAll(this, 'dragenter', 'dragleave', 'dropped_files', 'handle_read', 'drop');
+            _.bindAll(this, 'dragenter', 'dragleave', 'drop');
             var dropbox = opts.el;
             var btapp = opts.btapp;
 
@@ -250,20 +257,22 @@
                             this.entries.push(item);
                         }
 
-                        var entry = this.entries[0];
-
-                        entry.populate( function(data) {
-                            if (data && data.error) {
-                                _this.error(data);
-                            } else {
-                                // console.log('callback, something finished...');
-                                if (entry.populated()) {
-                                    _this.trigger_ready();
-                                }
-                            }
-                        });
                     }
                 }
+
+                // populate all the directory entries
+                var entry = this.entries[0];
+                entry.populate( function(data) {
+                    if (data && data.error) {
+                        _this.error(data);
+                    } else {
+                        // console.log('callback, something finished...');
+                        if (entry.populated()) {
+                            _this.trigger_ready();
+                        }
+                    }
+                });
+
             } else if (files) {
                 // notify that dropping in directories is not supported.
                 var count = files.length;
@@ -271,35 +280,6 @@
             } else {
                 // notify that drag and drop doesn't work, have to browse to upload
             }
-        },
-        dropped_files: function(files) {
-            var file = files[0];
-            document.getElementById("droplabel").innerHTML = "Processing " + file.name;
-            var reader = new FileReader();
-            // init the reader event handlers
-
-            var currentChunk = 0;
-            var blockSize = 1024 * 1024;
-            var transferLength = blockSize; // reduce for last blob
-            if(file.slice) {
-                var blob = file.slice(currentChunk*blockSize, transferLength);
-            } else if (file.mozSlice) {
-                var blob = file.mozSlice(currentChunk*blockSize, currentChunk*blockSize+transferLength);
-            } else if(file.webkitSlice) {
-                var blob = file.webkitSlice(currentChunk*blockSize, currentChunk*blockSize+transferLength);
-            }
-
-
-            reader.onload = this.handle_read;
-            // begin the read operation
-            reader.readAsBinaryString(file);
-            //reader.readAsDataURL(file);
-        },
-        handle_read: function(evt) {
-            var img = document.getElementById("preview");
-            var binary = evt.target.result;
-            debugger;
-            //img.src = evt.target.result;
         }
     });
 

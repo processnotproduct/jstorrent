@@ -1,0 +1,61 @@
+<html>
+<body style="background:#000; margin:0px; padding:0px">
+          <script src="../js/deps/jquery-1.7.2.min.js"></script>  
+	<script src="../js/deps/json2.js"></script>  
+	<script src="../js/deps/underscore.js"></script> 
+	<script src="../js/deps/backbone.js"></script>  
+	<script src="../js/deps/jstorage.js"></script>  
+
+
+<video id="video" controls preload="metadata" autoplay="true" style="width:100%; height:100%"></video>
+
+
+
+
+<script>
+
+
+var url = window.name;
+video = document.getElementById('video');
+console.log('got player url',url);
+video.src = url;
+
+setInterval( function() {
+
+console.log('network state', video.networkState);
+
+}, 1000 );
+// video.startTime
+
+video.addEventListener("readystatechange", function(evt) { console.log('readystatechange'); } );
+video.addEventListener("stalled", function(evt) { console.log("stalled",evt); } );
+video.addEventListener("durationchange", function(evt) { console.log('durationchange',evt); } );
+video.addEventListener("loadstart", function(evt) { console.log("load start",evt); } );
+video.addEventListener("abort", function(evt) { console.log("abort",evt); } );
+video.addEventListener("loadedmetadata", function(evt) { console.log("got metadata",evt); } );
+video.addEventListener("error", function(evt) { console.log("got error",evt); 
+console.log('video state: ',video.readyState);
+
+
+} );
+video.addEventListener("canplay", function(evt) { console.log('canplay',evt); } );
+
+video.addEventListener("progress", function(evt) { console.log("progress"); } );
+
+video.addEventListener("seek", function(evt) { console.log('seek',evt); } );
+
+video.addEventListener("seeked", function(evt) { console.log('seeked',evt); } );
+video.addEventListener("ended", function(evt) { console.log('ended',evt); } );
+
+//video.addEventListener("timeupdate", function(evt) { console.log('timeupdate',evt); } );
+
+video.addEventListener("pause", function(evt) { console.log('pause',evt); } );
+video.addEventListener("play", function(evt) { console.log('play',evt); } );
+
+video.addEventListener("suspend", function(evt) {
+  console.log('suspend event',evt);
+});
+video.load();
+</script>
+</body>
+</html>

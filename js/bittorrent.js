@@ -125,6 +125,15 @@
            connection that acts like a bittorrent connection, wrapped just inside a websocket
 
         */
+        reconnect: function() {
+            mylog(1,'reconnecting');
+            this.stream = new WebSocket('ws://'+this._host+':'+this._port+'/api/upload/ws');
+            this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
+            this.stream.onopen = this.onopen
+            this.stream.onclose = this.onclose
+            this.stream.onmessage = this.onmessage
+            this.stream.onclose = this.onclose
+        },
         initialize: function(host, port, infohash, entry) {
             _.bindAll(this, 'onopen', 'onclose', 'onmessage', 'onerror', 'on_connect_timeout',
                       'handle_extension_message',
@@ -135,7 +144,9 @@
                       'on_handle_request_data'
                      );
 
-            this.stream = new WebSocket('ws://'+host+':'+port+'/api/upload/ws');
+            this._host = host;
+            this._port = port;
+            this.stream = new WebSocket('ws://'+this._host+':'+this._port+'/api/upload/ws');
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
@@ -161,6 +172,7 @@
                 'UTORRENT_MSG': this.handle_extension_message,
                 'PORT': this.handle_port,
                 'HAVE': this.handle_have,
+                'HAVE_ALL': this.handle_have_all,
                 'BITFIELD': this.handle_bitfield,
                 'REQUEST': this.handle_request
             };
@@ -294,6 +306,9 @@
         shutdown: function(reason) {
             mylog(1, 'shutting down connection:',reason);
         },
+        handle_have_all: function(data) {
+            mylog(1, 'handle have all');
+        },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
             mylog(1, 'handle have index', index);
@@ -406,6 +421,7 @@
         onclose: function(evt) {
             // websocket is closed.
             console.log("Connection is closed..."); 
+            this.reconnect();
         },
         onerror: function(evt) {
             console.error('Connection error');

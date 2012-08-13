@@ -33,11 +33,11 @@
             this.entries = null;
         },
         ready: function(container) {
-/*
+
             window.onbeforeunload = function() {
                 return "Still uploading... If you leave, your upload will be canceled.";
             }
-*/
+
 
             if (!this.btapp.client.port) {
                 console.error('update btapp to give port');

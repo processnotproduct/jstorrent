@@ -295,7 +295,8 @@ var FileView = Backbone.View.extend({
             } else {
                 this.$('.bt_torrent_list').removeClass('selected_torrent');
             }
-            this.$('.torrent_info').html( this.model.get('properties').get('name') );
+            //this.$('.torrent_info').html( this.model.get('properties').get('name') );
+            this.$('.torrent_info').html( this.model.get('properties').get('path') );
             this.$('.torrent_info_percent_complete').html( progress_width );
 
             // format the down speed

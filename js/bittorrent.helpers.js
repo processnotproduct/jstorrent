@@ -9,12 +9,16 @@ window.assert = function(v) {
     }
 }
 
+var loglevel = 1;
+
 window.mylog = function(level) {
     var l = [];
     for (var i=0; i<arguments.length; i++) {
         l.push(arguments[i]);
     }
-    console.log.apply(console, l.slice(1, l.length));
+    if (level <= loglevel) {
+        console.log.apply(console, l.slice(1, l.length));
+    }
 }
 
 

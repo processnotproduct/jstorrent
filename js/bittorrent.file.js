@@ -31,7 +31,8 @@ File.prototype = {
             if (this._read_queue.length > 0) {
                 this._processing_read_queue = true;
                 var item = this._read_queue.shift();
-                var dndfile = this.torrent.entry.get_by_path(this.info.path);
+                var dndfile = this.torrent.get_by_path(this.info.path);
+                assert(dndfile);
                 var filereader = new FileReader(); // todo - re-use and seek!
                 filereader.onload = _.bind(this.got_queue_data, this, item);
                 var byte_range = item.byte_range;
@@ -40,7 +41,7 @@ File.prototype = {
                 assert(bytesRemaining > 0);
                 var blob = dndfile.file.slice(offset, offset + bytesRemaining);
                 //item.slice = [offset, bytesRemaining];
-                mylog(1,'reading blob',offset,bytesRemaining);
+                //mylog(1,'reading blob',offset,bytesRemaining);
                 filereader.readAsArrayBuffer(blob);
             }
         }
@@ -53,11 +54,12 @@ File.prototype = {
         callback(binary);
         this.process_read_data_queue();
     },
+/*
     read_data_old: function(callback, byte_range) {
         // enqueue if already reading...
         assert(!this._reading);
         this._reading = true;
-        this.dndfile = this.torrent.entry.get_by_path(this.info.path);
+        this.dndfile = this.torrent.get_by_path(this.info.path);
         this.filereader = new FileReader();
         this.read_callback = callback;
         this.filereader.onload = _.bind(this.got_data, this, byte_range);
@@ -78,6 +80,7 @@ File.prototype = {
         }
         this.read_some();
     },
+*/
     read_some: function() {
         if (this.read_byte_range) {
             var readmax = Math.min(this.read_byte_range[1], this.offset + this.readBufferSize);

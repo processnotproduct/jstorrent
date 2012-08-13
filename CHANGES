@@ -1,0 +1,4 @@
+Aug 13 2012.  
+
+- Fixed drag and drop behavior to support multiple files, multiple
+directories, and mixed combinations.

@@ -132,7 +132,7 @@
             this.stream.onmessage = this.onmessage
             this.stream.onclose = this.onclose
         },
-        initialize: function(host, port, infohash, entry) {
+        initialize: function(host, port, infohash, container) {
             _.bindAll(this, 'onopen', 'onclose', 'onmessage', 'onerror', 'on_connect_timeout',
                       'handle_extension_message',
                       'send_extension_handshake',
@@ -150,8 +150,8 @@
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
-            this.entry = entry; // upload.btapp.js gives us this...
-            this.newtorrent = new NewTorrent({entry:entry, althash:infohash});
+            this.container = container; // bittorrent.dnd.js gives us this...
+            this.newtorrent = new NewTorrent({container:container, althash:infohash});
             this.newtorrent_metadata_size = bencode(this.newtorrent.fake_info).length
             console.log('initialize peer connection with infohash',this.infohash);
             this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
@@ -159,6 +159,7 @@
             this.connecting = true;
             this.handshaking = true;
 
+            this._remote_bitmask = null;
             this._remote_extension_handshake = null;
             this._my_extension_handshake = null;
             this._sent_extension_handshake = false;
@@ -167,6 +168,7 @@
             this._remote_interested = false;
 
             this._sent_bitmask = false;
+            this._my_bitmask = null;
 
             this.handlers = {
                 'UTORRENT_MSG': this.handle_extension_message,
@@ -240,7 +242,7 @@
             var meta = { 'total_size': total_size,
                          'piece': metapiece,
                          'msg_type': tor_meta_codes.data};
-            mylog(1,'responding to metadata request with meta',meta,piecedata.length);
+            mylog(2,'responding to metadata request with meta',meta,piecedata.length);
             var payload = [this._remote_extension_handshake['m']['ut_metadata']];
 /*
             var bencoded = bencode(meta);
@@ -280,7 +282,7 @@
                         var info = bdecode(str);
                         var tor_meta_type = constants.tor_meta_codes[ info['msg_type'] ];
                         if (tor_meta_type == 'request') {
-                            if (this.entry) {
+                            if (this.container) {
                                 // this is javascript creating the torrent from a file selection or drag n' drop.
                                 var metapiece = info.piece;
                                 mylog(1, 'they are asking for metadata pieces!',metapiece);
@@ -315,27 +317,38 @@
         },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
-            mylog(1, 'handle have index', index);
+            mylog(3, 'handle have index', index);
             this._remote_bitmask[index] = 1;
-            if (this.remote_complete()) {
-                this.trigger('completed');
+            if (this.seeding()) {
+                if (this.remote_complete()) {
+                    this.trigger('completed');
+                }
             }
         },
-        remote_complete: function() {
+        seeding: function() {
+            return this.bitmask_complete(this._my_bitmask);
+        },
+        bitmask_complete: function(bitmask) {
             // TODO -- keep a count of zeros and keep it up to date
-            return this._remote_bitmask && this._remote_bitmask;
-            for (var i=0; i<this._remote_bitmask.length; i++) {
-                if (this._remote_bitmask[i] == 0) {
-                    return false;
+            if (! bitmask) {
+                return false;
+            } else {
+                for (var i=0; i<bitmask.length; i++) {
+                    if (bitmask[i] == 0) {
+                        return false;
+                    }
                 }
             }
             return true;
+        },
+        remote_complete: function() {
+            return this.bitmask_complete(this._remote_bitmask);
         },
         handle_request: function(data) {
             var index = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 0, 4))[0];
             var offset = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 4, 4))[0];
             var size = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8, 4))[0];
-            mylog(1,'handle piece request for piece',index,'offset',offset,'of size',size);
+            mylog(2,'handle piece request for piece',index,'offset',offset,'of size',size);
 
             var piece = this.newtorrent.get_piece(index);
 
@@ -382,6 +395,7 @@
                 }
                 bitfield.push( curval );
             }
+            this._my_bitmask = bitfield;
             this.send_message('BITFIELD', bitfield);
         },
         handle_port: function(data) {
@@ -413,7 +427,7 @@
         },
         handle_message: function(msg) {
             var data = parse_message(msg);
-            mylog(2, 'handle message', data.msgtype, data);
+            //mylog(2, 'handle message', data.msgtype, data);
             var handler = this.handlers[data.msgtype];
             if (handler) {
                 handler(data);

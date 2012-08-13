@@ -1,7 +1,7 @@
 var NewTorrent = Backbone.Model.extend({
     initialize: function(opts) {
         _.bindAll(this, 'process_meta_request');
-        this.entry = opts.entry;
+        this.container = opts.container;
         this.althash = opts.althash;
         this.piece_size = constants.new_torrent_piece_size;
         this.fake_info = this.get_fake_infodict();
@@ -143,6 +143,29 @@ var NewTorrent = Backbone.Model.extend({
         assert(piecenum < this.num_pieces);
         return true;
     },
+    get_by_path: function(spath) {
+        var path = _.clone(spath); // don't accidentally modify our argument
+        var entries = this.container.items();
+        for (var i=0; i<entries.length; i++) {
+            if (entries[i].entry.isDirectory) {
+                if (entries[i].entry.name == path[0]) {
+                    path.shift();
+                    var item = entries[i].get_by_path(path);
+                    if (item) {
+                        return item;
+                    }
+                }
+            } else {
+                if (path.length == 1) {
+                    if (path[0] == entries[i].entry.name) {
+                        return entries[i];
+                    }
+                } else {
+                    // does not apply...
+                }
+            }
+        }
+    },
     get_metadata_piece: function(metapiecenum, request) {
         var sz = constants.metadata_request_piece_size; // metadata requests 
         var index = null;
@@ -227,11 +250,44 @@ var NewTorrent = Backbone.Model.extend({
         var info = {};
         info['files'] = [];
         info['althash'] = arr2str(this.althash);
-        this.entry.serialize_meta(info['files']);
+        var entries = this.container.items();
+        for (var i=0; i<entries.length; i++) {
+            entries[i].serialize_meta(info['files']);
+        }
         info['piece length'] = this.piece_size;
-        info['name'] = this.entry.get_name();
+        info['name'] = this.get_name_from_entries();
         //info['pieces'] = this.get_fake_pieces().join('');
         return info;
+    },
+    get_name_from_entries: function() {
+        var entries = this.container.items();
+        if (entries.length > 1) {
+            var s = 'Bundle, ';
+            var files = 0;
+            var folders = 0;
+            for (var i=0; i<entries.length; i++) {
+                if (entries[i].entry.isDirectory) {
+                    folders++;
+                } else {
+                    files++;
+                }
+            }
+
+            if (files > 0) {
+                s += (files + ' files');
+            }
+            if (folders > 0) {
+                s += (files>0?', ':'') + (folders + ' folders.');
+            } else {
+                s += '.'
+            }
+            s += ' ';
+            s += new Date();
+            return s;
+
+        } else {
+            return entries[0].get_name(); // TODO -- improve this!
+        }
     },
     get_size: function() {
         return this.size;

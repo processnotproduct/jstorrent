@@ -28,7 +28,7 @@
 
     var UploadSession = Backbone.Model.extend({
         initialize: function(opts) {
-            _.bindAll(this, 'completed');
+            _.bindAll(this, 'completed', 'upload_progress', 'hash_progress');
             this.btapp = opts.btapp;
             this.entries = null;
         },
@@ -47,8 +47,16 @@
 
             var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
             defer.then( _.bind(function() {
-
-                this.connection = new WSPeerConnection('127.0.0.1', this.btapp.client.port, althash, this.container);
+                if (true) {
+                    var host = 'kzahel.dyndns.org';
+                    var port = 31226;
+                } else {
+                    var host = '127.0.0.1';
+                    var port = this.btapp.client.port;
+                }
+                this.connection = new WSPeerConnection(host, port, althash, this.container);
+                this.connection.bind('handle_have', this.upload_progress);
+                this.connection.bind('hash_progress', this.hash_progress);
                 this.connection.bind('completed', this.completed);
 
             }, this) );
@@ -56,6 +64,12 @@
 
 
             // this.connection.bind('connected', this.connected);
+        },
+        hash_progress: function(data) {
+            mylog(1,'upload session hash progress',data);
+        },
+        upload_progress: function(index) {
+            mylog(1,'upload session upload progress', this.connection.fraction_complete());
         },
         completed: function() {
             mylog(1,'upload session FINISHED!!! woot!');

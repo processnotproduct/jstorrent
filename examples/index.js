@@ -389,9 +389,8 @@ jQuery(function() {
     }
 
 
-
     if (url_args.ktorrent) {
-        var attrs = {'product':'ktorrent', 'plugin':false};
+        var attrs = {'product':'ktorrent', 'plugin':false, 'host':'kzahel.dyndns.org', 'port':31226};
     } else {
         var attrs = {'product':'Torque', 'plugin':false};
     }

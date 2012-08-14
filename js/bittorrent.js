@@ -141,7 +141,8 @@
                       'handle_request',
                       'on_handle_request_data',
                       'handle_have',
-                      'handle_have_all'
+                      'handle_have_all',
+                      'handle_piece_hashed'
                      );
 
             this._host = host;
@@ -152,6 +153,7 @@
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
             this.container = container; // bittorrent.dnd.js gives us this...
             this.newtorrent = new NewTorrent({container:container, althash:infohash});
+            this.newtorrent.bind('piece_hashed', this.handle_piece_hashed);
             this.newtorrent_metadata_size = bencode(this.newtorrent.fake_info).length
             console.log('initialize peer connection with infohash',this.infohash);
             this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
@@ -182,6 +184,9 @@
             this.stream.onclose = this.onclose
             this.stream.onmessage = this.onmessage
             this.stream.onclose = this.onclose
+        },
+        handle_piece_hashed: function(piece) {
+            this.trigger('hash_progress', (piece.num / this.newtorrent.num_pieces))
         },
         send_extension_handshake: function() {
             // woo!!
@@ -313,12 +318,14 @@
             for (var i=0; i<this.newtorrent.get_num_pieces(); i++) {
                 this._remote_bitmask[i] = 1;
             }
+            this.trigger('handle_have');
             this.trigger('completed');
         },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
             mylog(3, 'handle have index', index);
             this._remote_bitmask[index] = 1;
+            this.trigger('handle_have', index);
             if (this.seeding()) {
                 if (this.remote_complete()) {
                     this.trigger('completed');
@@ -327,6 +334,17 @@
         },
         seeding: function() {
             return this.bitmask_complete(this._my_bitmask);
+        },
+        fraction_complete: function() {
+            // todo -- optimize
+            var bitmask = this._remote_bitmask;
+            var s = 0;
+            for (var i=0; i<bitmask.length; i++) {
+                if (bitmask[i] == 1) {
+                    s++;
+                }
+            }
+            return s/bitmask.length;
         },
         bitmask_complete: function(bitmask) {
             // TODO -- keep a count of zeros and keep it up to date
@@ -454,7 +472,8 @@
         onclose: function(evt) {
             // websocket is closed.
             console.log("Connection is closed..."); 
-            this.reconnect();
+            _.defer( _.bind(this.reconnect, this), 1000 );
+            //this.reconnect();
         },
         onerror: function(evt) {
             console.error('Connection error');

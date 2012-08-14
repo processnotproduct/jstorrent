@@ -249,6 +249,7 @@ var NewTorrent = Backbone.Model.extend({
         // help us in determining piece boundaries on requests
         var info = {};
         info['files'] = [];
+        //info['announce-list'] = [['http://127.0.0.1:6969']]
         info['althash'] = arr2str(this.althash);
         var entries = this.container.items();
         for (var i=0; i<entries.length; i++) {

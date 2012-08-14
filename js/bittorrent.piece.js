@@ -17,18 +17,19 @@ PieceHasher.prototype = {
     piece_computed: function(piece) {
         // want to send HAVE to all connections...
         this.pieces_computing.shift();
-        mylog(1,'piece finished hashing');
+        //mylog(1,'piece finished hashing');
+        piece.torrent.trigger('piece_hashed', piece);
         this.process_queue();
     },
     process_queue: function() {
         if (this.queue.length > 0 && this.pieces_computing.length == 0) {
             var item = this.queue.shift();
+            var piece = item;
             if (typeof item == 'function') {
-                mylog(1,'computed end of pieces chunk');
+                // mylog(1,'computed end of pieces chunk');
                 item();
                 _.defer(_.bind(this.process_queue,this));
             } else {
-                var piece = item;
                 if (piece.hashed) {
                     // this piece has already been hashed, skip to the next piece
                     this.process_queue();

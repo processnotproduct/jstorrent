@@ -184,7 +184,9 @@ var TorrentsView = Backbone.View.extend({
 
         this.model.on('dblclick', function(t,c) {
             console.log('trigger dblclick',t,c);
-            window.location = window.location.pathname + '?hash=' + t.get('hash') + (url_args.ktorrent ? '&ktorrent=1' : '');
+            //window.location = window.location.pathname + '?hash=' + t.get('hash') + (url_args.ktorrent ? '&ktorrent=1' : '');
+            var loc = window.location.pathname + '?hash=' + t.get('hash') + (url_args.ktorrent ? '&ktorrent=1' : '');
+            window.open(loc);
         });
 
         this.model.bind('new_torrent', function(t) {
@@ -390,7 +392,8 @@ jQuery(function() {
 
 
     if (url_args.ktorrent) {
-        var attrs = {'product':'ktorrent', 'plugin':false, 'host':'kzahel.dyndns.org', 'port':31226};
+        //var attrs = {'product':'ktorrent', 'plugin':false, 'host':'kzahel.dyndns.org', 'port':31226};
+        var attrs = {'product':'ktorrent', 'plugin':false};
     } else {
         var attrs = {'product':'Torque', 'plugin':false};
     }

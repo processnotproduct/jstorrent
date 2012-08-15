@@ -32,6 +32,9 @@
             this.btapp = opts.btapp;
             this.entries = null;
         },
+        destroy: function() {
+            mylog(1,'please garbage collect me, uploadsession');
+        },
         ready: function(container) {
 
             window.onbeforeunload = function() {
@@ -39,21 +42,20 @@
             }
 
 
-            if (!this.btapp.client.port) {
+            if (!this.btapp.client.get('port')) {
                 console.error('update btapp to give port');
+            }
+            if (!this.btapp.client.get('host')) {
+                console.error('update btapp to give host');
             }
             this.container = container
             var althash = get_althash(this.container);
 
             var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
             defer.then( _.bind(function() {
-                if (true) {
-                    var host = 'kzahel.dyndns.org';
-                    var port = 31226;
-                } else {
-                    var host = '127.0.0.1';
-                    var port = this.btapp.client.port;
-                }
+                // get this from backbone
+                var host = this.btapp.client.get('host');
+                var port = this.btapp.client.get('port');
                 this.connection = new WSPeerConnection(host, port, althash, this.container);
                 this.connection.bind('handle_have', this.upload_progress);
                 this.connection.bind('hash_progress', this.hash_progress);
@@ -66,13 +68,17 @@
             // this.connection.bind('connected', this.connected);
         },
         hash_progress: function(data) {
-            mylog(1,'upload session hash progress',data);
+            this.trigger('progress', {'hash':data});
+            //mylog(1,'upload session hash progress',data);
         },
         upload_progress: function(index) {
-            mylog(1,'upload session upload progress', this.connection.fraction_complete());
+            var frac = this.connection.fraction_complete();
+            //mylog(1,'upload session upload progress', frac);
+            this.trigger('progress', {'upload': frac});
         },
         completed: function() {
             mylog(1,'upload session FINISHED!!! woot!');
+            this.trigger('oncomplete');
             window.onbeforeunload = null;
         }
     });
@@ -148,6 +154,9 @@
             this.files = [];
             this.directories = [];
             this._reading = false;
+        },
+        destroy: function() {
+            mylog(1,'please garbage collect me!, directory');
         },
         items: function() {
             var arr = [];
@@ -264,17 +273,27 @@
 
     UploadView = Backbone.View.extend({
         initialize: function(opts) {
-            _.bindAll(this, 'dragenter', 'dragleave', 'drop');
+            _.bindAll(this, 'dragenter', 'dragleave', 'drop','oncomplete','onprogress','reset');
             var dropbox = opts.el;
-            var btapp = opts.btapp;
+            this.btapp = opts.btapp;
 
             dropbox.on("dragenter", this.dragenter);
             dropbox.on("dragleave", this.dragleave);
             dropbox.on("dragover", this.dragover);
             dropbox.on("drop", this.drop);
-            this.container = new Directory({parent:null, entry:null});;
+            this.reset();
+        },
+        reset: function() {
+            this._triggered = false;
+            if (this.container) {
+                this.container.destroy();
+            }
+            if (this.model) {
+                this.model.destroy();
+            }
 
-            this.model = new UploadSession( {btapp:btapp} );
+            this.container = new Directory({parent:null, entry:null});;
+            this.model = new UploadSession( {btapp:this.btapp} );
         },
         dragover: function(evt) {
             // console.log('dragover'); // triggered when mouse moves over drop zone
@@ -282,13 +301,13 @@
             evt.originalEvent.preventDefault();
         },
         dragenter: function(evt) {
-            console.log('dragenter');
+            //console.log('dragenter');
             evt.originalEvent.stopPropagation();
             evt.originalEvent.preventDefault();
             this.$el.css('border','4px dashed yellow');
         },
         dragleave: function(evt) {
-            console.log('dragleave');
+            //console.log('dragleave');
             evt.originalEvent.stopPropagation();
             evt.originalEvent.preventDefault();
             this.$el.css('border','3px dashed black');
@@ -315,8 +334,19 @@
                 this.model.ready(this.container);
             }
             this._triggered = true;
+            this.model.on('oncomplete', this.oncomplete);
+            this.model.on('progress', this.onprogress);
+        },
+        oncomplete: function() {
+            mylog(1, 'upload view handle complete!!! :-)')
+            this.$('.info').text('all done uploadin!!');
+            this.reset();
+        },
+        onprogress: function(data) {
+            this.$('.info').text(JSON.stringify(data));
         },
         drop: function(evt) {
+            mylog(1,'uploadview DROP!');
             // TODO -- option to not create on drop, but create after button pressed.
             var _this = this;
             evt.originalEvent.stopPropagation();
@@ -367,6 +397,7 @@
                 // notify that dropping in directories is not supported.
                 var count = files.length;
             } else {
+                debugger;
                 // notify that drag and drop doesn't work, have to browse to upload
             }
         }

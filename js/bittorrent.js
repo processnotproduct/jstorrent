@@ -144,11 +144,12 @@
                       'handle_have_all',
                       'handle_piece_hashed'
                      );
-
             this._host = host;
             this._port = port;
+/*
             this.stream = new WebSocket('ws://'+this._host+':'+this._port+'/api/upload/ws');
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
+*/
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
             this.container = container; // bittorrent.dnd.js gives us this...
@@ -180,13 +181,16 @@
                 'BITFIELD': this.handle_bitfield,
                 'REQUEST': this.handle_request
             };
+            this.reconnect();
+/*
             this.stream.onopen = this.onopen
             this.stream.onclose = this.onclose
             this.stream.onmessage = this.onmessage
             this.stream.onclose = this.onclose
+*/
         },
         handle_piece_hashed: function(piece) {
-            this.trigger('hash_progress', (piece.num / this.newtorrent.num_pieces))
+            this.trigger('hash_progress', (piece.num / (this.newtorrent.num_pieces-1)))
         },
         send_extension_handshake: function() {
             // woo!!
@@ -214,7 +218,7 @@
                 debugger;
             }
 
-            mylog(1, 'send message of type',type, payload?payload.length:'');
+            //mylog(1, 'send message of type',type, payload?payload.length:'');
             if (type == 'UNCHOKE') {
                 this._remote_choked = false;
             }
@@ -430,7 +434,7 @@
             // Web Socket is connected, send data using send()
             this.connected = true;
             this.connecting = false;
-            console.log(this, "connected!");
+            mylog(1,this, "connected!");
             this.trigger('connected'); // send HAVE, unchoke
             this.send_handshake();
         },
@@ -460,6 +464,7 @@
             console.log('parsed handshake',data)
         },
         onmessage: function(evt) {
+            //mylog(1,'onmessage');
             var msg = evt.data;            
 
             if (this.handshaking) {
@@ -471,12 +476,11 @@
         },
         onclose: function(evt) {
             // websocket is closed.
-            console.log("Connection is closed..."); 
-            _.defer( _.bind(this.reconnect, this), 1000 );
-            //this.reconnect();
+            mylog(1,"Connection is closed..."); 
+            _.delay( _.bind(this.reconnect, this), 1000 );
         },
         onerror: function(evt) {
-            console.error('Connection error');
+            mylog(1,'Connection error');
         }
     });
 

@@ -1,0 +1,23 @@
+Core Protocol
+
+- implement PEX (peer exchange protocol)
+- upnp (can't see a way to make this work -- no way to discover devices or configure them)
+- 
+
+Interface/Usability
+
+- show progress on torrent creation
+- create view for torrentcreate/upload session
+
+- have view for javascript torrent client. show whether files are
+  backed by drag and drop. allow re-initialization of torrents/files
+  by dragging in. store torrent metadata in persistent storage.
+
+
+Demo
+
+- fix up ktorrent piece requesting (keep track of outbound bytes)
+
+Tracker
+
+- write simply proxying tracker so web client can connect to peers

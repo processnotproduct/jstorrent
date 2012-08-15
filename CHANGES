@@ -1,3 +1,7 @@
+Aug 15 2012.
+
+- notify on progress, reset after upload complete
+
 Aug 13 2012.  
 
 - Fixed drag and drop behavior to support multiple files, multiple

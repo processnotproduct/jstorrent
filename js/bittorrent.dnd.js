@@ -65,7 +65,7 @@
 
             if (this.client) {
                 // should be done in a different file
-                this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:btih:' + ab2hex( althash ) ) );
+                this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ) );
                 this.connection = new WSPeerConnection(host, port, althash, this.container);
                 this.connection.bind('handle_have', this.upload_progress);
                 this.connection.bind('hash_progress', this.hash_progress);

@@ -30,39 +30,57 @@
         initialize: function(opts) {
             _.bindAll(this, 'completed', 'upload_progress', 'hash_progress');
             this.btapp = opts.btapp;
+            this.client = opts.client; // non-btapp style client object
             this.entries = null;
         },
         destroy: function() {
             mylog(1,'please garbage collect me, uploadsession');
         },
         ready: function(container) {
-
+/*
             window.onbeforeunload = function() {
                 return "Still uploading... If you leave, your upload will be canceled.";
             }
+*/
 
-
-            if (!this.btapp.client.get('port')) {
-                console.error('update btapp to give port');
-            }
-            if (!this.btapp.client.get('host')) {
-                console.error('update btapp to give host');
-            }
-            this.container = container
-            var althash = get_althash(this.container);
-
-            var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
-            defer.then( _.bind(function() {
-                // get this from backbone
+            if (this.client) {
+                var host = '127.0.0.1';
+                var port = this.client.get('data').port;
+            } else {
+                if (!this.btapp.client.get('port')) {
+                    console.error('update btapp to give port');
+                }
+                if (!this.btapp.client.get('host')) {
+                    console.error('update btapp to give host');
+                }
                 var host = this.btapp.client.get('host');
                 var port = this.btapp.client.get('port');
+            }
+
+
+
+            this.container = container
+            var althash = get_althash(this.container);
+            mylog(1,'althash is', ab2hex(althash));
+
+            if (this.client) {
+                // should be done in a different file
+                this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:btih:' + ab2hex( althash ) ) );
                 this.connection = new WSPeerConnection(host, port, althash, this.container);
                 this.connection.bind('handle_have', this.upload_progress);
                 this.connection.bind('hash_progress', this.hash_progress);
                 this.connection.bind('completed', this.completed);
+            } else {
+                var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
+                defer.then( _.bind(function() {
+                    // get this from backbone
+                    this.connection = new WSPeerConnection(host, port, althash, this.container);
+                    this.connection.bind('handle_have', this.upload_progress);
+                    this.connection.bind('hash_progress', this.hash_progress);
+                    this.connection.bind('completed', this.completed);
 
-            }, this) );
-
+                }, this) );
+            }
 
 
             // this.connection.bind('connected', this.connected);
@@ -83,7 +101,7 @@
         }
     });
 
-    var File = Backbone.Model.extend({
+    var DNDFileEntry = Backbone.Model.extend({
         initialize: function(opts) {
             this.entry = opts.entry;
             this.directory = opts.directory;
@@ -147,7 +165,7 @@
         }
     });
 
-    var Directory = Backbone.Model.extend({
+    var DNDDirectoryEntry = Backbone.Model.extend({
         initialize: function(opts) {
             this.entry = opts.entry;
             this.parent = opts.parent;
@@ -221,7 +239,7 @@
             return this.entry.name;
         },
         populate: function(cb) {
-            // reads & populates all FileEntry+File objects
+            // reads & populates all DNDFileEntry+File objects
             this._reading = true;
             var item = this.entry;
             var _this = this;
@@ -233,11 +251,11 @@
                     for (var j=0; j<result.length; j++) {
                         var it = result[j];
                         if (it.isDirectory) {
-                            var dir = new Directory( { entry: it, parent: _this } );
+                            var dir = new DNDDirectoryEntry( { entry: it, parent: _this } );
                             _this.directories.push( dir );
                             dir.populate(cb); // XXX callbacks being fired before directories are populated!
                         } else {
-                            var file = new File({entry:it, directory:_this});
+                            var file = new DNDFileEntry({entry:it, directory:_this});
                             _this.files.push( file );
                             file.populate(cb);
                         }
@@ -292,7 +310,7 @@
                 this.model.destroy();
             }
 
-            this.container = new Directory({parent:null, entry:null});;
+            this.container = new DNDDirectoryEntry({parent:null, entry:null});;
             this.model = new UploadSession( {btapp:this.btapp} );
         },
         dragover: function(evt) {
@@ -340,7 +358,7 @@
         oncomplete: function() {
             mylog(1, 'upload view handle complete!!! :-)')
             this.$('.info').text('all done uploadin!!');
-            this.reset();
+            //this.reset();
         },
         onprogress: function(data) {
             this.$('.info').text(JSON.stringify(data));
@@ -403,5 +421,8 @@
         }
     });
 
+    window.UploadSession = UploadSession;
+    window.DNDDirectoryEntry = DNDDirectoryEntry;
+    window.DNDFileEntry = DNDFileEntry;
 
 }).call(this);

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="../js/deps/jquery-1.7.2.min.js"></script>  
+    <script src="../js/deps/underscore.js"></script> 
+    <script src="../js/deps/backbone.js"></script>  
+    <script src="../js/deps/backbone.localStorage.js"></script>  
+    <!--script src="../js/deps/jstorage.js"></script-->
+    <script src="../js/deps/digest.js"></script>  
+
+    <script src="../js/deps/clients.js"></script>  
+
+    <script src="../js/deps/FileSaver.js"></script>  
+
+    <script src="../js/bittorrent.dnd.js"></script>  
+    <script src="../js/bittorrent.helpers.js"></script>  
+    <script src="../js/bittorrent.file.js"></script>  
+    <script src="../js/bittorrent.piece.js"></script>  
+    <script src="../js/bittorrent.torrent.js"></script>  
+    <script src="../js/bittorrent.js"></script>  
+
+    <script type="text/javascript" src="files.js"></script>
+
+
+    <script type="text/template" id="file_entry_template">
+
+      <div class="row">
+          <span style="background:#eee" class="name"></span>
+          <span class="size"></span>
+          <span class="status"></span>
+          <span class="commands">
+            <a href="#"><i class="icon-remove"></i></a>
+            <a href="#"><i class="icon-upload"></i></a>
+          </span>
+
+      </div>
+
+    </script>
+
+    <link rel="stylesheet" href="bootstrap/css/bootstrap.css" type="text/css" />
+    <style>
+      .dropzone { border: 2px dashed blue; width:50%; height:200px; -webkit-border-radius:50px; padding: 2em;}
+      .hover { background: #888; }
+    </style>
+  </head>
+  <body>
+
+<div class="container">
+
+    <h1>jstorrent</h1>
+    Welcome to jstorrent! 
+    <div id="showplace"></div>
+    <div class="dropzone container" id="dropview">Drag in files to share n stuff
+
+
+      <div id="filesystemview" class="container">
+        <div class="filesystem-name"></div>
+        <span class="quota"></span>
+        <div class="list">
+        </div>
+        <div class="error" class="error"></div>
+      </div>
+
+    </div>
+
+
+
+</div>
+
+
+  </body>
+</html>

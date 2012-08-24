@@ -90,6 +90,18 @@ var TorrentView = Backbone.View.extend({
                 console.log('model has no props but trigger changed')
             }
         });
+
+        this.el.draggable = true;
+        this.el.addEventListener('dragstart', function(e) {
+            //e.dataTransfer.setData('DownloadURL', 'http://12312');
+            // fake this out for now
+            var blob = uploadview.model.container.files[0].file.slice()
+            var url = window.webkitURL.createObjectURL(blob);
+            e.dataTransfer.setData('DownloadURL', url);
+            debugger;
+            window.open(url);
+        });
+
         this.$('.torrent_name').click( function(evt) {
             custom_track('select_torrent');
             _this.model.trigger('selected');
@@ -279,6 +291,12 @@ var FileView = Backbone.View.extend({
         this.template = _.template( $('#torrent_template').html() );
         this.$el.html( this.template() );
         this.$el.data( {id:this.model.id} );
+
+        this.el.addEventListener('dragstart', function(e) {
+            debugger;
+            e.dataTransfer.setData('DownloadURL', 'http://12312');
+        });
+
         this.render();
         var _this = this;
         this.model.bind('removed', function(m) {
@@ -395,7 +413,8 @@ jQuery(function() {
         //var attrs = {'product':'ktorrent', 'plugin':false, 'host':'kzahel.dyndns.org', 'port':31226};
         var attrs = {'product':'ktorrent', 'plugin':false};
     } else {
-        var attrs = {'product':'Torque', 'plugin':false};
+        //var attrs = {'product':'Torque', 'plugin':false};
+        var attrs = {'product':'uTorrent', 'plugin':false};
     }
     window.btapp = new Btapp(attrs);
 

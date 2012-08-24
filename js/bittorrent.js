@@ -18,6 +18,7 @@
         //new_torrent_piece_size: Math.pow(2,16),
         new_torrent_piece_size: Math.pow(2,14),
         metadata_request_piece_size: Math.pow(2,14),
+        //metadata_request_piece_size: Math.pow(2,10),
         messages: [
             'CHOKE',
             'UNCHOKE',
@@ -125,16 +126,21 @@
         */
         reconnect: function() {
             mylog(1,'reconnecting');
-            this.stream = new WebSocket('ws://'+this._host+':'+this._port+'/api/upload/ws');
+            this._port = 64399;
+            var uri = '/api/upload/ws';
+            var uri = '/wsclient';
+            this.stream = new WebSocket('ws://'+this._host+':'+this._port+uri);
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
             this.stream.onopen = this.onopen
             this.stream.onclose = this.onclose
             this.stream.onmessage = this.onmessage
             this.stream.onclose = this.onclose
+            this.read_buffer = []; // utorrent does not send an entire message in each websocket frame
         },
         initialize: function(host, port, infohash, container) {
             _.bindAll(this, 'onopen', 'onclose', 'onmessage', 'onerror', 'on_connect_timeout',
                       'handle_extension_message',
+                      'send_handshake',
                       'send_extension_handshake',
                       'handle_bitfield',
                       'send_bitmask',
@@ -142,10 +148,13 @@
                       'on_handle_request_data',
                       'handle_have',
                       'handle_have_all',
+                      'handle_interested',
+                      'handle_not_interested',
                       'handle_piece_hashed'
                      );
             this._host = host;
             this._port = port;
+            this._closed = true;
 /*
             this.stream = new WebSocket('ws://'+this._host+':'+this._port+'/api/upload/ws');
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
@@ -177,6 +186,7 @@
                 'UTORRENT_MSG': this.handle_extension_message,
                 'PORT': this.handle_port,
                 'HAVE': this.handle_have,
+                'INTERESTED': this.handle_interested,
                 'HAVE_ALL': this.handle_have_all,
                 'BITFIELD': this.handle_bitfield,
                 'REQUEST': this.handle_request
@@ -208,6 +218,9 @@
             this.send_message('UTORRENT_MSG', [constants.handshake_code].concat(payload));
         },
         send_message: function(type, payload) {
+            if (this._closed) {
+                mylog(1,'cannot send message, connection closed',type);
+            }
             // if payload is already an array buffer, what to do???
             var args = [];
             for (var i=0; i<arguments.length; i++) {
@@ -218,7 +231,7 @@
                 debugger;
             }
 
-            //mylog(1, 'send message of type',type, payload?payload.length:'');
+            mylog(1, 'send message of type',type, payload?payload.length:'');
             if (type == 'UNCHOKE') {
                 this._remote_choked = false;
             }
@@ -240,6 +253,7 @@
             this.stream.send(buf);
         },
         serve_metadata_piece: function(metapiece, request) {
+            mylog(1,'serve metadata piece');
             var tor_meta_codes = { 'request': 0,
                                    'data': 1,
                                    'reject': 2 };
@@ -315,6 +329,13 @@
         },
         shutdown: function(reason) {
             mylog(1, 'shutting down connection:',reason);
+        },
+        handle_interested: function(data) {
+            this._remote_interested = true;
+            this.send_message('UNCHOKE');
+        },
+        handle_not_interested: function(data) {
+            this._remote_interested = false;
         },
         handle_have_all: function(data) {
             mylog(1, 'handle have all');
@@ -395,7 +416,7 @@
             mylog(1,'parsed bitmask',this._remote_bitmask);
             if (! this._sent_bitmask) {
                 this.send_bitmask();
-                this.send_message('UNCHOKE');
+                //this.send_message('UNCHOKE');
             }
         },
         send_bitmask: function() {
@@ -430,25 +451,36 @@
             }
         },
         onopen: function(evt) {
+            this._closed = false;
             clearTimeout( this.connect_timeout );
             // Web Socket is connected, send data using send()
             this.connected = true;
             this.connecting = false;
             mylog(1,this, "connected!");
             this.trigger('connected'); // send HAVE, unchoke
-            this.send_handshake();
+            _.delay( this.send_handshake, 100 );
         },
         send_handshake: function() {
             var handshake = create_handshake(this.infohash, my_peer_id);
             console.log('sending handshake of len',handshake.length,[handshake])
             var s = new Uint8Array(handshake);
             this.stream.send( s.buffer );
+
+            // do this at another time?
+            this.send_bitmask();
+            //this.send_message('UNCHOKE');
+        },
+        send_keepalive: function() {
+            var s = new Uint8Array(4);
+            this.stream.send( s );
         },
         send: function(msg) {
             this.stream.send(msg);
         },
-        handle_message: function(msg) {
+        handle_message: function(msg_len) {
+            var msg = this.read_buffer_consume(msg_len);
             var data = parse_message(msg);
+            mylog(1,'handle message',data.msgtype,data);
             //mylog(2, 'handle message', data.msgtype, data);
             var handler = this.handlers[data.msgtype];
             if (handler) {
@@ -457,27 +489,91 @@
                 throw Error('unhandled message ' + data.msgtype);
             }
         },
-        handle_handshake: function(msg) {
+        handle_handshake: function(handshake_len) {
             this.handshaking = false;
-            var blob = msg;
-            var data = parse_handshake(msg);
+
+            var blob = this.read_buffer_consume(handshake_len);
+
+            var data = parse_handshake(blob);
             console.log('parsed handshake',data)
         },
+        read_buffer_consume: function(bytes, peek) {
+            var retbuf = new Uint8Array(bytes);
+            var consumed = 0;
+            var i = 0;
+            while (i < this.read_buffer.length) {
+                var sz = Math.min( bytes - consumed, this.read_buffer[i].byteLength );
+                retbuf.set( new Uint8Array(this.read_buffer[i], 0, sz), consumed );
+                consumed += sz;
+                if (! peek && sz < this.read_buffer[i].byteLength) {
+                    debugger;
+                    // tear off anything partially consumed...
+                } else {
+                }
+
+                i ++;
+            }
+
+            if (! peek) {
+                for (var j=0;j<i;j++){
+                    this.read_buffer.shift(); // tear off everything consumed ....
+                    // too aggressive!!!
+                }
+            }
+
+            return retbuf.buffer;
+        },
+        read_buffer_size: function() {
+            var s = 0;
+            for (var i=0; i<this.read_buffer.length; i++) {
+                s += this.read_buffer[i].byteLength;
+            }
+            return s;
+        },
+        read_buffer_peek: function(bytes) {
+            // todo - fix
+            // return new Uint8Array( this.read_buffer[0], bytes );
+        },
         onmessage: function(evt) {
-            //mylog(1,'onmessage');
-            var msg = evt.data;            
+            var msg = evt.data;
+            this.read_buffer.push(msg);
+
+            var bufsz = this.read_buffer_size();
+
 
             if (this.handshaking) {
-                this.handle_handshake(msg);
+                var protocol_str_len = new Uint8Array(this.read_buffer_consume(1,true), 0, 1)[0];
+                var handshake_len = 1 + protocol_str_len + 8 + 20 +20;
+                if (bufsz < handshake_len) {
+                    // can't handshake yet... need to read more data
+                    mylog(1,'cant handshake yet',bufsz, handshake_len);
+                } else {
+                    this.handle_handshake(handshake_len);
+                }
             } else {
-                this.handle_message(msg);
+                if (bufsz >= 4) {
+                    // enough to read payload size
+                    var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0); // equivalent to jspack... use that?
+                    if (msg_len == 0) {
+                        // keepalive message
+                        this.send_keepalive()
+                    }
+                    //mylog(1,'onmessage, desired message len',msg_len,'cur buf',bufsz);
+                    if (bufsz >= msg_len + 4) {
+                        this.handle_message(msg_len + 4);
+                    }
+                } else {
+                    mylog(1,'not large enough buffer to read message size');
+                }
             }
+
 
         },
         onclose: function(evt) {
             // websocket is closed.
+            this._closed = true;
             mylog(1,"Connection is closed..."); 
-            _.delay( _.bind(this.reconnect, this), 1000 );
+            //_.delay( _.bind(this.reconnect, this), 2000 );
         },
         onerror: function(evt) {
             mylog(1,'Connection error');

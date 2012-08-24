@@ -5,6 +5,7 @@ var NewTorrent = Backbone.Model.extend({
         this.althash = opts.althash;
         this.piece_size = constants.new_torrent_piece_size;
         this.fake_info = this.get_fake_infodict();
+        mylog(1,'created fake infodict',this.fake_info);
         this.real_info = {'pieces':[]};
         this._file_byte_accum = [];
         var b = 0;
@@ -28,6 +29,7 @@ var NewTorrent = Backbone.Model.extend({
         // pieces this corresponds to and read them and hash them.
         var data = {'time':new Date(), 'metapiece':num, 'callback': callback};
         var piece_range = this.get_pieces_range_from_metadata_request_num(num);
+        mylog(1,'register meta piece requested',num,data);
         data.piece_range = piece_range;
         this.meta_requests.push(data); // perhaps before inserting check that we don't have redundant piece ranges in meta_requests ?
         this.process_meta_request();
@@ -78,7 +80,6 @@ var NewTorrent = Backbone.Model.extend({
         this.process_meta_request(); // pass in index of completed file...
     },
     pieces_hashed: function(request) {
-
         // can service meta request because we hashed all the pieces
         for (var i=request.piece_range[0]; i<=request.piece_range[1]; i++) {
             var piece = this.get_piece(i);

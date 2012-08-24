@@ -1,12 +1,15 @@
 Core Protocol
 
 - implement PEX (peer exchange protocol)
+
 - upnp (can't see a way to make this work -- no way to discover devices or configure them)
-- 
+
+- fix althash handling (symlink althash to actual hash and handle downloading under actual hash)
 
 Interface/Usability
 
 - show progress on torrent creation
+
 - create view for torrentcreate/upload session
 
 - have view for javascript torrent client. show whether files are

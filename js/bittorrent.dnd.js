@@ -42,10 +42,10 @@
                 return "Still uploading... If you leave, your upload will be canceled.";
             }
 */
-
             if (this.client) {
                 var host = '127.0.0.1';
-                var port = this.client.get('data').port;
+                var port = this.client.get('data').port; // not the same as the client's actual port...
+                var connection_port = 64399; // TODO -- grab from settings...
             } else {
                 if (!this.btapp.client.get('port')) {
                     console.error('update btapp to give port');
@@ -55,26 +55,41 @@
                 }
                 var host = this.btapp.client.get('host');
                 var port = this.btapp.client.get('port');
+                var connection_port = port;
             }
-
-
 
             this.container = container
             var althash = get_althash(this.container);
             mylog(1,'althash is', ab2hex(althash));
 
             if (this.client) {
+
+                // fetch settings to get connection port
+                this.client.doreq( 'action=getsettings', _.bind(function(sett) {
+                    var connection_port = null;
+                    for (var i=0; i<sett.settings.length; i++) {
+                        var key = sett.settings[i][0];
+                        if (key.match('bind_port')) {
+                            connection_port = sett.settings[i][2];
+                        }
+                    }
+
+                    assert(connection_port);
+                    this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ) );
+                    this.connection = new WSPeerConnection(host, connection_port, althash, this.container);
+                    this.connection.bind('handle_have', this.upload_progress);
+                    this.connection.bind('hash_progress', this.hash_progress);
+                    this.connection.bind('completed', this.completed);
+
+
+                }, this));
                 // should be done in a different file
-                this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ) );
-                this.connection = new WSPeerConnection(host, port, althash, this.container);
-                this.connection.bind('handle_have', this.upload_progress);
-                this.connection.bind('hash_progress', this.hash_progress);
-                this.connection.bind('completed', this.completed);
+
             } else {
                 var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
                 defer.then( _.bind(function() {
                     // get this from backbone
-                    this.connection = new WSPeerConnection(host, port, althash, this.container);
+                    this.connection = new WSPeerConnection(host, connection_port, althash, this.container);
                     this.connection.bind('handle_have', this.upload_progress);
                     this.connection.bind('hash_progress', this.hash_progress);
                     this.connection.bind('completed', this.completed);

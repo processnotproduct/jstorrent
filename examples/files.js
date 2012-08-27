@@ -18,7 +18,6 @@ var FileEntry = Backbone.Model.extend({
         var container = new DNDDirectoryEntry({parent:null, entry:null});
         var file = new DNDFileEntry({entry:this.get('entry')});
         container.files = [file];
-
         file.populate( function() {
             var upload_session = new UploadSession({client:curclient});
             upload_session.on('progress', onprogress);

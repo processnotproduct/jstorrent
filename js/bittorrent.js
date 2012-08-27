@@ -126,10 +126,11 @@
         */
         reconnect: function() {
             mylog(1,'reconnecting');
-            this._port = 64399;
             var uri = '/api/upload/ws';
             var uri = '/wsclient';
-            this.stream = new WebSocket('ws://'+this._host+':'+this._port+uri);
+            var strurl = 'ws://'+this._host+':'+this._port+uri;
+            this.stream = new WebSocket(strurl);
+            mylog(1,'initializing stream to',strurl);
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
             this.stream.onopen = this.onopen
             this.stream.onclose = this.onclose

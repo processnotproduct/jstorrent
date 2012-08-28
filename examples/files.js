@@ -108,7 +108,11 @@ var FileSystem = Backbone.Model.extend({
         }
     },
     request_fs: function() {
-        window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024, this.fs_success, this.fs_error);
+        if (window.webkitRequestFileSystem) {
+            window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024, this.fs_success, this.fs_error);
+        } else {
+            console.error('no fs support');
+        }
     },
     fs_success: function(filesystem) {
         this.fs = filesystem;
@@ -229,13 +233,13 @@ jQuery(function() {
     var btclients = new BTClients();
     window.btclients = btclients;
     btclients.find_local_clients(function(){
-        console.log('found clients',btclients);
+        //console.log('found clients',btclients);
     });
 
     window.curclient = null;
 
     btclients.on('add', function(client) {
-        console.log('added client',client);
+        //console.log('added client',client);
         if (!curclient) { 
             curclient = client; 
             if (! client.get('data').key) {

@@ -57,12 +57,15 @@
 
     function parse_message(ba) {
         // var msg_len = new Uint32Array(ba, 0, 1)[0] - 1; // not correct endianness
-        var msg_len = new DataView(ba).getUint32(0) - 1; // equivalent to jspack... use that?
+        var msg_len = new DataView(ba).getUint32(0); // equivalent to jspack... use that?
+        if (msg_len == 0) {
+            return {'msgtype':'keepalive'};
+        }
 
         var msgval = new Uint8Array(ba, 4, 1)[0]; // endianness seems to work ok
         var msgtype = constants.messages[msgval];
 
-        if (ba.byteLength != msg_len + 5) {
+        if (ba.byteLength != msg_len + 4) {
             throw Error('bad message length');
         }
         
@@ -151,7 +154,8 @@
                       'handle_have_all',
                       'handle_interested',
                       'handle_not_interested',
-                      'handle_piece_hashed'
+                      'handle_piece_hashed',
+                      'handle_keepalive'
                      );
             this._host = host;
             this._port = port;
@@ -190,7 +194,8 @@
                 'INTERESTED': this.handle_interested,
                 'HAVE_ALL': this.handle_have_all,
                 'BITFIELD': this.handle_bitfield,
-                'REQUEST': this.handle_request
+                'REQUEST': this.handle_request,
+                'keepalive': this.handle_keepalive
             };
             this.reconnect();
 /*
@@ -202,6 +207,10 @@
         },
         handle_piece_hashed: function(piece) {
             this.trigger('hash_progress', (piece.num / (this.newtorrent.num_pieces-1)))
+        },
+        handle_keepalive: function() {
+            mylog(1,'got keepalive');
+            this.send_keepalive();
         },
         send_extension_handshake: function() {
             // woo!!

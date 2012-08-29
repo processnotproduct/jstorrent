@@ -75,11 +75,15 @@
                     }
 
                     assert(connection_port);
-                    this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ) );
-                    this.connection = new WSPeerConnection(host, connection_port, althash, this.container);
-                    this.connection.bind('handle_have', this.upload_progress);
-                    this.connection.bind('hash_progress', this.hash_progress);
-                    this.connection.bind('completed', this.completed);
+                    this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ), _.bind(function() {
+                        mylog(1,'told client to add, waiting 1 sec before connecting');
+                        _.delay(_.bind(function(){
+                            this.connection = new WSPeerConnection(host, connection_port, althash, this.container);
+                            this.connection.bind('handle_have', this.upload_progress);
+                            this.connection.bind('hash_progress', this.hash_progress);
+                            this.connection.bind('completed', this.completed);
+                        },this), 1000);
+                    },this) );
 
 
                 }, this));

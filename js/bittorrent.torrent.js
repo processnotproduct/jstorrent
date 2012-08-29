@@ -1,25 +1,46 @@
 var NewTorrent = Backbone.Model.extend({
     initialize: function(opts) {
-        _.bindAll(this, 'process_meta_request');
-        this.container = opts.container;
-        this.althash = opts.althash;
-        this.piece_size = constants.new_torrent_piece_size;
-        this.fake_info = this.get_fake_infodict();
-        mylog(1,'created fake infodict',this.fake_info);
-        this.real_info = {'pieces':[]};
-        this._file_byte_accum = [];
-        var b = 0;
-        for (var i=0; i<this.fake_info['files'].length; i++) {
-            this._file_byte_accum.push(b);
-            b += this.fake_info['files'][i]['length']
-        }
-        this.size = b;
-        this.fake_info['pieces'] = this.get_fake_pieces().join('');
-        this.meta_requests = [];
+        _.bindAll(this, 'process_meta_request', 'handle_new_peer');
         this.pieces = [];
         this.files = [];
-        this.num_pieces = this.get_num_pieces();
-        this._processing_meta_request = false;
+
+        if (opts.metadata) {
+            // initialize a torrent from torrent metadata
+            this.metadata = opts.metadata['info'];
+            var hasher = new Digest.SHA1();
+            hasher.update( new Uint8Array(bencode(this.metadata)) );
+            this.hash = hasher.finalize();
+            this.hash_hex = ab2hex(new Uint8Array(this.hash));
+            mylog(1,'new torrent with hash',this.hash_hex);
+
+        } else {
+            this.container = opts.container;
+            this.althash = opts.althash;
+            this.piece_size = constants.new_torrent_piece_size;
+            this.fake_info = this.get_fake_infodict();
+            mylog(1,'created fake infodict',this.fake_info);
+            this.real_info = {'pieces':[]};
+            this._file_byte_accum = [];
+            var b = 0;
+            for (var i=0; i<this.fake_info['files'].length; i++) {
+                this._file_byte_accum.push(b);
+                b += this.fake_info['files'][i]['length']
+            }
+            this.size = b;
+            this.fake_info['pieces'] = this.get_fake_pieces().join('');
+            this.meta_requests = [];
+            this.num_pieces = this.get_num_pieces();
+            this._processing_meta_request = false;
+        }
+    },
+    announce: function() {
+        this.tracker = new TrackerConnection('http://192.168.56.1:6969/announce', this.hash_hex);
+        this.tracker.bind('newpeer', this.handle_new_peer);
+        this.tracker.announce()
+    },
+    handle_new_peer: function(data) {
+        debugger;
+        new WSPeerConnection(host, connection_port, althash, this.container);
     },
     get_num_pieces: function() {
         return Math.ceil( this.size / this.piece_size );

@@ -24,6 +24,33 @@ var FileEntry = Backbone.Model.extend({
             upload_session.ready(container);
         });
     },
+    check_is_torrent_onread: function(callback, data) {
+        var buf = data.target.result;
+        var s = arr2str(new Uint8Array(buf));
+        try {
+            var decoded = bdecode(s);
+        } catch(e) {
+            return callback(false);
+        }
+        callback(decoded);
+    },
+    check_is_torrent: function(callback) {
+        var filereader = new FileReader(); // todo - re-use and seek!
+        filereader.onload = _.bind(this.check_is_torrent_onread, this, callback);
+        var entry = this.get('entry');
+        var name = entry.name;
+        if (name.slice(name.length - '.torrent'.length, name.length) == '.torrent') {
+            entry.file( function(file) {
+                var blob = file.slice(0, file.size);
+                filereader.readAsArrayBuffer(blob);
+            });
+        } else {
+            callback(false);
+        }
+
+
+    },
+
 });
 
 var FileEntryView = Backbone.View.extend({
@@ -171,7 +198,7 @@ var FileSystemView = Backbone.View.extend({
 
 var DropView = Backbone.View.extend({
     initialize: function() {
-        _.bindAll(this, 'dragenter', 'dragleave', 'dragover', 'drop');
+        _.bindAll(this, 'dragenter', 'dragleave', 'dragover', 'drop', 'checked_if_torrent');
         this.$el.on("dragenter", this.dragenter);
         this.$el.on("dragleave", this.dragleave);
         this.$el.on("dragover", this.dragover);
@@ -208,11 +235,24 @@ var DropView = Backbone.View.extend({
         }
 
     },
+    checked_if_torrent: function(result) {
+    },
     copy_success: function(model, entry) {
-        mylog(1,'copy success',model,entry);
-        model.set('status','copied');
-        filesystem.update_quota();
-        model.create_torrent();
+        model.check_is_torrent( function(result) {
+            mylog(1,'copy success',model,entry);
+
+            if (result) {
+                // result is torrent metadata
+                var torrent = new NewTorrent( { metadata: result } );
+                torrent.set('state','started');
+                torrent.announce();
+                //this.model.set('torrent',torrent);
+            } else {
+                model.set('status','copied');
+                filesystem.update_quota();
+                model.create_torrent();
+            }
+        });
     },
     copy_error: function(evt) {
         mylog(1,'copy error',evt);

@@ -97,6 +97,7 @@
     }
 
     var my_peer_id = [];
+    window.my_peer_id = my_peer_id;
     for (var i=0; i<20; i++) {
         my_peer_id.push( Math.floor( Math.random() * 256 ) );
     }
@@ -258,7 +259,7 @@
             } else {
                 var packet = new Uint8Array( len.concat([msgcode]) );
             }
-            //mylog(1, 'sending message',type,utf8.parse(payload));
+            mylog(1, 'sending message',type,payload);
             var buf = packet.buffer;
             this.stream.send(buf);
         },
@@ -436,6 +437,7 @@
             var curval = null;
             var total_pieces = this.newtorrent.get_num_pieces();
             var total_chars = Math.ceil(total_pieces/8);
+            var have_all = true;
             for (var i=0; i<total_chars; i++) {
                 curval = 0;
                 for (var j=0; j<8; j++) {
@@ -443,6 +445,8 @@
                     if (idx < total_pieces) {
                         if (this.newtorrent.has_piece(idx)) {
                             curval += Math.pow(2,7-j);
+                        } else {
+                            have_all = false;
                         }
                     }
                 }
@@ -450,6 +454,9 @@
             }
             this._my_bitmask = bitfield;
             this.send_message('BITFIELD', bitfield);
+            if (have_all) {
+                this.send_message('HAVE_ALL');
+            }
         },
         handle_port: function(data) {
             mylog(1, 'handle port message');

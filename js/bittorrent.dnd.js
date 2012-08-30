@@ -78,7 +78,8 @@
                     this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ), _.bind(function() {
                         mylog(1,'told client to add, waiting 1 sec before connecting');
                         _.delay(_.bind(function(){
-                            this.connection = new WSPeerConnection(host, connection_port, althash, this.container);
+                            this.newtorrent = new NewTorrent({container:this.container, althash:althash});
+                            this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.newtorrent});
                             this.connection.bind('handle_have', this.upload_progress);
                             this.connection.bind('hash_progress', this.hash_progress);
                             this.connection.bind('completed', this.completed);
@@ -93,7 +94,8 @@
                 var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
                 defer.then( _.bind(function() {
                     // get this from backbone
-                    this.connection = new WSPeerConnection(host, connection_port, althash, this.container);
+                    this.newtorrent = new NewTorrent({container:this.container, althash:althash});
+                    this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.newtorrent});
                     this.connection.bind('handle_have', this.upload_progress);
                     this.connection.bind('hash_progress', this.hash_progress);
                     this.connection.bind('completed', this.completed);

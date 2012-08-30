@@ -142,7 +142,7 @@
             this.stream.onclose = this.onclose
             this.read_buffer = []; // utorrent does not send an entire message in each websocket frame
         },
-        initialize: function(host, port, infohash, container) {
+        initialize: function(opts) {
             _.bindAll(this, 'onopen', 'onclose', 'onmessage', 'onerror', 'on_connect_timeout',
                       'handle_extension_message',
                       'send_handshake',
@@ -158,6 +158,18 @@
                       'handle_piece_hashed',
                       'handle_keepalive'
                      );
+
+            var host = opts.host;
+            var port = opts.port;
+            var torrent = opts.torrent;
+
+            //var infohash = opts.hash; // array buffers and stuff no bueno... just want simple array
+            assert(opts.hash.length == 20);
+            var infohash = [];
+            for (var i=0; i<opts.hash.length; i++) {
+                infohash.push( opts.hash[i] );
+            }
+
             this._host = host;
             this._port = port;
             this._closed = true;
@@ -167,10 +179,13 @@
 */
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
-            this.container = container; // bittorrent.dnd.js gives us this...
-            this.newtorrent = new NewTorrent({container:container, althash:infohash});
+            //this.container = container; // bittorrent.dnd.js gives us this...
+            // this.newtorrent = new NewTorrent({container:container, althash:infohash});
+            this.newtorrent = torrent;
+            // don't have this initialize the torrent...
             this.newtorrent.bind('piece_hashed', this.handle_piece_hashed);
-            this.newtorrent_metadata_size = bencode(this.newtorrent.fake_info).length
+            var infodict = this.newtorrent.get_infodict();
+            this.newtorrent_metadata_size = bencode(infodict).length
             console.log('initialize peer connection with infohash',this.infohash);
             this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
             this.connected = false;
@@ -186,7 +201,6 @@
             this._remote_interested = false;
 
             this._sent_bitmask = false;
-            this._my_bitmask = null;
 
             this.handlers = {
                 'UTORRENT_MSG': this.handle_extension_message,
@@ -316,7 +330,8 @@
                         var info = bdecode(str);
                         var tor_meta_type = constants.tor_meta_codes[ info['msg_type'] ];
                         if (tor_meta_type == 'request') {
-                            if (this.container) {
+                            debugger;
+                            if (this.container) { // remove check for container, move into torrent
                                 // this is javascript creating the torrent from a file selection or drag n' drop.
                                 var metapiece = info.piece;
                                 mylog(1, 'they are asking for metadata pieces!',metapiece);
@@ -355,7 +370,7 @@
                 this._remote_bitmask[i] = 1;
             }
             this.trigger('handle_have');
-            this.trigger('completed');
+            this.trigger('completed'); // XXX -- make "remote_completed" event instead
         },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
@@ -369,7 +384,7 @@
             }
         },
         seeding: function() {
-            return this.bitmask_complete(this._my_bitmask);
+            return this.bitmask_complete(this.newtorrent.get_bitmask());
         },
         fraction_complete: function() {
             // todo -- optimize
@@ -431,32 +446,15 @@
             }
         },
         send_bitmask: function() {
-            this._sent_bitmask = true;
+            var bitfield = this.newtorrent.get_bitmask();
             // payload is simply one bit for each piece
-            var bitfield = [];
-            var curval = null;
-            var total_pieces = this.newtorrent.get_num_pieces();
-            var total_chars = Math.ceil(total_pieces/8);
-            var have_all = true;
-            for (var i=0; i<total_chars; i++) {
-                curval = 0;
-                for (var j=0; j<8; j++) {
-                    var idx = i*8+j;
-                    if (idx < total_pieces) {
-                        if (this.newtorrent.has_piece(idx)) {
-                            curval += Math.pow(2,7-j);
-                        } else {
-                            have_all = false;
-                        }
-                    }
-                }
-                bitfield.push( curval );
-            }
-            this._my_bitmask = bitfield;
+            this._sent_bitmask = true;
             this.send_message('BITFIELD', bitfield);
-            if (have_all) {
+/*
+            if (this.newtorrent.have_all) {
                 this.send_message('HAVE_ALL');
             }
+*/
         },
         handle_port: function(data) {
             mylog(1, 'handle port message');

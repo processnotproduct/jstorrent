@@ -1,7 +1,20 @@
 var NewTorrent = Backbone.Model.extend({
+    // misnomer -- not just a new torrent anymore.
     initialize: function(opts) {
-        _.bindAll(this, 'process_meta_request', 'handle_new_peer');
-        this.connections = [];
+        _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close');
+
+        this.availability = []; // sits alongside the bitmask, stores how many distributed copies of each piece for connected peers.
+
+        /*
+          for a given piece, how do we quickly find a peer that has it?
+
+          perhaps we may assume we have a limited # of connections... (say 20)
+
+          store {piece->[conns...]} ?
+
+         */
+
+        this.connections = {};
         this.pieces = [];
         this.files = [];
 
@@ -27,23 +40,82 @@ var NewTorrent = Backbone.Model.extend({
 
 
         this._file_byte_accum = [];
-        var b = 0;
-        for (var i=0; i<this.get_infodict()['files'].length; i++) {
-            this._file_byte_accum.push(b);
-            b += this.get_infodict()['files'][i]['length']
+        if (this.is_multifile()) {
+            var b = 0;
+            for (var i=0; i<this.get_infodict()['files'].length; i++) {
+                this._file_byte_accum.push(b);
+                b += this.get_infodict()['files'][i]['length']
+            }
+            this.size = b;
+        } else {
+            this._file_byte_accum.push(0);
+            this.size = this.get_infodict().length;
         }
-        this.size = b;
+
 
         if (! this.metadata) {
             this.fake_info['pieces'] = this.get_fake_pieces().join('');
-            this.bitmask = this.create_bitmask({full:true});
+            this.set('bitmask', this.create_bitmask({full:true}) );
         } else {
-            this.bitmask = this.create_bitmask({empty:true});
+            this.set('bitmask', this.create_bitmask({empty:true}) );
         }
 
         this.meta_requests = [];
         this.num_pieces = this.get_num_pieces();
         this._processing_meta_request = false;
+    },
+    make_chunk_requests: function(conn, num_to_request) {
+        // need to store a data structure of availability...
+
+        // creates a number of chunk requests to pass onto connections
+        // (can only pass onto connection that has it in their bitmask)
+
+        // maybe need to have "availability" of pieces already determined.
+        // rarest first is a neat way to do this.
+
+        if (! conn.handshaking) {
+            if (conn._remote_bitmask) {
+                if (! conn._interested) {
+                    conn.send_message('INTERESTED');
+                } else {
+                    if (! conn._choked) {
+                        // select piece i'm missing but they have
+
+                        var piece = this.choose_incomplete_piece(conn._remote_bitmask);
+                        if (piece) {
+                            var requests = piece.create_chunk_requests(num_to_request);
+                            if (requests.length > 0) {
+                                // all were already in-flight?
+                                for (var i=0; i<requests.length; i++) {
+                                    var payload = new JSPack().Pack('>III', requests[i]);
+                                    conn.send_message("REQUEST", payload);
+                                }
+                            } else {
+                                debugger;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    piece_complete: function(i) {
+        return this.get('bitmask')[i] == 1;
+    },
+    handle_piece_data: function(conn, piecenum, offset, data) {
+        var piece = this.get_piece(piecenum);
+        piece.handle_data(conn, offset, data);
+    },
+    choose_incomplete_piece: function(remote_bitmask) {
+        // selects a piece... (what is a more efficient way to do this?)
+        for (var i=0; i<this.num_pieces; i++) {
+            if (! this.piece_complete(i) && remote_bitmask[i]) {
+                var piece = this.get_piece(i);
+                if (! piece.all_chunks_requested()) {
+                    return piece;
+                }
+            }
+        }
     },
     get_infodict: function() {
         return this.metadata ? this.metadata['info'] : this.fake_info;
@@ -55,8 +127,20 @@ var NewTorrent = Backbone.Model.extend({
     },
     handle_new_peer: function(data) {
         if (data.port && data.port > 0) {
-            new WSPeerConnection({host:data.ip, port:data.port, hash:this.hash, torrent:this});
+            var key = data.ip + ':' + data.port;
+            if (this.connections[key]) {
+                // already have this peer..
+            } else {
+                var conn = new WSPeerConnection({host:data.ip, port:data.port, hash:this.hash, torrent:this});
+                this.connections[key] = conn
+                conn.bind('onclose', this.on_connection_close);
+            }
         }
+    },
+    on_connection_close: function(conn) {
+        var key = conn._host + ':' + conn._port;
+        assert(this.connections[key]);
+        delete this.connections[key];
     },
     get_num_pieces: function() {
         return Math.ceil( this.size / this.piece_size );
@@ -71,11 +155,32 @@ var NewTorrent = Backbone.Model.extend({
         this.meta_requests.push(data); // perhaps before inserting check that we don't have redundant piece ranges in meta_requests ?
         this.process_meta_request();
     },
+    write_data_from_piece: function(piece) {
+        // writes this piece's data to the filesystem
+        var files_info = piece.get_file_info(0, piece.sz);
+        for (var i=0; i<files_info.length; i++) {
+            var filenum = files_info[i][0];
+            var filebyterange = files_info[i][1];
+            var file = this.get_file(filenum);
+            file.write_piece_data( piece, filebyterange );
+        }
+
+    },
+    notify_have_piece: function(piece) {
+        this.get('bitmask')[piece.num] = 1;
+        // sends have message to all connections
+        for (var k in this.connections) {
+            this.connections[k].send_have(piece.num);
+        }
+    },
+    is_multifile: function() {
+        return this.get_infodict().files;
+    },
     get_file: function(n) {
         if (this.files[n]) {
             return this.files[n]
         } else {
-            var file = new File(this, n);
+            var file = new TorrentFile(this, n);
             this.files[n] = file;
             return file;
         }
@@ -147,7 +252,6 @@ var NewTorrent = Backbone.Model.extend({
                 request = this.meta_requests.shift();
             }
         }
-
         if (request) {
             // better to use piece ranges instead...?
             var pieces = [];
@@ -157,11 +261,10 @@ var NewTorrent = Backbone.Model.extend({
                 pieces.push(this.get_piece(piecenum));
             }
             piecehasher.enqueue( pieces, _.bind(this.pieces_hashed, this, request) );
-
         }
     },
     get_bitmask: function() {
-        return this.bitmask;
+        return this.get('bitmask');
     },
     create_bitmask: function(opts) {
         var bitfield = [];
@@ -375,4 +478,9 @@ var NewTorrent = Backbone.Model.extend({
         return bytes;
     }
     
+});
+
+var TorrentCollection = Backbone.Collection.extend({
+    localStorage: new Store('Torrents'),
+    model: NewTorrent
 });

@@ -55,10 +55,17 @@ function Piece(torrent, num) {
     this.start_byte = this.torrent.get_piece_len() * this.num
     this.end_byte = this.start_byte + this.sz - 1
     this.hashed = false;
+    this.numchunks = Math.ceil( this.sz / constants.chunk_size );
 
     this._data = [];
     this._requests = [];
     this._processing_request = false;
+
+    this._peers_contributing = []; // peers contributing to our download
+
+    //this._outbound_requests = []; // requests to other peers
+    this._outbound_request_offsets = {}; // holds just the offset, for testing containment
+    this._chunk_responses = [];
 
     assert(this.num < this.torrent.get_num_pieces());
     assert(this.start_byte >= 0)
@@ -68,6 +75,82 @@ function Piece(torrent, num) {
 Piece.prototype = {
     compute_hash: function(callback) {
         this.get_data(0, this.sz, _.bind(this.got_data_for_compute_hash, this, callback));
+    },
+    all_chunks_requested: function() {
+        // returns whether all chunks have outbound requests right now
+        // todo -- keep track of this instead of counting
+        var i=0;
+        for (var k in this._outbound_request_offsets) {
+            i++;
+        }
+        return (i == this.numchunks);
+    },
+    check_downloaded_hash: function() {
+        var hasher = new Digest.SHA1();
+        for (var i=0; i<this._chunk_responses.length; i++) {
+            hasher.update( this._chunk_responses[i] );
+        }
+        var hash = hasher.finalize();
+        return hash;
+    },
+    handle_data: function(conn, offset, data) {
+        //mylog(1, 'piece',this.num,'handle data with offset',offset);
+        if (this._outbound_request_offsets[offset]) {
+            this._chunk_responses[offset] = data;
+            var complete = this.check_responses_complete();
+            if (complete) {
+                // hash check it, then write to disk
+
+                var hash = new Uint8Array(this.check_downloaded_hash());
+                var metahash = str2arr(this.torrent.get_infodict().pieces.slice( this.num*20, (this.num+1)*20 ))
+                
+                for (var i=0; i<hash.length; i++) {
+                    if (hash[i] != metahash[i]) {
+                        mylog(1,'hash mismatch!')
+                        debugger;
+                    }
+                }
+
+                //mylog(1,'downloaded piece hash match!')
+                this.torrent.notify_have_piece(this);
+                this.write_data_to_filesystem();
+            }
+        } else {
+            debugger; // didn't ask for this data!
+        }
+    },
+    write_data_to_filesystem: function() {
+        this.torrent.write_data_from_piece(this);
+    },
+    check_responses_complete: function() {
+        for (var i=0; i<this.numchunks; i++) {
+            if (! this._chunk_responses[i]) {
+                return false;
+            }
+        }
+        return true;
+    },
+    create_chunk_requests: function(num) {
+        // piecenum, offset, sz
+        var requests = [];
+        for (var i=0; i<this.numchunks; i++) {
+            if (! this._outbound_request_offsets[i]) {
+                var offset = constants.chunk_size * i;
+                if (offset + constants.chunk_size >= this.sz) {
+                    var sz = this.sz - offset;
+                } else {
+                    var sz = constants.chunk_sz;
+                }
+
+                var data = [this.num, offset, sz];
+                this._outbound_request_offsets[offset] = true;
+                requests.push(data);
+                if (requests.length >= num) {
+                    break;
+                }
+            }
+        }
+        return requests;
     },
     got_data_for_compute_hash: function(callback, piece, request, responses) {
         var hasher = new Digest.SHA1();

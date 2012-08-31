@@ -909,6 +909,13 @@ function hmac_sha1_stream_tail(opad, naked_hash) {
         return accum.join('');
     }
 
+    window.str2arr = function(str) {
+        var arr = [];
+        for (var i=0; i<str.length; i++) {
+            arr.push(str.charCodeAt(i));
+        }
+        return arr;
+    }
 
     window.intersect = function(i1, i2) {
         if (i1[1] < i2[0] || i2[1] < i1[0]) {

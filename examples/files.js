@@ -6,53 +6,6 @@ function onprogress(data) {
     show('upload session progress ' + JSON.stringify(data));
 }
 
-var FileEntry = Backbone.Model.extend({
-    initialize: function() {
-        _.bindAll(this,'got_metadata');
-        this.get('entry').getMetadata( this.got_metadata, this.got_metadata );
-    },
-    got_metadata: function(data) {
-        this.set('metadata',data);
-    },
-    create_torrent: function() {
-        var container = new DNDDirectoryEntry({parent:null, entry:null});
-        var file = new DNDFileEntry({entry:this.get('entry')});
-        container.files = [file];
-        file.populate( function() {
-            var upload_session = new UploadSession({client:curclient});
-            upload_session.on('progress', onprogress);
-            upload_session.ready(container);
-        });
-    },
-    check_is_torrent_onread: function(callback, data) {
-        var buf = data.target.result;
-        var s = arr2str(new Uint8Array(buf));
-        try {
-            var decoded = bdecode(s);
-        } catch(e) {
-            return callback(false);
-        }
-        callback(decoded);
-    },
-    check_is_torrent: function(callback) {
-        var filereader = new FileReader(); // todo - re-use and seek!
-        filereader.onload = _.bind(this.check_is_torrent_onread, this, callback);
-        var entry = this.get('entry');
-        var name = entry.name;
-        if (name.slice(name.length - '.torrent'.length, name.length) == '.torrent') {
-            entry.file( function(file) {
-                var blob = file.slice(0, file.size);
-                filereader.readAsArrayBuffer(blob);
-            });
-        } else {
-            callback(false);
-        }
-
-
-    },
-
-});
-
 var FileEntryView = Backbone.View.extend({
     tagName: 'div',
     initialize: function() {
@@ -80,7 +33,7 @@ var FileEntryView = Backbone.View.extend({
         }
     },
     remove_callback: function(evt) {
-        filesystem.update_quota();
+        jsclient.get_filesystem().update_quota();
         if (evt && evt.code) {
             for (var k in FileError) { // deprecated
                 if (FileError[k] == evt.code) {
@@ -101,65 +54,6 @@ var FileEntryView = Backbone.View.extend({
         }
         if (this.model.get('metadata')) {
             this.$('.size').text( this.model.get('metadata').size + ' bytes' );
-        }
-    }
-});
-
-var FileEntryCollection = Backbone.Collection.extend({
-    localStorage: new Store('FileSystemEntryCollection'),
-    initialize: function() {
-        if (this.models.length == 0) {
-
-        }
-    }
-});
-
-var FileSystem = Backbone.Model.extend({
-    initialize: function() {
-        this.entries = new FileEntryCollection();
-        //this.entries.on('add', this.entry_added);
-        _.bindAll(this, 'fs_success', 'request_fs', 'read_entries','on_read_entries','queried_storage');
-    },
-    update_quota: function() {
-        window.webkitStorageInfo.queryUsageAndQuota(window.TEMPORARY,
-                                                    this.queried_storage,
-                                                    this.queried_storage);
-
-    },
-    queried_storage: function(result, result2) {
-        if (result && result.code) {
-            debugger;
-        } else {
-            mylog(1,'queried storage',result,result2);
-            this.set('quota',[result,result2]);
-        }
-    },
-    request_fs: function() {
-        if (window.webkitRequestFileSystem) {
-            window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024, this.fs_success, this.fs_error);
-        } else {
-            console.error('no fs support');
-        }
-    },
-    fs_success: function(filesystem) {
-        this.fs = filesystem;
-        mylog(1, 'got filesystem',filesystem);
-        this.update_quota();
-        this.trigger('initialized');
-        this.read_entries();
-    },
-    fs_error: function(err) {
-        mylog(1, 'error');
-        this.trigger('error', {error:err});
-    },
-    read_entries: function() {
-        var reader = this.fs.root.createReader();
-        reader.readEntries( this.on_read_entries );
-    },
-    on_read_entries: function(results) {
-        for (var i=0; i<results.length; i++) {
-            var entry = results[i];
-            this.entries.add( new FileEntry({entry:entry}) );
         }
     }
 });
@@ -228,7 +122,7 @@ var DropView = Backbone.View.extend({
                     mylog(1,'dropped entry',item);
                     var entry = new FileEntry({entry:item});
                     entry.set('status','copying');
-                    filesystem.entries.add(entry);
+                    jsclient.get_filesystem().entries.add(entry);
                     item.copyTo( this.model.fs.root, null, _.bind(this.copy_success, this, entry), _.bind(this.copy_error, this, entry) );
                 }
             }
@@ -243,13 +137,11 @@ var DropView = Backbone.View.extend({
 
             if (result) {
                 // result is torrent metadata
-                var torrent = new NewTorrent( { metadata: result } );
-                torrent.set('state','started');
-                torrent.announce();
+                jsclient.add_torrent( { metadata: result } );
                 //this.model.set('torrent',torrent);
             } else {
                 model.set('status','copied');
-                filesystem.update_quota();
+                jsclient.get_filesystem().update_quota();
                 model.create_torrent();
             }
         });
@@ -261,16 +153,13 @@ var DropView = Backbone.View.extend({
 
 
 jQuery(function() {
-    var filesystem = new FileSystem();
-    var filesystemview = new FileSystemView( { model: filesystem, el: $('#filesystemview') } );
 
-    filesystem.request_fs();
-    var dropview = new DropView({el: $('#dropview'), model:filesystem });
+    window.jsclient = new JSTorrentClient();
+    
+    var filesystemview = new FileSystemView( { model: jsclient.get_filesystem(), el: $('#filesystemview') } );
+    var dropview = new DropView({el: $('#dropview'), model:jsclient.get_filesystem() });
 
-    window.filesystem = filesystem;
-
-
-    var btclients = new BTClients();
+    var btclients = new BTClients(); // library for scanning local clients
     window.btclients = btclients;
     btclients.find_local_clients(function(){
         //console.log('found clients',btclients);

@@ -404,7 +404,7 @@
                             // this.entries.push(dir);
                             this.container.directories.push(dir);
                         } else {
-                            var file = new File({entry:item, directory:null});
+                            var file = new File({entry:item, directory:null}); // XXX DNDFile?
                             this.container.files.push(file);
                         }
 

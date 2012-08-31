@@ -6,7 +6,6 @@
     var LAST_BYTE = DHT;
     LAST_BYTE |= NAT_TRAVERSAL;
 
-
     var FLAGS = [0,0,0,0,0,0,0,0];
     FLAGS[5] = UTORRENT;
     FLAGS[7] = LAST_BYTE;
@@ -17,6 +16,7 @@
         std_piece_size: Math.pow(2,14),
         //new_torrent_piece_size: Math.pow(2,16),
         new_torrent_piece_size: Math.pow(2,14),
+        chunk_size: Math.pow(2,14),
         metadata_request_piece_size: Math.pow(2,14),
         //metadata_request_piece_size: Math.pow(2,10),
         messages: [
@@ -47,7 +47,6 @@
         tor_meta_codes: { 0: 'request',
                           1: 'data',
                           2: 'reject' }
-
     };
     constants.tor_meta_codes_r = reversedict(constants.tor_meta_codes);
     constants.message_dict = {};
@@ -112,17 +111,11 @@
         parts = parts.concat( peerid )
         assert(parts.length == 68, 'invalid handshake length');
         return parts
-
-
     }
-
-    BitTorrentMessageHandler = Backbone.Model.extend({
-        // create handlers for all types of messages?
-    });
 
     var jspack = new JSPack();
 
-    WSPeerConnection = Backbone.Model.extend({
+    window.WSPeerConnection = Backbone.Model.extend({
         /* 
 
            connection that acts like a bittorrent connection, wrapped just inside a websocket
@@ -151,14 +144,16 @@
                       'send_bitmask',
                       'handle_request',
                       'on_handle_request_data',
+                      'handle_unchoke',
+                      'handle_choke',
                       'handle_have',
                       'handle_have_all',
                       'handle_interested',
                       'handle_not_interested',
                       'handle_piece_hashed',
-                      'handle_keepalive'
+                      'handle_keepalive',
+                      'handle_piece'
                      );
-
             var host = opts.host;
             var port = opts.port;
             var torrent = opts.torrent;
@@ -173,16 +168,9 @@
             this._host = host;
             this._port = port;
             this._closed = true;
-/*
-            this.stream = new WebSocket('ws://'+this._host+':'+this._port+'/api/upload/ws');
-            this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
-*/
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
-            //this.container = container; // bittorrent.dnd.js gives us this...
-            // this.newtorrent = new NewTorrent({container:container, althash:infohash});
             this.newtorrent = torrent;
-            // don't have this initialize the torrent...
             this.newtorrent.bind('piece_hashed', this.handle_piece_hashed);
             var infodict = this.newtorrent.get_infodict();
             this.newtorrent_metadata_size = bencode(infodict).length
@@ -200,25 +188,34 @@
             this._remote_choked = true;
             this._remote_interested = false;
 
+            this._interested = false;
+            this._choked = true;
+
             this._sent_bitmask = false;
 
             this.handlers = {
                 'UTORRENT_MSG': this.handle_extension_message,
                 'PORT': this.handle_port,
                 'HAVE': this.handle_have,
+                'CHOKE': this.handle_choke,
+                'UNCHOKE': this.handle_unchoke,
                 'INTERESTED': this.handle_interested,
                 'HAVE_ALL': this.handle_have_all,
+                'PIECE': this.handle_piece,
                 'BITFIELD': this.handle_bitfield,
                 'REQUEST': this.handle_request,
                 'keepalive': this.handle_keepalive
             };
             this.reconnect();
-/*
-            this.stream.onopen = this.onopen
-            this.stream.onclose = this.onclose
-            this.stream.onmessage = this.onmessage
-            this.stream.onclose = this.onclose
-*/
+        },
+        handle_piece: function(data) {
+            var view = new DataView(data.payload.buffer, data.payload.byteOffset);
+            
+            var index = view.getUint32(0);
+            var offset = view.getUint32(4);
+            var chunk = new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8);
+            //mylog(1,'got piece idx',index,'offset',offset,'chunk data len',chunk.byteLength);
+            this.newtorrent.handle_piece_data(this, index, offset, chunk);
         },
         handle_piece_hashed: function(piece) {
             this.trigger('hash_progress', (piece.num / (this.newtorrent.num_pieces-1)))
@@ -236,11 +233,12 @@
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
-
-            // build the payload...
             mylog(2, 'sending extension handshake with data',resp);
             var payload = bencode(resp);
             this.send_message('UTORRENT_MSG', [constants.handshake_code].concat(payload));
+        },
+        ready: function() {
+            return ! this.handshaking && ! this._remote_choked
         },
         send_message: function(type, payload) {
             if (this._closed) {
@@ -256,11 +254,14 @@
                 debugger;
             }
 
-            mylog(1, 'send message of type',type, payload?payload.length:'');
+            //mylog(1, 'send message of type',type, payload?payload.length:'');
             if (type == 'UNCHOKE') {
                 this._remote_choked = false;
+            } else if (type == 'INTERESTED') {
+                this._interested = true;
+            } else if (type == 'NOT_INTERESTED') {
+                this._interested = false;
             }
-
 
             if (payload) {
                 var len = jspack.Pack('>I', [payload.length+1]);
@@ -273,7 +274,7 @@
             } else {
                 var packet = new Uint8Array( len.concat([msgcode]) );
             }
-            mylog(1, 'sending message',type,payload);
+            //mylog(1, 'sending message',type,payload);
             var buf = packet.buffer;
             this.stream.send(buf);
         },
@@ -358,10 +359,16 @@
         },
         handle_interested: function(data) {
             this._remote_interested = true;
-            this.send_message('UNCHOKE');
+            this.send_message('UNCHOKE'); // unchoke everybody
         },
         handle_not_interested: function(data) {
             this._remote_interested = false;
+        },
+        handle_choke: function(data) {
+            this._choked = true;
+        },
+        handle_unchoke: function(data) {
+            this._choked = false;
         },
         handle_have_all: function(data) {
             mylog(1, 'handle have all');
@@ -377,6 +384,9 @@
             mylog(3, 'handle have index', index);
             this._remote_bitmask[index] = 1;
             this.trigger('handle_have', index);
+
+            // update torrent piece availability...
+
             if (this.seeding()) {
                 if (this.remote_complete()) {
                     this.trigger('completed');
@@ -442,7 +452,6 @@
             mylog(1,'parsed bitmask',this._remote_bitmask);
             if (! this._sent_bitmask) {
                 this.send_bitmask();
-                //this.send_message('UNCHOKE');
             }
         },
         send_bitmask: function() {
@@ -475,19 +484,22 @@
             this.trigger('connected'); // send HAVE, unchoke
             _.delay( this.send_handshake, 100 );
         },
+        send_have: function(num) {
+            var payload = jspack.Pack('>I',[num]);
+            this.send_message('HAVE', payload);
+        },
         send_handshake: function() {
             var handshake = create_handshake(this.infohash, my_peer_id);
             console.log('sending handshake of len',handshake.length,[handshake])
             var s = new Uint8Array(handshake);
             this.stream.send( s.buffer );
-
-            // do this at another time?
-            this.send_bitmask();
-            //this.send_message('UNCHOKE');
+            if (! this._sent_bitmask) {
+                this.send_bitmask(); // do this at another time?
+            }
         },
         send_keepalive: function() {
             var s = new Uint8Array(4);
-            this.stream.send( s );
+            this.send( s.buffer );
         },
         send: function(msg) {
             this.stream.send(msg);
@@ -496,7 +508,6 @@
             var msg = this.read_buffer_consume(msg_len);
             var data = parse_message(msg);
             mylog(1,'handle message',data.msgtype,data);
-            //mylog(2, 'handle message', data.msgtype, data);
             var handler = this.handlers[data.msgtype];
             if (handler) {
                 handler(data);
@@ -506,11 +517,12 @@
         },
         handle_handshake: function(handshake_len) {
             this.handshaking = false;
-
             var blob = this.read_buffer_consume(handshake_len);
-
             var data = parse_handshake(blob);
-            console.log('parsed handshake',data)
+            mylog(1,'parsed handshake',data)
+            if (! this._sent_bitmask) {
+                this.send_bitmask();
+            }
         },
         read_buffer_consume: function(bytes, peek) {
             var retbuf = new Uint8Array(bytes);
@@ -555,7 +567,6 @@
 
             var bufsz = this.read_buffer_size();
 
-
             if (this.handshaking) {
                 var protocol_str_len = new Uint8Array(this.read_buffer_consume(1,true), 0, 1)[0];
                 var handshake_len = 1 + protocol_str_len + 8 + 20 +20;
@@ -569,10 +580,6 @@
                 if (bufsz >= 4) {
                     // enough to read payload size
                     var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0); // equivalent to jspack... use that?
-                    if (msg_len == 0) {
-                        // keepalive message
-                        this.send_keepalive()
-                    }
                     //mylog(1,'onmessage, desired message len',msg_len,'cur buf',bufsz);
                     if (bufsz >= msg_len + 4) {
                         this.handle_message(msg_len + 4);
@@ -581,12 +588,11 @@
                     mylog(1,'not large enough buffer to read message size');
                 }
             }
-
-
         },
         onclose: function(evt) {
             // websocket is closed.
             this._closed = true;
+            this.trigger('onclose', this)
             mylog(1,"Connection is closed..."); 
             //_.delay( _.bind(this.reconnect, this), 2000 );
         },
@@ -597,6 +603,7 @@
 
 
 
+/*
     var input = 'hello world!';
     var blocksize = 8;
     var h = naked_sha1_head();
@@ -607,5 +614,6 @@
     }
     var result = binb2hex(naked_sha1_tail(h));
     assert(result == '430ce34d020724ed75a196dfc2ad67c77772d169');
-
+    // not using naked_sha1 stuff anymore
+*/
 })();

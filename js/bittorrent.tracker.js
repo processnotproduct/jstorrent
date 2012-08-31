@@ -53,7 +53,7 @@ TrackerConnection.prototype = {
                                for (var i=0; i<peers.length/6; i++) {
                                    var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
                                    _this.trigger('newpeer',peerdata);
-                                   console.log('got peer',peerdata);
+                                   //mylog(1,'got peer',peerdata);
                                }
                            }
                        },

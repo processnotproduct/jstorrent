@@ -44,6 +44,9 @@ TorrentFile.prototype = {
             callback(this.filesystem_entry);
         } else {
             jsclient.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
+                if (file.error) {
+                    debugger;
+                }
                 this.filesystem_entry = file;
                 callback(file);
             },this));
@@ -53,6 +56,9 @@ TorrentFile.prototype = {
         // TODO -- handle filesystem errors.
         this._write_queue.push( [piece, byte_range] );
         this.process_write_queue();
+    },
+    fs_error: function(evt) {
+        debugger;
     },
     process_write_queue: function() {
         if (! this._write_queue_active ){
@@ -64,12 +70,11 @@ TorrentFile.prototype = {
                 // writes piece's data. byte_range is relative to this file.
                 var _this = this;
                 this.get_filesystem_entry( function(entry) {
-
                     entry.getMetadata( function(metadata) {
                         entry.createWriter( function(writer) {
                             _this.handle_write_piece_data(piece, entry, metadata, writer, byte_range);
-                        });
-                    });
+                        }, this.fs_error);
+                    }, this.fs_error);
 
                 });
             }
@@ -81,7 +86,6 @@ TorrentFile.prototype = {
         writer.onerror = function(evt) {
             debugger;
         }
-
         if (file_byte_range[0] < file_metadata.size) {
             // need first to pad beginning of the file with null bytes
             this._write_queue = [ [piece, file_byte_range] ].concat( this._write_queue ); // put this job back onto the write queue.
@@ -95,20 +99,21 @@ TorrentFile.prototype = {
         } else {
 
             var i = 0;
-            
+
             function write_next(evt) {
                 if (i == piece.numchunks) {
                     mylog(1,'write all chunks',piece);
                     _this._write_queue_active = false;
                     _this.process_write_queue();
+                    piece._chunk_responses = [];
                     return;
                 }
                 var chunk = piece._chunk_responses[i];
                 var chunk_a = piece.start_byte + constants.chunk_size * i;
-                var chunk_b = chunk_a + constants.chunk_size;
+                var chunk_b = chunk_a + constants.chunk_size - 1;
 
                 var file_a = _this.start_byte;
-                var file_b = _this.end_byte;
+                var file_b = _this.end_byte - 1; // had to subtract 1 from end because intersect is inclusive on endpoints
 
                 /*
 

@@ -257,6 +257,8 @@
             //mylog(1, 'send message of type',type, payload?payload.length:'');
             if (type == 'UNCHOKE') {
                 this._remote_choked = false;
+            } else if (type == 'BITFIELD') {
+                this._sent_bitmask = true;
             } else if (type == 'INTERESTED') {
                 this._interested = true;
             } else if (type == 'NOT_INTERESTED') {
@@ -274,7 +276,7 @@
             } else {
                 var packet = new Uint8Array( len.concat([msgcode]) );
             }
-            //mylog(1, 'sending message',type,payload);
+            mylog(LOGMASK.network, 'sending message',type,payload);
             var buf = packet.buffer;
             this.stream.send(buf);
         },
@@ -457,7 +459,6 @@
         send_bitmask: function() {
             var bitfield = this.newtorrent.get_bitmask();
             // payload is simply one bit for each piece
-            this._sent_bitmask = true;
             this.send_message('BITFIELD', bitfield);
 /*
             if (this.newtorrent.have_all) {
@@ -507,7 +508,7 @@
         handle_message: function(msg_len) {
             var msg = this.read_buffer_consume(msg_len);
             var data = parse_message(msg);
-            mylog(1,'handle message',data.msgtype,data);
+            mylog(LOGMASK.network,'handle message',data.msgtype,data);
             var handler = this.handlers[data.msgtype];
             if (handler) {
                 handler(data);

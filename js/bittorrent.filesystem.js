@@ -77,8 +77,7 @@ var FileSystem = Backbone.Model.extend({
             } else if (result && result.isFile) {
                 callback(result)
             } else {
-                mylog(1,'error getting file by path',result);
-                debugger;
+                callback({error:'error getting file by path'});
             }
         }
 

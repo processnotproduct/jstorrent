@@ -11,14 +11,26 @@ window.assert = function(v) {
 
 var loglevel = 1;
 
+window.LOGMASK = {'general':1, 'network': 2};
+
+var curlogmask = LOGMASK.network | LOGMASK.general
+//var curlogmask = LOGMASK.general;
+
 window.mylog = function(level) {
     var l = [];
     for (var i=0; i<arguments.length; i++) {
         l.push(arguments[i]);
     }
+
+    if (level & curlogmask) {
+        console.log.apply(console, l.slice(1, l.length));
+    }
+
+/*
     if (level <= loglevel) {
         console.log.apply(console, l.slice(1, l.length));
     }
+*/
 }
 
 

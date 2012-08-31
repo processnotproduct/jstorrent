@@ -96,7 +96,7 @@ Piece.prototype = {
     handle_data: function(conn, offset, data) {
         //mylog(1, 'piece',this.num,'handle data with offset',offset);
         if (this._outbound_request_offsets[offset]) {
-            this._chunk_responses[offset] = data;
+            this._chunk_responses[Math.floor(offset/constants.chunk_size)] = data;
             var complete = this.check_responses_complete();
             if (complete) {
                 // hash check it, then write to disk
@@ -134,12 +134,12 @@ Piece.prototype = {
         // piecenum, offset, sz
         var requests = [];
         for (var i=0; i<this.numchunks; i++) {
-            if (! this._outbound_request_offsets[i]) {
+            if (! this._outbound_request_offsets[i*constants.chunk_size]) {
                 var offset = constants.chunk_size * i;
                 if (offset + constants.chunk_size >= this.sz) {
                     var sz = this.sz - offset;
                 } else {
-                    var sz = constants.chunk_sz;
+                    var sz = constants.chunk_size;
                 }
 
                 var data = [this.num, offset, sz];

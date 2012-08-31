@@ -53,11 +53,13 @@ var NewTorrent = Backbone.Model.extend({
         }
 
 
-        if (! this.metadata) {
-            this.fake_info['pieces'] = this.get_fake_pieces().join('');
-            this.set('bitmask', this.create_bitmask({full:true}) );
-        } else {
-            this.set('bitmask', this.create_bitmask({empty:true}) );
+        if (! this.get('bitmask')) {
+            if (! this.metadata) {
+                this.fake_info['pieces'] = this.get_fake_pieces().join('');
+                this.set('bitmask', this.create_bitmask({full:true}) );
+            } else {
+                this.set('bitmask', this.create_bitmask({empty:true}) );
+            }
         }
 
         this.meta_requests = [];
@@ -168,6 +170,7 @@ var NewTorrent = Backbone.Model.extend({
     },
     notify_have_piece: function(piece) {
         this.get('bitmask')[piece.num] = 1;
+        this.save();
         // sends have message to all connections
         for (var k in this.connections) {
             this.connections[k].send_have(piece.num);

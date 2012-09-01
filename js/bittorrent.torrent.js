@@ -21,12 +21,17 @@ var NewTorrent = Backbone.Model.extend({
         if (opts.metadata) {
             // initialize a torrent from torrent metadata
             this.metadata = opts.metadata;
-            this.piece_size = opts.metadata['info']['piece length'];
+
+
+            //this.set('metadata',undefined); // save path to the torrent metadata!
+            // TODO -- save path to torrent metadata instead of saving it in localstorage
+
+            this.piece_size = this.metadata['info']['piece length'];
             var hasher = new Digest.SHA1();
             hasher.update( new Uint8Array(bencode(this.metadata['info'])) );
             this.hash = new Uint8Array(hasher.finalize());
             this.hash_hex = ab2hex(this.hash);
-            mylog(1,'new torrent with hash',this.hash_hex);
+            //mylog(1,'new torrent with hash',this.hash_hex);
 
         } else {
 
@@ -52,19 +57,38 @@ var NewTorrent = Backbone.Model.extend({
             this.size = this.get_infodict().length;
         }
 
+        this.num_pieces = this.get_num_pieces();
 
-        if (! this.get('bitmask')) {
+        if (this.get('bitmask')) {
+            //assert(this.get('bitmask').length == this.num_pieces);
+            if (this.get('bitmask').length != this.num_pieces) {
+                this.set('bitmask',undefined);
+                this.save();
+            }
+        } else {
             if (! this.metadata) {
                 this.fake_info['pieces'] = this.get_fake_pieces().join('');
-                this.set('bitmask', this.create_bitmask({full:true}) );
+                var bitmask = this.create_bitmask({full:true});
             } else {
-                this.set('bitmask', this.create_bitmask({empty:true}) );
+                var bitmask = this.create_bitmask({empty:true})
             }
+            this.set('bitmask', bitmask); // XOXOXOXOXXX!!!!! BAD!!! bad bad bad
+            assert(bitmask.length == this.num_pieces);
         }
 
         this.meta_requests = [];
-        this.num_pieces = this.get_num_pieces();
         this._processing_meta_request = false;
+    },
+    get_complete: function() {
+        var bitmask = this.get_bitmask();
+        var l = bitmask.length
+        var c = 0;
+        for (var i=0; i<l; i++) {
+            if (bitmask[i]) {
+                c++
+            }
+        }
+        return c / this.num_pieces;
     },
     make_chunk_requests: function(conn, num_to_request) {
         // need to store a data structure of availability...
@@ -74,6 +98,11 @@ var NewTorrent = Backbone.Model.extend({
 
         // maybe need to have "availability" of pieces already determined.
         // rarest first is a neat way to do this.
+
+        if (conn._requests_outbound > conn._maximum_requests_outbound) {
+            return;
+        }
+
 
         if (! conn.handshaking) {
             if (conn._remote_bitmask) {
@@ -132,9 +161,11 @@ var NewTorrent = Backbone.Model.extend({
             var key = data.ip + ':' + data.port;
             if (this.connections[key]) {
                 // already have this peer..
+                mylog(1,'already have this peer',this.connections,key);
             } else {
                 var conn = new WSPeerConnection({host:data.ip, port:data.port, hash:this.hash, torrent:this});
                 this.connections[key] = conn
+                this.set('numpeers', _.keys(this.connections).length);
                 conn.bind('onclose', this.on_connection_close);
             }
         }
@@ -143,6 +174,7 @@ var NewTorrent = Backbone.Model.extend({
         var key = conn._host + ':' + conn._port;
         assert(this.connections[key]);
         delete this.connections[key];
+        this.set('numpeers', _.keys(this.connections).length);
     },
     get_num_pieces: function() {
         return Math.ceil( this.size / this.piece_size );
@@ -158,6 +190,7 @@ var NewTorrent = Backbone.Model.extend({
         this.process_meta_request();
     },
     write_data_from_piece: function(piece) {
+        // CRASHING!!!!!!!!!
         // writes this piece's data to the filesystem
         var files_info = piece.get_file_info(0, piece.sz);
         for (var i=0; i<files_info.length; i++) {
@@ -170,6 +203,10 @@ var NewTorrent = Backbone.Model.extend({
     },
     notify_have_piece: function(piece) {
         this.get('bitmask')[piece.num] = 1;
+        var complete = Math.floor(this.get_complete()*1000);
+        this.set('complete',complete);
+
+        //this.set('complete', 
         this.save();
         // sends have message to all connections
         for (var k in this.connections) {
@@ -206,6 +243,29 @@ var NewTorrent = Backbone.Model.extend({
             } else {
                 return this.get_infodict()['piece length'];
             }
+        }
+    },
+    started: function() {
+        return this.get('state') == 'started';
+    },
+    start: function() {
+        this.set('state','started');
+        this.announce();
+    },
+    cleanup: function() {
+        // assist garbage collection on things
+        for (var i=0; i<this.num_pieces; i++) {
+            if (this.pieces[i]) {
+                var piece = this.get_piece(i)
+                piece.cleanup();
+            }
+        }
+        this.pieces = {};
+    },
+    stop: function() {
+        this.set('state','stopped');
+        for (var k in this.connections) {
+            this.connections[k].stream.close();
         }
     },
     get_files_spanning_bytes: function(start_byte, end_byte) {
@@ -270,6 +330,19 @@ var NewTorrent = Backbone.Model.extend({
         return this.get('bitmask');
     },
     create_bitmask: function(opts) {
+        var bitmask = [];
+        for (var i=0; i<this.num_pieces; i++) {
+            if (opts && opts.full) {
+                bitmask.push(1);
+            } else if (opts && opts.empty) {
+                bitmask.push(0)
+            } else {
+                bitmask.push( this.has_piece(i)?1:0 );
+            }
+        }
+        return bitmask;
+    },
+    create_bitmask_payload: function(opts) {
         var bitfield = [];
         var curval = null;
         var total_pieces = this.get_num_pieces();
@@ -471,6 +544,9 @@ var NewTorrent = Backbone.Model.extend({
     get_size: function() {
         return this.size;
     },
+    get_name: function() {
+        return this.get_infodict().name;
+    },
     get_fake_pieces: function() {
         // returns the fake pieces byte array
         var bytes = [];
@@ -484,6 +560,7 @@ var NewTorrent = Backbone.Model.extend({
 });
 
 var TorrentCollection = Backbone.Collection.extend({
-    localStorage: new Store('Torrents'),
+    localStorage: new Store('TorrentCollection'),
     model: NewTorrent
 });
+

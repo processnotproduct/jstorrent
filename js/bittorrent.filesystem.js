@@ -106,7 +106,7 @@ var FileSystem = Backbone.Model.extend({
         if (result && result.code) {
             debugger;
         } else {
-            mylog(1,'queried storage',result,result2);
+            //mylog(1,'queried storage',result,result2);
             this.set('quota',[result,result2]);
         }
     },
@@ -119,7 +119,7 @@ var FileSystem = Backbone.Model.extend({
     },
     fs_success: function(filesystem) {
         this.fs = filesystem;
-        mylog(1, 'got filesystem',filesystem);
+        //mylog(1, 'got filesystem',filesystem);
         this.update_quota();
         this.trigger('initialized');
         this.read_entries();

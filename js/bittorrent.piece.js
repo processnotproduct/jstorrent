@@ -94,7 +94,7 @@ Piece.prototype = {
         return hash;
     },
     handle_data: function(conn, offset, data) {
-        //mylog(1, 'piece',this.num,'handle data with offset',offset);
+        mylog(LOGMASK.disk, 'piece',this.num,'handle data with offset',offset);
         if (this._outbound_request_offsets[offset]) {
             this._chunk_responses[Math.floor(offset/constants.chunk_size)] = data;
             var complete = this.check_responses_complete();
@@ -112,12 +112,21 @@ Piece.prototype = {
                 }
 
                 //mylog(1,'downloaded piece hash match!')
-                this.torrent.notify_have_piece(this);
+                //this.torrent.notify_have_piece(this); // happens after the successful write
                 this.write_data_to_filesystem();
             }
         } else {
             debugger; // didn't ask for this data!
         }
+    },
+    cleanup: function() {
+        this.torrent = null;
+        this._data = [];
+        this._requests = [];
+        this._processing_request = false;
+        this._peers_contributing = []; 
+        this._outbound_request_offsets = {};
+        this._chunk_responses = [];
     },
     write_data_to_filesystem: function() {
         this.torrent.write_data_from_piece(this);

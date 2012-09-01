@@ -12,10 +12,112 @@ function TorrentFile(torrent, num) {
 
     this._read_queue = [];
     this._processing_read_queue = false;
-    this._write_queue = [];
+    //this._write_queue = [];
 
     this.read_callback = null;
 }
+
+// static variables, methods
+TorrentFile._write_queue = [];
+TorrentFile._write_queue_active = false;
+TorrentFile.process_write_queue = function() {
+    if (! this._write_queue_active ){
+        if (this._write_queue.length > 0) {
+            var item = this._write_queue.shift(1);
+            TorrentFile._write_queue_active = true;
+            var piece = item[0];
+            var byte_range = item[1];
+            var file = item[2];
+            // writes piece's data. byte_range is relative to this file.
+
+            file.get_filesystem_entry( function(entry) {
+                //mylog(1,'got entry',entry);
+                entry.getMetadata( function(metadata) {
+                    //mylog(1,'got metadata',metadata);
+                    entry.createWriter( function(writer) {
+                        //mylog(1,'got writer',writer);
+                        TorrentFile.handle_write_piece_data(piece, entry, metadata, writer, byte_range, file);
+                    }, TorrentFile.fs_error);
+                }, TorrentFile.fs_error);
+
+            });
+        }
+    }
+}
+
+TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writer, file_byte_range, file) {
+    // write the data, when done process the queue
+    var _this = file;
+    writer.onerror = function(evt) {
+        debugger;
+    }
+    if (file_byte_range[0] > file_metadata.size) {
+        // need first to pad beginning of the file with null bytes
+        TorrentFile._write_queue = [ [piece, file_byte_range, file] ].concat( TorrentFile._write_queue ); // put this job back onto the write queue.
+        writer.seek( file_metadata.size );
+        writer.onwrite = function(evt) {
+            TorrentFile._write_queue_active = false;
+            TorrentFile.process_write_queue();
+        }
+        sz = file_byte_range[0] - file_metadata.size;
+        if (sz > Math.pow(2,25)) {
+            // filling too many zeroes!
+            debugger;
+        }
+        var zeroes = new Uint8Array( sz );
+        writer.write( new Blob([zeroes]) );
+    } else {
+
+        var i = 0;
+
+        function write_next(evt) {
+            if (i == piece.numchunks) {
+                mylog(LOGMASK.disk,'wrote to disk all piece chunks',piece.num);
+                TorrentFile._write_queue_active = false;
+                TorrentFile.process_write_queue();
+                file.torrent.notify_have_piece(piece);
+                piece._chunk_responses = [];
+                return;
+            }
+            var chunk = piece._chunk_responses[i];
+            var chunk_a = piece.start_byte + constants.chunk_size * i;
+            var chunk_b = chunk_a + constants.chunk_size - 1;
+
+            var file_a = file.start_byte;
+            var file_b = file.end_byte - 1; // had to subtract 1 from end because intersect is inclusive on endpoints
+
+            /*
+
+              |--------------------------|  piece
+
+              |---------|---------|------|  piece chunks
+
+              -----|----------------|----|  files
+
+
+            */
+
+            // need to intersect...
+
+            var intersection = intersect([chunk_a,chunk_b],[file_a,file_b])
+
+            var data = new Uint8Array(chunk.buffer,
+                                      chunk.byteOffset + (intersection[0] - chunk_a),
+                                      intersection[1] - intersection[0] + 1);
+            if (chunk_a > file_a) {
+                writer.seek( chunk_a - file_a ); // seek into the file a little
+            }
+            //mylog(1,'piece',piece.num,'write chunk',i);
+            writer.write( new Blob([data]) );
+            i++;
+        }
+
+        writer.onwrite = write_next;
+        write_next();
+
+    }
+};
+
 
 TorrentFile.prototype = {
     get_data_from_piece: function(piecenum) {
@@ -54,98 +156,11 @@ TorrentFile.prototype = {
     },
     write_piece_data: function(piece, byte_range) {
         // TODO -- handle filesystem errors.
-        this._write_queue.push( [piece, byte_range] );
-        this.process_write_queue();
+        TorrentFile._write_queue.push( [piece, byte_range, this] );
+        TorrentFile.process_write_queue();
     },
     fs_error: function(evt) {
         debugger;
-    },
-    process_write_queue: function() {
-        if (! this._write_queue_active ){
-            if (this._write_queue.length > 0) {
-                var item = this._write_queue.shift(1);
-                this._write_queue_active = true;
-                var piece = item[0];
-                var byte_range = item[1];
-                // writes piece's data. byte_range is relative to this file.
-                var _this = this;
-                this.get_filesystem_entry( function(entry) {
-                    entry.getMetadata( function(metadata) {
-                        entry.createWriter( function(writer) {
-                            _this.handle_write_piece_data(piece, entry, metadata, writer, byte_range);
-                        }, this.fs_error);
-                    }, this.fs_error);
-
-                });
-            }
-        }
-    },
-    handle_write_piece_data: function(piece, entry, file_metadata, writer, file_byte_range) {
-        // write the data, when done process the queue
-        var _this = this;
-        writer.onerror = function(evt) {
-            debugger;
-        }
-        if (file_byte_range[0] < file_metadata.size) {
-            // need first to pad beginning of the file with null bytes
-            this._write_queue = [ [piece, file_byte_range] ].concat( this._write_queue ); // put this job back onto the write queue.
-            writer.seek( file_metadata.size );
-            writer.onwrite = function(evt) {
-                _this._write_queue_active = false;
-                _this.process_write_queue();
-            }
-            var zeroes = new Uint8Array( file_metadata.size - file_byte_range[0] );
-            writer.write( new Blob([zeroes]) );
-        } else {
-
-            var i = 0;
-
-            function write_next(evt) {
-                if (i == piece.numchunks) {
-                    mylog(1,'write all chunks',piece);
-                    _this._write_queue_active = false;
-                    _this.process_write_queue();
-                    piece._chunk_responses = [];
-                    return;
-                }
-                var chunk = piece._chunk_responses[i];
-                var chunk_a = piece.start_byte + constants.chunk_size * i;
-                var chunk_b = chunk_a + constants.chunk_size - 1;
-
-                var file_a = _this.start_byte;
-                var file_b = _this.end_byte - 1; // had to subtract 1 from end because intersect is inclusive on endpoints
-
-                /*
-
-                        |--------------------------|  piece
-
-                        |---------|---------|------|  piece chunks
-
-                        -----|----------------|----|  files
-
-
-                 */
-
-                // need to intersect...
-
-                var intersection = intersect([chunk_a,chunk_b],[file_a,file_b])
-
-                var data = new Uint8Array(chunk.buffer,
-                                          chunk.byteOffset + (intersection[0] - chunk_a),
-                                          intersection[1] - intersection[0] + 1);
-                if (chunk_a > file_a) {
-                    writer.seek( chunk_a - file_a ); // seek into the file a little
-                }
-                mylog(1,'piece',piece.num,'write chunk',i);
-                writer.write( new Blob([data]) );
-                i++;
-            }
-
-            writer.onwrite = write_next;
-            write_next();
-
-        }
-
     },
     process_read_data_queue: function() {
         if (this._processing_read_queue) {
@@ -177,33 +192,6 @@ TorrentFile.prototype = {
         callback(binary);
         this.process_read_data_queue();
     },
-/*
-    read_data_old: function(callback, byte_range) {
-        // enqueue if already reading...
-        assert(!this._reading);
-        this._reading = true;
-        this.dndfile = this.torrent.get_by_path(this.info.path);
-        this.filereader = new FileReader();
-        this.read_callback = callback;
-        this.filereader.onload = _.bind(this.got_data, this, byte_range);
-        // start reading
-        //this.hasher = new Digest.SHA1();
-        this._data = [];
-        this.readBufferSize = Math.pow(2,14);
-
-        if (byte_range) {
-            //mylog(1, 'read data w byte range',byte_range);
-            this.read_byte_range = byte_range
-            // relative to torrent bytes
-            this.offset = byte_range[0] - this.start_byte;
-            this.bytesRemaining = byte_range[1] - byte_range[0];
-        } else {
-            this.offset = 0; // need to go to a piece offset !!!! tricky....
-            this.bytesRemaining = this.size;
-        }
-        this.read_some();
-    },
-*/
     read_some: function() {
         if (this.read_byte_range) {
             var readmax = Math.min(this.read_byte_range[1], this.offset + this.readBufferSize);

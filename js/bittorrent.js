@@ -122,12 +122,11 @@
 
         */
         reconnect: function() {
-            mylog(1,'reconnecting');
             var uri = '/api/upload/ws';
             var uri = '/wsclient';
             var strurl = 'ws://'+this._host+':'+this._port+uri;
             this.stream = new WebSocket(strurl);
-            mylog(1,'initializing stream to',strurl);
+            mylog(LOGMASK.network,'initializing stream to',strurl);
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
             this.stream.onopen = this.onopen
             this.stream.onclose = this.onclose
@@ -165,6 +164,9 @@
                 infohash.push( opts.hash[i] );
             }
 
+            this._requests_outbound = 0;
+            this._maximum_requests_outbound = 10;
+
             this._host = host;
             this._port = port;
             this._closed = true;
@@ -174,7 +176,7 @@
             this.newtorrent.bind('piece_hashed', this.handle_piece_hashed);
             var infodict = this.newtorrent.get_infodict();
             this.newtorrent_metadata_size = bencode(infodict).length
-            console.log('initialize peer connection with infohash',this.infohash);
+            mylog(LOGMASK.network,'initialize peer connection with infohash',this.infohash);
             this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
             this.connected = false;
             this.connecting = true;
@@ -210,7 +212,6 @@
         },
         handle_piece: function(data) {
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
-            
             var index = view.getUint32(0);
             var offset = view.getUint32(4);
             var chunk = new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8);
@@ -233,7 +234,7 @@
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
-            mylog(2, 'sending extension handshake with data',resp);
+            mylog(LOGMASK.network_verbose, 'sending extension handshake with data',resp);
             var payload = bencode(resp);
             this.send_message('UTORRENT_MSG', [constants.handshake_code].concat(payload));
         },
@@ -259,6 +260,8 @@
                 this._remote_choked = false;
             } else if (type == 'BITFIELD') {
                 this._sent_bitmask = true;
+            } else if (type == 'BITFIELD') {
+                this._requests_outbound ++;
             } else if (type == 'INTERESTED') {
                 this._interested = true;
             } else if (type == 'NOT_INTERESTED') {
@@ -278,7 +281,7 @@
             }
             mylog(LOGMASK.network, 'sending message',type,payload);
             var buf = packet.buffer;
-            this.stream.send(buf);
+            this.send(buf);
         },
         serve_metadata_piece: function(metapiece, request) {
             mylog(1,'serve metadata piece');
@@ -293,7 +296,7 @@
             var meta = { 'total_size': total_size,
                          'piece': metapiece,
                          'msg_type': tor_meta_codes.data};
-            mylog(2,'responding to metadata request with meta',meta,piecedata.length);
+            mylog(LOGMASK.network_verbose,'responding to metadata request with meta',meta,piecedata.length);
             var payload = [this._remote_extension_handshake['m']['ut_metadata']];
 /*
             var bencoded = bencode(meta);
@@ -309,9 +312,8 @@
             var ext_msg_type = data.payload[0];
             if (ext_msg_type == constants.handshake_code) {
                 var braw = new Uint8Array(data.payload.buffer.slice( data.payload.byteOffset + 1 ));
-                mylog(2, 'raw extension message:', braw);
                 var info = bdecode( ab2str( braw ) )
-                mylog(1, 'decoded extension message stuff',info);
+                mylog(LOGMASK.network, 'decoded extension message stuff',info);
 
                 this._remote_extension_handshake = info;
                 this._remote_extension_handshake_codes = reversedict(info['m']);
@@ -324,7 +326,7 @@
 
                 assert(their_ext_msg_type !== undefined);
 
-                mylog(2, 'handling', ext_msg_str, 'extension message');
+                mylog(LOGMASK.network, 'handling', ext_msg_str, 'extension message');
                 if (ext_msg_str == 'ut_metadata') {
                     var str = utf8.parse(new Uint8Array(data.payload.buffer, data.payload.byteOffset+1));
                     if (str.indexOf('total_size') != -1) {
@@ -383,8 +385,9 @@
         },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
-            mylog(3, 'handle have index', index);
+            //mylog(3, 'handle have index', index);
             this._remote_bitmask[index] = 1;
+            this._requests_outbound --;
             this.trigger('handle_have', index);
 
             // update torrent piece availability...
@@ -429,7 +432,7 @@
             var index = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 0, 4))[0];
             var offset = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 4, 4))[0];
             var size = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8, 4))[0];
-            mylog(2,'handle piece request for piece',index,'offset',offset,'of size',size);
+            mylog(LOGMASK.network,'handle piece request for piece',index,'offset',offset,'of size',size);
 
             var piece = this.newtorrent.get_piece(index);
 
@@ -457,7 +460,7 @@
             }
         },
         send_bitmask: function() {
-            var bitfield = this.newtorrent.get_bitmask();
+            var bitfield = this.newtorrent.create_bitmask_payload();
             // payload is simply one bit for each piece
             this.send_message('BITFIELD', bitfield);
 /*
@@ -471,7 +474,7 @@
         },
         on_connect_timeout: function() {
             if (! this.connected) {
-                this.stream.close();
+                this.close();
                 this.trigger('timeout');
             }
         },
@@ -481,7 +484,7 @@
             // Web Socket is connected, send data using send()
             this.connected = true;
             this.connecting = false;
-            mylog(1,this, "connected!");
+            mylog(LOGMASK.network, "connected!");
             this.trigger('connected'); // send HAVE, unchoke
             _.delay( this.send_handshake, 100 );
         },
@@ -491,11 +494,11 @@
         },
         send_handshake: function() {
             var handshake = create_handshake(this.infohash, my_peer_id);
-            console.log('sending handshake of len',handshake.length,[handshake])
+            mylog(LOGMASK.network, 'sending handshake of len',handshake.length,[handshake])
             var s = new Uint8Array(handshake);
-            this.stream.send( s.buffer );
+            this.send( s.buffer );
             if (! this._sent_bitmask) {
-                this.send_bitmask(); // do this at another time?
+                this.send_bitmask();
             }
         },
         send_keepalive: function() {
@@ -504,6 +507,9 @@
         },
         send: function(msg) {
             this.stream.send(msg);
+        },
+        close: function() {
+            this.stream.close()
         },
         handle_message: function(msg_len) {
             var msg = this.read_buffer_consume(msg_len);
@@ -520,7 +526,7 @@
             this.handshaking = false;
             var blob = this.read_buffer_consume(handshake_len);
             var data = parse_handshake(blob);
-            mylog(1,'parsed handshake',data)
+            mylog(LOGMASK.network,'parsed handshake',data)
             if (! this._sent_bitmask) {
                 this.send_bitmask();
             }
@@ -592,6 +598,7 @@
         },
         onclose: function(evt) {
             // websocket is closed.
+            // trigger cleanup of pending requests etc
             this._closed = true;
             this.trigger('onclose', this)
             mylog(1,"Connection is closed..."); 

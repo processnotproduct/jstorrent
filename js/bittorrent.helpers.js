@@ -11,10 +11,10 @@ window.assert = function(v) {
 
 var loglevel = 1;
 
-window.LOGMASK = {'general':1, 'network': 2};
+window.LOGMASK = {'general':1, 'network': 2, 'disk':Math.pow(2,3)};
 
-var curlogmask = LOGMASK.network | LOGMASK.general
-//var curlogmask = LOGMASK.general;
+//var curlogmask = LOGMASK.network | LOGMASK.general
+var curlogmask = LOGMASK.general;
 
 window.mylog = function(level) {
     var l = [];

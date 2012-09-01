@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="../js/deps/jquery-1.7.2.min.js"></script>  
+    <script src="../js/deps/underscore.js"></script> 
+    <script src="../js/deps/backbone.js"></script>  
+    <script src="../js/deps/backbone.localStorage.js"></script>  
+    <!--script src="../js/deps/jstorage.js"></script-->
+    <script src="../js/deps/digest.js"></script>  
+
+    <script src="../js/deps/clients.js"></script>  
+
+    <script src="../js/deps/FileSaver.js"></script>  
+
+    <script src="../js/bittorrent.dnd.js"></script>  
+    <script src="../js/bittorrent.helpers.js"></script>  
+    <script src="../js/bittorrent.tracker.js"></script>  
+    <script src="../js/bittorrent.file.js"></script>  
+    <script src="../js/bittorrent.filesystem.js"></script>  
+    <script src="../js/bittorrent.client.js"></script>  
+    <script src="../js/bittorrent.piece.js"></script>  
+    <script src="../js/bittorrent.torrent.js"></script>  
+    <script src="../js/bittorrent.js"></script>  
+
+    <script type="text/javascript" src="client.js"></script>
+
+
+    <script type="text/template" id="torrent_template">
+
+          <span style="background:#888" class="name"></span>
+          <span class="size"></span>
+          <span class="status"></span>
+          <span class="complete"></span>
+          <span class="peers"></span>
+          <span class="commands">
+            <a href="#"><i class="start-stop icon-start"></i></a>
+            <a href="#"><i class="icon-remove"></i></a>
+            <a href="#"><i class="icon-upload"></i></a>
+          </span>
+
+    </script>
+
+
+    <script type="text/template" id="peer_template">
+      <span class="host"></span>
+      <span class="complete"></span>
+      <span class="requests"></span>
+    </script>
+
+    <script type="text/template" id="peers_template">
+      Peers View
+      <div class="peers"></div>
+    </script>
+
+
+    <script type="text/template" id="detail_template">
+      Detail View
+      <div class="detail_container"></div>
+    </script>
+
+    <script type="text/template" id="client_template">
+
+      Torrents:
+      <div class="torrents"></div>
+
+      Details:
+      <div class="details"></div>
+      
+    </script>
+
+    <link rel="stylesheet" href="bootstrap/css/bootstrap.css" type="text/css" />
+    <style>
+      .hover { background: #888; }
+      .torrentlist { background:#eee; }
+    </style>
+  </head>
+  <body>
+
+
+      <h1>jstorrent</h1>
+      Welcome to jstorrent! 
+
+      <div id="client">
+      </div>
+
+
+
+
+  </body>
+</html>

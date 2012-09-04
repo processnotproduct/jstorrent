@@ -124,6 +124,29 @@ jQuery(function() {
             mylog(1,'copy success',model,entry);
             if (result) {
                 jsclient.add_torrent( { metadata: result } );
+            } else {
+                // lazy torrent creation with althash -- client still
+                // sending invalid packet length (likely only for
+                // multi-file torrents. ktorrent handles it fine)
+
+                var container = new DNDDirectoryEntry({parent:null, entry:null});;
+                //var container = entry;
+                if (entry.isFile) {
+                    container.files.push( new DNDFileEntry({entry:entry, directory: container}) );
+                    container.populate( function() {
+                        var althash = get_althash(container);
+                        var torrent = new Torrent( {container: container, althash: althash} );
+                        jsclient.torrents.add(torrent);
+                        torrent.hash_all_pieces( function() {
+                            mylog(1, 'torrent ready!');
+                            torrent.start();
+                        });
+                    });
+                } else {
+                    debugger;
+                }
+                //}
+                
             }
         });
     }
@@ -150,5 +173,8 @@ jQuery(function() {
         }
 
     });
+
+
+    jsclient.add_torrent({infohash:"E182045B9360D995F08F88382544763DD0A9DD25"})
 
 });

@@ -168,6 +168,7 @@ Piece.prototype = {
         }
         this.hash = hasher.finalize();
         this.hashed = true;
+        mylog(LOGMASK.hash, 'hashed a piece');
         callback();
     },
     get_file_info: function(offset, size) {

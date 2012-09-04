@@ -1,4 +1,4 @@
-var NewTorrent = Backbone.Model.extend({
+var Torrent = Backbone.Model.extend({
     // misnomer -- not just a new torrent anymore.
     initialize: function(opts) {
         _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close');
@@ -22,25 +22,28 @@ var NewTorrent = Backbone.Model.extend({
             // initialize a torrent from torrent metadata
             this.metadata = opts.metadata;
 
-
             //this.set('metadata',undefined); // save path to the torrent metadata!
             // TODO -- save path to torrent metadata instead of saving it in localstorage
-
-            this.piece_size = this.metadata['info']['piece length'];
-            var hasher = new Digest.SHA1();
-            hasher.update( new Uint8Array(bencode(this.metadata['info'])) );
-            this.hash = new Uint8Array(hasher.finalize());
-            this.hash_hex = ab2hex(this.hash);
+            this.process_metadata();
             //mylog(1,'new torrent with hash',this.hash_hex);
+        } else if (opts.infohash) {
+            // initialization via infohash (i.e. magnet link) {
+            this.hash_hex = opts.infohash;
+            this.hash = str2arr(hex2str(this.hash_hex));
+            return;
 
-        } else {
-
+        } else if (opts.container) {
             this.container = opts.container;
+            this.set('container',undefined); // make sure doesn't store on model.save
             this.althash = opts.althash;
+            this.althash_hex = ab2hex(this.althash);
             this.piece_size = constants.new_torrent_piece_size;
             this.fake_info = this.get_fake_infodict();
             mylog(1,'created fake infodict',this.fake_info);
             this.real_info = {'pieces':[]};
+        } else {
+            throw Error('unrecognized initialization options');
+            debugger;
         }
 
 
@@ -79,6 +82,30 @@ var NewTorrent = Backbone.Model.extend({
         this.meta_requests = [];
         this._processing_meta_request = false;
     },
+    process_metadata: function() {
+        // TODO -- move into method
+        this.piece_size = this.metadata['info']['piece length'];
+        var hasher = new Digest.SHA1();
+        hasher.update( new Uint8Array(bencode(this.metadata['info'])) );
+        this.hash = new Uint8Array(hasher.finalize());
+        this.hash_hex = ab2hex(this.hash);
+    },
+    get_magnet_link: function() {
+        if (this.container) {
+            var s = 'magnet:?xt=urn:alth:' + this.althash_hex;
+        } else {
+            var s = 'magnet:?xt=urn:btih:' + this.hash_hex;
+        }
+        s += '&tr=' + encodeURIComponent('http://192.168.56.1:6969/announce');
+        return s;
+    },
+    get_infohash: function(format) {
+        if (format == 'hex') {
+            return this.hash_hex ? this.hash_hex : this.althash_hex;
+        } else {
+            return this.hash ? this.hash : this.althash;
+        }
+    },
     get_complete: function() {
         var bitmask = this.get_bitmask();
         var l = bitmask.length
@@ -107,7 +134,15 @@ var NewTorrent = Backbone.Model.extend({
         if (! conn.handshaking) {
             if (conn._remote_bitmask) {
                 if (! conn._interested) {
+                    // XXX -- only send when we're not 100% complete
                     conn.send_message('INTERESTED');
+                } else if (this.magnet_only()) {
+                    var hs = conn._remote_extension_handshake;
+                    if (hs['m'] && hs['m']['ut_metadata']) {
+                        debugger; // has metadata extension protocol!
+                    }
+
+
                 } else {
                     if (! conn._choked) {
                         // select piece i'm missing but they have
@@ -148,11 +183,22 @@ var NewTorrent = Backbone.Model.extend({
             }
         }
     },
-    get_infodict: function() {
-        return this.metadata ? this.metadata['info'] : this.fake_info;
+    magnet_only: function() {
+        return ! (this.fake_info || this.metadata);
+    },
+    has_infodict: function() {
+        return !! this.metadata;
+    },
+    get_infodict: function(opts) {
+        if (opts && opts == 'bencoded') {
+            // TODO -- store bencoded version
+            return this.metadata ? bencode(this.metadata['info']) : bencode(this.fake_info);
+        } else {
+            return this.metadata ? this.metadata['info'] : this.fake_info;
+        }
     },
     announce: function() {
-        this.tracker = new TrackerConnection('http://192.168.56.1:6969/announce', this.hash_hex);
+        this.tracker = new TrackerConnection('http://192.168.56.1:6969/announce', this);
         this.tracker.bind('newpeer', this.handle_new_peer);
         this.tracker.announce()
     },
@@ -163,7 +209,7 @@ var NewTorrent = Backbone.Model.extend({
                 // already have this peer..
                 mylog(1,'already have this peer',this.connections,key);
             } else {
-                var conn = new WSPeerConnection({host:data.ip, port:data.port, hash:this.hash, torrent:this});
+                var conn = new WSPeerConnection({host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
                 this.connections[key] = conn
                 this.set('numpeers', _.keys(this.connections).length);
                 conn.bind('onclose', this.on_connection_close);
@@ -180,6 +226,11 @@ var NewTorrent = Backbone.Model.extend({
         return Math.ceil( this.size / this.piece_size );
     },
     register_meta_piece_requested: function(num, callback) {
+        if (this._hashing_all_pieces) {
+            debugger; // already hashing all pieces... simply return data when done
+            return;
+        }
+
         // other end has requested a metadata piece. determine which
         // pieces this corresponds to and read them and hash them.
         var data = {'time':new Date(), 'metapiece':num, 'callback': callback};
@@ -283,6 +334,42 @@ var NewTorrent = Backbone.Model.extend({
         var result = file.hasher.finalize();
         mylog(1,'got a sha hash',ab2hex(new Uint8Array(result)));
         this.process_meta_request(); // pass in index of completed file...
+    },
+    hash_all_pieces: function(callback) {
+        this._hashing_all_pieces = true;
+        // hash check everything... (used to create torrent metadata from dropped in files)
+        assert( ! this.has_infodict() );
+        var pieces = [];
+        for (var i = 0; i < this.num_pieces; i++) {
+            pieces.push(this.get_piece(i));
+        }
+        mylog(LOGMASK.hash, 'hashing all pieces',pieces.length);
+        piecehasher.enqueue( pieces, _.bind(this.hashed_all_pieces, this, callback) );
+    },
+    hashed_all_pieces: function(callback) {
+        mylog(LOGMASK.hash, 'hashed all pieces!');
+        this._hashing_all_pieces = false;
+        for (var i = 0; i < this.num_pieces; i++) {
+            var piece = this.get_piece(i);
+            //var s = ab2hex();
+            var arr = new Uint8Array(piece.hash);
+            assert (arr.byteLength == 20);
+            var offset = piece.num*20
+            for (var j=0; j<20; j++) {
+                this.real_info['pieces'][offset+j] = arr[j]
+            }
+        }
+        var s = '';
+        for (var i=0; i<this.real_info.pieces.length; i++) {
+            s += String.fromCharCode(this.real_info.pieces[i]);
+        }
+        this.fake_info.pieces = s;
+        this.metadata = { 'info': _.clone(this.fake_info) };
+        this.set('metadata',this.metadata);
+
+        this.process_metadata();
+        this.fake_info = null;
+        callback();
     },
     pieces_hashed: function(request) {
         // can service meta request because we hashed all the pieces
@@ -418,6 +505,7 @@ var NewTorrent = Backbone.Model.extend({
         }
     },
     get_metadata_piece: function(metapiecenum, request) {
+        // lazy piece generation
         var sz = constants.metadata_request_piece_size; // metadata requests 
         var index = null;
         bencode( this.fake_info, function(stack, r) {
@@ -425,7 +513,7 @@ var NewTorrent = Backbone.Model.extend({
                 index = r.length;
             }
         });
-        var bytes = bencode( this.fake_info); 
+        var bytes = bencode( this.fake_info );
         //var piecedata = bdecode(utf8.parse(bytes.slice(index)));
         var piecedata = bdecode(arr2str(bytes.slice(index)));
         var piecedata_a = index + piecedata.length.toString().length + 1;
@@ -545,7 +633,11 @@ var NewTorrent = Backbone.Model.extend({
         return this.size;
     },
     get_name: function() {
-        return this.get_infodict().name;
+        if (this.magnet_only()) {
+            return 'magnet:' + this.hash_hex;
+        } else {
+            return this.get_infodict().name;
+        }
     },
     get_fake_pieces: function() {
         // returns the fake pieces byte array
@@ -561,6 +653,14 @@ var NewTorrent = Backbone.Model.extend({
 
 var TorrentCollection = Backbone.Collection.extend({
     localStorage: new Store('TorrentCollection'),
-    model: NewTorrent
+    model: Torrent,
+    contains: function(torrent) {
+        for (var i=0; i<this.models.length; i++) {
+            if (torrent.hash_hex.toLowerCase() == this.models[i].hash_hex.toLowerCase()) {
+                return true;
+            }
+        }
+        return false;
+    }
 });
 

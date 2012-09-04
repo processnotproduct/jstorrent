@@ -8,9 +8,9 @@ function hex2str(hex) {
     return s
 }
 
-var TrackerConnection = function(url, infohash) {
+var TrackerConnection = function(url, torrent) {
     this.url = url;
-    this.infohash = infohash;
+    this.torrent = torrent;
 }
 
 function decode_peer(str) {
@@ -36,8 +36,15 @@ function btURIEncode(s) {
 
 TrackerConnection.prototype = {
     announce: function() {
+
+        if (window.config && config.debug_torrent_client) {
+            // bypass tracker and always connect to a debug torrent client (ktorrent)
+            this.trigger('newpeer',config.debug_torrent_client);
+            return;
+        }
+
         var _this = this;
-        var params = { info_hash: hex2str(this.infohash), event: 'started',
+        var params = { info_hash: hex2str(this.torrent.get_infohash('hex')), event: 'started',
                        peer_id: ab2str(my_peer_id),
                        port: 0,
                        downloaded: 0,

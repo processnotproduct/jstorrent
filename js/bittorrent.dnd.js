@@ -1,6 +1,6 @@
 (function() {
 
-    function get_althash(container) {
+    window.get_althash = function(container) {
         var l = [];
         entries = container.items();
         for (var i=0; i<entries.length; i++) {
@@ -78,8 +78,8 @@
                     this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ), _.bind(function() {
                         mylog(1,'told client to add, waiting 1 sec before connecting');
                         _.delay(_.bind(function(){
-                            this.newtorrent = new NewTorrent({container:this.container, althash:althash});
-                            this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.newtorrent});
+                            this.torrent = new Torrent({container:this.container, althash:althash});
+                            this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.torrent});
                             this.connection.bind('handle_have', this.upload_progress);
                             this.connection.bind('hash_progress', this.hash_progress);
                             this.connection.bind('completed', this.completed);
@@ -94,8 +94,8 @@
                 var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
                 defer.then( _.bind(function() {
                     // get this from backbone
-                    this.newtorrent = new NewTorrent({container:this.container, althash:althash});
-                    this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.newtorrent});
+                    this.torrent = new Torrent({container:this.container, althash:althash});
+                    this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.torrent});
                     this.connection.bind('handle_have', this.upload_progress);
                     this.connection.bind('hash_progress', this.hash_progress);
                     this.connection.bind('completed', this.completed);
@@ -263,28 +263,42 @@
             // reads & populates all DNDFileEntry+File objects
             this._reading = true;
             var item = this.entry;
-            var _this = this;
-            var reader = item.createReader();
-            reader.readEntries( function(result) {
-                _this._reading = false;
-                // gets FileEntries
-                if (result.length) {
-                    for (var j=0; j<result.length; j++) {
-                        var it = result[j];
-                        if (it.isDirectory) {
-                            var dir = new DNDDirectoryEntry( { entry: it, parent: _this } );
-                            _this.directories.push( dir );
-                            dir.populate(cb); // XXX callbacks being fired before directories are populated!
-                        } else {
-                            var file = new DNDFileEntry({entry:it, directory:_this});
-                            _this.files.push( file );
-                            file.populate(cb);
+            if (item) {
+                var _this = this;
+                var reader = item.createReader();
+                reader.readEntries( function(result) {
+                    _this._reading = false;
+                    // gets FileEntries
+                    if (result.length) {
+                        for (var j=0; j<result.length; j++) {
+                            var it = result[j];
+                            if (it.isDirectory) {
+                                var dir = new DNDDirectoryEntry( { entry: it, parent: _this } );
+                                _this.directories.push( dir );
+                                dir.populate(cb); // XXX callbacks being fired before directories are populated!
+                            } else {
+                                var file = new DNDFileEntry({entry:it, directory:_this});
+                                _this.files.push( file );
+                                file.populate(cb);
+                            }
                         }
+                    } else {
+                        cb({error: 'no file entries'});
                     }
-                } else {
-                    cb({error: 'no file entries'});
+                });
+            } else {
+                // empty container (not sure if this works correctly)
+                var iterkeys = ['directories','files'];
+                for (var j=0; j<2; j++) {
+                    var entries = this[iterkeys[j]];
+                    for (var i=0; i<entries.length; i++) {
+                        var entry = entries[i];
+                        entry.populate( cb );
+                    }
+                    
                 }
-            });
+                
+            }
         },
         populated: function() {
             // there's a bunch of asynchronous calls, this will check

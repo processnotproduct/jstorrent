@@ -172,10 +172,12 @@
             this._closed = true;
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
-            this.newtorrent = torrent;
-            this.newtorrent.bind('piece_hashed', this.handle_piece_hashed);
-            var infodict = this.newtorrent.get_infodict();
-            this.newtorrent_metadata_size = bencode(infodict).length
+            this.torrent = torrent;
+            this.torrent.bind('piece_hashed', this.handle_piece_hashed);
+            var infodict = this.torrent.get_infodict();
+            if (! this.torrent.magnet_only()) {
+                this.torrent_metadata_size = bencode(infodict).length
+            }
             mylog(LOGMASK.network,'initialize peer connection with infohash',this.infohash);
             this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
             this.connected = false;
@@ -216,10 +218,10 @@
             var offset = view.getUint32(4);
             var chunk = new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8);
             //mylog(1,'got piece idx',index,'offset',offset,'chunk data len',chunk.byteLength);
-            this.newtorrent.handle_piece_data(this, index, offset, chunk);
+            this.torrent.handle_piece_data(this, index, offset, chunk);
         },
         handle_piece_hashed: function(piece) {
-            this.trigger('hash_progress', (piece.num / (this.newtorrent.num_pieces-1)))
+            this.trigger('hash_progress', (piece.num / (this.torrent.num_pieces-1)))
         },
         handle_keepalive: function() {
             mylog(1,'got keepalive');
@@ -230,7 +232,9 @@
             var resp = {'v': 'jstorrent 0.0.1',
                         'm': {},
                         'p': 0}; // we don't have a port to connect to :-(
-            resp['metadata_size'] = this.newtorrent_metadata_size;
+            if (! this.torrent.magnet_only()) {
+                resp['metadata_size'] = this.torrent_metadata_size;
+            }
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
@@ -283,15 +287,18 @@
             var buf = packet.buffer;
             this.send(buf);
         },
-        serve_metadata_piece: function(metapiece, request) {
+        serve_metadata_piece: function(metapiece, request, piecedata) {
+            // optional piecedata
             mylog(1,'serve metadata piece');
             var tor_meta_codes = { 'request': 0,
                                    'data': 1,
                                    'reject': 2 };
 
-            var piecedata = this.newtorrent.get_metadata_piece(metapiece, request);
+            if (piecedata === undefined) {
+                piecedata = this.torrent.get_metadata_piece(metapiece, request);
+            }
 
-            var total_size = bencode(this.newtorrent.fake_info).length
+            var total_size = this.torrent.get_infodict('bencoded').length;
             
             var meta = { 'total_size': total_size,
                          'piece': metapiece,
@@ -335,16 +342,20 @@
                         var info = bdecode(str);
                         var tor_meta_type = constants.tor_meta_codes[ info['msg_type'] ];
                         if (tor_meta_type == 'request') {
-                            debugger;
-                            if (this.container) { // remove check for container, move into torrent
+                            var metapiece = info.piece;
+                            if (! this.torrent.has_infodict()) { // remove check for container, move into torrent
                                 // this is javascript creating the torrent from a file selection or drag n' drop.
-                                var metapiece = info.piece;
                                 mylog(1, 'they are asking for metadata pieces!',metapiece);
-                                this.newtorrent.register_meta_piece_requested(metapiece, _.bind(this.serve_metadata_piece, this, metapiece) );
+                                this.torrent.register_meta_piece_requested(metapiece, _.bind(this.serve_metadata_piece, this, metapiece) );
                                 // figure out which pieces this corresponds to...
-                                // this.bind('close', function() { this.newtorrent.register_disconnect(metapiece) } );
+                                // this.bind('close', function() { this.torrent.register_disconnect(metapiece) } );
                             } else {
-                                debugger;
+                                // simply serve from the already completed infodict
+                                var bencoded = this.torrent.get_infodict('bencoded'); // TODO -- store bencoded version
+
+                                var sliced = bencoded.slice( metapiece * constants.metadata_request_piece_size,
+                                                             (metapiece + 1) * constants.metadata_request_piece_size );
+                                this.serve_metadata_piece( metapiece, null, sliced );
                             }
                         } else {
                             debugger;
@@ -377,7 +388,7 @@
         handle_have_all: function(data) {
             mylog(1, 'handle have all');
             this._remote_bitmask = [];
-            for (var i=0; i<this.newtorrent.get_num_pieces(); i++) {
+            for (var i=0; i<this.torrent.get_num_pieces(); i++) {
                 this._remote_bitmask[i] = 1;
             }
             this.trigger('handle_have');
@@ -399,7 +410,7 @@
             }
         },
         seeding: function() {
-            return this.bitmask_complete(this.newtorrent.get_bitmask());
+            return this.bitmask_complete(this.torrent.get_bitmask());
         },
         fraction_complete: function() {
             // todo -- optimize
@@ -434,7 +445,7 @@
             var size = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8, 4))[0];
             mylog(LOGMASK.network,'handle piece request for piece',index,'offset',offset,'of size',size);
 
-            var piece = this.newtorrent.get_piece(index);
+            var piece = this.torrent.get_piece(index);
 
             // read each of these file payloads and respond...
             // var request_info = {'index':index, 'offset':offset, 'size':size};
@@ -453,18 +464,18 @@
         },
         handle_bitfield: function(data) {
             mylog(1, 'handle bitfield message');
-            this._remote_bitmask = this.newtorrent.parse_bitmask(data.payload);
+            this._remote_bitmask = this.torrent.parse_bitmask(data.payload);
             mylog(1,'parsed bitmask',this._remote_bitmask);
-            if (! this._sent_bitmask) {
+            if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                 this.send_bitmask();
             }
         },
         send_bitmask: function() {
-            var bitfield = this.newtorrent.create_bitmask_payload();
+            var bitfield = this.torrent.create_bitmask_payload();
             // payload is simply one bit for each piece
             this.send_message('BITFIELD', bitfield);
 /*
-            if (this.newtorrent.have_all) {
+            if (this.torrent.have_all) {
                 this.send_message('HAVE_ALL');
             }
 */
@@ -497,7 +508,7 @@
             mylog(LOGMASK.network, 'sending handshake of len',handshake.length,[handshake])
             var s = new Uint8Array(handshake);
             this.send( s.buffer );
-            if (! this._sent_bitmask) {
+            if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                 this.send_bitmask();
             }
         },
@@ -527,7 +538,7 @@
             var blob = this.read_buffer_consume(handshake_len);
             var data = parse_handshake(blob);
             mylog(LOGMASK.network,'parsed handshake',data)
-            if (! this._sent_bitmask) {
+            if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                 this.send_bitmask();
             }
         },

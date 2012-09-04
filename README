@@ -1,6 +1,17 @@
-html5 torrent library
-impetus was drag and drop files to create and seed a torrent
-only way to do that was to go all out and create a full fledged torrent 
-client in the browser.
-bittorrent protocol is embedded in a websocket. hopefully future desktop 
-clients will support websocket connections!
+JSTorrent (javascript torrent client)
+
+provides "JSTorrentClient", which stores a list of torrent files in
+the browser's localStorage. Torrent data is backed by the HTML5 filesystem API.
+
+requires:
+- FileSystem API (included in Chrome)
+- WebSocket API (most browsers have this)
+  - with ArrayBuffer binary frame support
+
+While web browsers still cannot listen for incoming connections, they
+are now perfectly capable of creating client socket connections to
+other BitTorrent clients. Alpha versions of uTorrent support peer
+connections that are initiated via a websocket handshake.
+
+Trackers will need to support JSONP requests for javascript clients to
+find peers.

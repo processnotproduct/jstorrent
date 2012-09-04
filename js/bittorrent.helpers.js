@@ -1,3 +1,7 @@
+window.config = {
+    //debug_torrent_client: {ip:'127.0.0.1', port:8030}
+}
+
 window.assert = function(v) {
     if (!v) { 
         var l = [];
@@ -11,10 +15,22 @@ window.assert = function(v) {
 
 var loglevel = 1;
 
-window.LOGMASK = {'general':1, 'network': 2, 'disk':Math.pow(2,3)};
+window.LOGMASK = {'general':1, 
+                  'network': 2, 
+                  'disk':Math.pow(2,3),
+                  'hash':Math.pow(2,4),
+                 };
+
+var b = 0;
+for (var key in LOGMASK) {
+    b = b | LOGMASK[key];
+}
+LOGMASK.all = b;
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
-var curlogmask = LOGMASK.general;
+//var curlogmask = LOGMASK.general | LOGMASK.hash;
+var curlogmask = LOGMASK.all;
+//var curlogmask = LOGMASK.general;
 
 window.mylog = function(level) {
     var l = [];

@@ -46,9 +46,11 @@
         handshake_code: 0,
         tor_meta_codes: { 0: 'request',
                           1: 'data',
-                          2: 'reject' }
+                          2: 'reject' },
+        tor_meta_codes_r: {'request':0,
+                           'data':1,
+                           'reject':2}
     };
-    constants.tor_meta_codes_r = reversedict(constants.tor_meta_codes);
     constants.message_dict = {};
     for (var i=0; i<constants.messages.length; i++) {
         constants.message_dict[ constants.messages[i] ] = i;
@@ -177,6 +179,7 @@
             var infodict = this.torrent.get_infodict();
             if (! this.torrent.magnet_only()) {
                 this.torrent_metadata_size = bencode(infodict).length
+                this.torrent._metadata_requests = {};
             }
             mylog(LOGMASK.network,'initialize peer connection with infohash',this.infohash);
             this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
@@ -290,9 +293,6 @@
         serve_metadata_piece: function(metapiece, request, piecedata) {
             // optional piecedata
             mylog(1,'serve metadata piece');
-            var tor_meta_codes = { 'request': 0,
-                                   'data': 1,
-                                   'reject': 2 };
 
             if (piecedata === undefined) {
                 piecedata = this.torrent.get_metadata_piece(metapiece, request);
@@ -302,7 +302,7 @@
             
             var meta = { 'total_size': total_size,
                          'piece': metapiece,
-                         'msg_type': tor_meta_codes.data};
+                         'msg_type': constants.tor_meta_codes.data};
             mylog(LOGMASK.network_verbose,'responding to metadata request with meta',meta,piecedata.length);
             var payload = [this._remote_extension_handshake['m']['ut_metadata']];
 /*
@@ -314,6 +314,48 @@
             payload = payload.concat( bencode(meta) );
             payload = payload.concat(piecedata);
             this.send_message('UTORRENT_MSG', payload);
+        },
+        request_metadata: function() {
+            if (this.torrent._requesting_metadata) { return; }
+
+            this.torrent._requesting_metadata = true;
+            var hs = this._remote_extension_handshake;
+            var total_size = hs['metadata_size'];
+            var numrequests = Math.ceil(total_size/constants.metadata_request_piece_size);
+            for (var i=0; i<numrequests; i++) {
+                var req = { 'total_size': total_size,
+                            'piece': i,
+                            'msg_type': constants.tor_meta_codes_r.request
+                          };
+                this.torrent._metadata_requests[i] = { conn: this,
+                                                       time: new Date().getTime(),
+                                                       num: i };
+                var payload = [this._remote_extension_handshake['m']['ut_metadata']];
+                payload = payload.concat( bencode(req) );
+                this.send_message('UTORRENT_MSG', payload);
+            }
+        },
+        check_have_all_metadata: function() {
+            var size = this._remote_extension_handshake.metadata_size;
+            var numchunks = Math.ceil(size/constants.metadata_request_piece_size);
+            for (var i=0; i<numchunks; i++) {
+                if (! this.torrent._metadata_requests[i]) {
+                    debugger;
+                    return false;
+                }
+            }
+            var metadata = [];
+            for (var i=0; i<numchunks; i++) {
+                for (var j=0; j<this.torrent._metadata_requests[i].data.length; j++) {
+                    metadata.push( this.torrent._metadata_requests[i].data[j] );
+                }
+            }
+            var result = new Uint8Array(metadata);
+            var hasher = new Digest.SHA1();
+            hasher.update( result );
+            var hash = new Uint8Array(hasher.finalize());
+            assert( ab2hex(hash) == ab2hex(this.torrent.hash) );
+            return result;
         },
         handle_extension_message: function(data) {
             var ext_msg_type = data.payload[0];
@@ -335,11 +377,21 @@
 
                 mylog(LOGMASK.network, 'handling', ext_msg_str, 'extension message');
                 if (ext_msg_str == 'ut_metadata') {
-                    var str = utf8.parse(new Uint8Array(data.payload.buffer, data.payload.byteOffset+1));
-                    if (str.indexOf('total_size') != -1) {
-                        debugger;
+                    var arr = new Uint8Array(data.payload.buffer, data.payload.byteOffset+1);
+                    var str = arr2str(arr);
+                    var info = bdecode(str);
+                    if (constants.tor_meta_codes[info.msg_type] == 'data') {
+                        var data = new Uint8Array(data.payload.buffer, data.payload.byteOffset + bencode(info).length+1);
+                        if (this.torrent._metadata_requests) {
+                            var reqdata = this.torrent._metadata_requests[info.piece];
+                            reqdata.data = data;
+                            var meta = this.check_have_all_metadata();
+                            if (meta) {
+                                var decoded = bdecode(arr2str(meta));
+                                this.torrent.set_metadata({'info':decoded});
+                            }
+                        }
                     } else {
-                        var info = bdecode(str);
                         var tor_meta_type = constants.tor_meta_codes[ info['msg_type'] ];
                         if (tor_meta_type == 'request') {
                             var metapiece = info.piece;

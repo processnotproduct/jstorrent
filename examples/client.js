@@ -93,7 +93,6 @@ var DetailView = Backbone.View.extend({
             this.subview.destroy({parent:this.el});
         }
         this.subview = new PeerView({model:model});
-        
     }
 });
 
@@ -142,11 +141,13 @@ jQuery(function() {
                             torrent.start();
                         });
                     });
+                } else if (entry.isDirectory) {
+                    container.files.push( new DNDDirectoryEntry({entry:entry, parent: null}) );
+                    debugger;
                 } else {
                     debugger;
                 }
                 //}
-                
             }
         });
     }
@@ -175,6 +176,6 @@ jQuery(function() {
     });
 
 
-    jsclient.add_torrent({infohash:"E182045B9360D995F08F88382544763DD0A9DD25"})
+    //jsclient.add_torrent({infohash:"E182045B9360D995F08F88382544763DD0A9DD25"})
 
 });

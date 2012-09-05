@@ -21,17 +21,17 @@ var Torrent = Backbone.Model.extend({
         if (opts.metadata) {
             // initialize a torrent from torrent metadata
             this.metadata = opts.metadata;
-
             //this.set('metadata',undefined); // save path to the torrent metadata!
             // TODO -- save path to torrent metadata instead of saving it in localstorage
             this.process_metadata();
+            this.process_post_metadata();
             //mylog(1,'new torrent with hash',this.hash_hex);
         } else if (opts.infohash) {
             // initialization via infohash (i.e. magnet link) {
+            this._metadata_requests = {};
             this.hash_hex = opts.infohash;
             this.hash = str2arr(hex2str(this.hash_hex));
             return;
-
         } else if (opts.container) {
             this.container = opts.container;
             this.set('container',undefined); // make sure doesn't store on model.save
@@ -41,12 +41,14 @@ var Torrent = Backbone.Model.extend({
             this.fake_info = this.get_fake_infodict();
             mylog(1,'created fake infodict',this.fake_info);
             this.real_info = {'pieces':[]};
+            this.process_post_metadata();
         } else {
             throw Error('unrecognized initialization options');
             debugger;
         }
 
-
+    },
+    process_post_metadata: function() {
         this._file_byte_accum = [];
         if (this.is_multifile()) {
             var b = 0;
@@ -59,9 +61,7 @@ var Torrent = Backbone.Model.extend({
             this._file_byte_accum.push(0);
             this.size = this.get_infodict().length;
         }
-
         this.num_pieces = this.get_num_pieces();
-
         if (this.get('bitmask')) {
             //assert(this.get('bitmask').length == this.num_pieces);
             if (this.get('bitmask').length != this.num_pieces) {
@@ -78,11 +78,15 @@ var Torrent = Backbone.Model.extend({
             this.set('bitmask', bitmask); // XOXOXOXOXXX!!!!! BAD!!! bad bad bad
             assert(bitmask.length == this.num_pieces);
         }
-
         this.meta_requests = [];
         this._processing_meta_request = false;
     },
-    process_metadata: function() {
+    set_metadata: function(metadata) {
+        this.metadata = metadata;
+        this.process_metadata();
+        this.process_post_metadata();
+    },
+    process_metadata: function(meta) {
         // TODO -- move into method
         this.piece_size = this.metadata['info']['piece length'];
         var hasher = new Digest.SHA1();
@@ -139,10 +143,9 @@ var Torrent = Backbone.Model.extend({
                 } else if (this.magnet_only()) {
                     var hs = conn._remote_extension_handshake;
                     if (hs['m'] && hs['m']['ut_metadata']) {
-                        debugger; // has metadata extension protocol!
+                        var metasize = hs['metadata_size'];
+                        conn.request_metadata();
                     }
-
-
                 } else {
                     if (! conn._choked) {
                         // select piece i'm missing but they have

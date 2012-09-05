@@ -127,17 +127,23 @@
             var uri = '/api/upload/ws';
             var uri = '/wsclient';
             var strurl = 'ws://'+this._host+':'+this._port+uri;
-            this.stream = new WebSocket(strurl);
+            this.strurl = strurl;
+            try {
+                this.stream = new WebSocket(strurl);
+            } catch(e) {
+                mylog(1,'error creating websocket!');
+            }
             mylog(LOGMASK.network,'initializing stream to',strurl);
             this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
-            this.stream.onopen = this.onopen
-            this.stream.onclose = this.onclose
-            this.stream.onmessage = this.onmessage
-            this.stream.onclose = this.onclose
+            this.stream.onerror = this.onerror;
+            this.stream.onopen = this.onopen;
+            this.stream.onclose = this.onclose;
+            this.stream.onmessage = this.onmessage;
             this.read_buffer = []; // utorrent does not send an entire message in each websocket frame
         },
         initialize: function(opts) {
             _.bindAll(this, 'onopen', 'onclose', 'onmessage', 'onerror', 'on_connect_timeout',
+                      'onerror',
                       'handle_extension_message',
                       'send_handshake',
                       'send_extension_handshake',
@@ -157,6 +163,7 @@
                      );
             var host = opts.host;
             var port = opts.port;
+            assert( typeof opts.port == 'number' );
             var torrent = opts.torrent;
 
             //var infohash = opts.hash; // array buffers and stuff no bueno... just want simple array
@@ -171,7 +178,6 @@
 
             this._host = host;
             this._port = port;
-            this._closed = true;
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
             this.torrent = torrent;
@@ -182,9 +188,9 @@
                 this.torrent._metadata_requests = {};
             }
             mylog(LOGMASK.network,'initialize peer connection with infohash',this.infohash);
-            this.connect_timeout = setTimeout( this.on_connect_timeout, 1000 );
-            this.connected = false;
-            this.connecting = true;
+            this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
+            this._connected = false;
+            this._connecting = true;
             this.handshaking = true;
 
             this._remote_bitmask = null;
@@ -252,6 +258,13 @@
             if (this._closed) {
                 mylog(1,'cannot send message, connection closed',type);
             }
+            if (this._error) {
+                mylog(1,'cannot send message, connection error',type);
+            }
+            if (this._connecting) {
+                mylog(1,'cannot send message, still connecting',type);
+            }
+
             // if payload is already an array buffer, what to do???
             var args = [];
             for (var i=0; i<arguments.length; i++) {
@@ -536,17 +549,16 @@
             mylog(1, 'handle port message');
         },
         on_connect_timeout: function() {
-            if (! this.connected) {
+            if (! this._connected && !this._error && !this._closed) {
                 this.close();
                 this.trigger('timeout');
             }
         },
         onopen: function(evt) {
-            this._closed = false;
+            this._connecting = false;
             clearTimeout( this.connect_timeout );
             // Web Socket is connected, send data using send()
-            this.connected = true;
-            this.connecting = false;
+            this._connected = true;
             mylog(LOGMASK.network, "connected!");
             this.trigger('connected'); // send HAVE, unchoke
             _.delay( this.send_handshake, 100 );
@@ -659,16 +671,30 @@
                 }
             }
         },
+        repr: function() {
+            return this.strurl;
+        },
         onclose: function(evt) {
             // websocket is closed.
             // trigger cleanup of pending requests etc
-            this._closed = true;
-            this.trigger('onclose', this)
-            mylog(1,"Connection is closed..."); 
-            //_.delay( _.bind(this.reconnect, this), 2000 );
+            if (this._error) {
+                mylog(1,this.repr(),'onclose, already triggered error',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'');
+            } else {
+                this._closed = true;
+                this.trigger('onclose', this)
+                mylog(1,this.repr(),'onclose',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'');
+                //_.delay( _.bind(this.reconnect, this), 2000 );
+            }
         },
         onerror: function(evt) {
-            mylog(1,'Connection error');
+            clearTimeout( this.connect_timeout );
+            if (this._closed) {
+                mylog(1,this.repr(),'onerror, already triggered onclose',evt);
+            } else {
+                this._error = true;
+                this.trigger('onerror',this);
+                mylog(1,this.repr(),'onerror', evt);
+            }
         }
     });
 

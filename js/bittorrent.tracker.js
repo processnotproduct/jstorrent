@@ -8,12 +8,23 @@ function hex2str(hex) {
     return s
 }
 
+function hex2arr(hex) {
+    assert(hex.length%2 == 0);
+    var s = [];
+    for (var i=0; i<hex.length/2; i++) {
+        var val = parseInt(hex.slice(2*i, 2*i+2), 16)
+        s.push(val);
+    }
+    return s
+};
+
 var TrackerConnection = function(url, torrent) {
     this.url = url;
     this.torrent = torrent;
 }
 
 function decode_peer(str) {
+    assert(str.length == 6);
     var ip = str.charCodeAt(0) + '.' + str.charCodeAt(1) + '.' + str.charCodeAt(2) + '.' + str.charCodeAt(3)
     var port = 256 * str.charCodeAt(4) + str.charCodeAt(5);
     return { ip: ip, port: port };
@@ -52,15 +63,30 @@ TrackerConnection.prototype = {
                        left: 0
                      };
         jQuery.ajax( { url: this.get_url(params),
-                       success: function(data, status, xhr) {
-                           var decoded = bdecode(data)
+                       success: function(b64data, status, xhr) {
+                           // need to base64 decode
+                           var data = atob(b64data);
+                           //var data = base64.toBits(b64data)
+                           var decoded = bdecode(data);
                            if (decoded.peers) {
                                var peers = decoded.peers;
                                assert(peers.length % 6 == 0);
-                               for (var i=0; i<peers.length/6; i++) {
+
+                               var itermax = peers.length/6;
+
+                               if (true) {
+                                   // pick a single peer, for debugging
+                                   var i = Math.floor( Math.random() * itermax );
                                    var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
                                    _this.trigger('newpeer',peerdata);
-                                   //mylog(1,'got peer',peerdata);
+                                   mylog(1,'got peer',peerdata);
+                                   
+                               } else {
+                                   for (var i=0; i<itermax; i++) {
+                                       var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                                       _this.trigger('newpeer',peerdata);
+                                       mylog(1,'got peer',peerdata);
+                                   }
                                }
                            }
                        },
@@ -73,6 +99,11 @@ TrackerConnection.prototype = {
     get_url: function(params) {
         //var s = this.url + '?info_hash=' + params.info_hash;
         var s = this.url + '?';
+        if (this.url.indexOf('?') == -1) {
+            var s = this.url + '?';
+        } else {
+            var s = this.url + '&';
+        }
         var i = 0;
         for (var key in params) {
             s += (i==0?'':'&') + key + '=' + btURIEncode(params[key]);

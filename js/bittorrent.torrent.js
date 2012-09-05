@@ -17,6 +17,7 @@ var Torrent = Backbone.Model.extend({
         this.connections = {};
         this.pieces = [];
         this.files = [];
+        this._metadata_requests = {};
 
         if (opts.metadata) {
             // initialize a torrent from torrent metadata
@@ -28,9 +29,28 @@ var Torrent = Backbone.Model.extend({
             //mylog(1,'new torrent with hash',this.hash_hex);
         } else if (opts.infohash) {
             // initialization via infohash (i.e. magnet link) {
-            this._metadata_requests = {};
             this.hash_hex = opts.infohash;
             this.hash = str2arr(hex2str(this.hash_hex));
+            return;
+        } else if (opts.magnet) {
+            var url = opts.magnet;
+            var uri = url.slice(url.indexOf(':')+2)
+            var parts = uri.split('&');
+            var d = {}
+            for (var i=0; i<parts.length; i++) {
+                var kv = parts[i].split('=');
+                var k = decodeURIComponent(kv[0]);
+                var v = decodeURIComponent(kv[1]);
+                if (! d[k]) {
+                    d[k] = [];
+                }
+                d[k].push(v);
+            }
+            var xtparts = d.xt[0].split(':');
+            this.hash_hex = xtparts[xtparts.length-1];
+            this.hash = hex2arr(this.hash_hex);
+            assert (this.hash.length == 20);
+            this.magnet_info = d;
             return;
         } else if (opts.container) {
             this.container = opts.container;
@@ -107,6 +127,7 @@ var Torrent = Backbone.Model.extend({
         if (format == 'hex') {
             return this.hash_hex ? this.hash_hex : this.althash_hex;
         } else {
+            assert( this.hash.length == 20 );
             return this.hash ? this.hash : this.althash;
         }
     },
@@ -200,8 +221,15 @@ var Torrent = Backbone.Model.extend({
             return this.metadata ? this.metadata['info'] : this.fake_info;
         }
     },
+    get_tracker: function() {
+        if (this.magnet_info && this.magnet_info.tr) {
+            return config.tracker_proxy + '?_tracker_url=' + encodeURIComponent(this.magnet_info.tr[0]);
+        } else {
+            return 'http://192.168.56.1:6969/announce';
+        }
+    },
     announce: function() {
-        this.tracker = new TrackerConnection('http://192.168.56.1:6969/announce', this);
+        this.tracker = new TrackerConnection(this.get_tracker(), this);
         this.tracker.bind('newpeer', this.handle_new_peer);
         this.tracker.announce()
     },
@@ -637,7 +665,11 @@ var Torrent = Backbone.Model.extend({
     },
     get_name: function() {
         if (this.magnet_only()) {
-            return 'magnet:' + this.hash_hex;
+            if (this.magnet_info.dn) {
+                return this.magnet_info.dn[0];
+            } else {
+                return 'magnet:' + this.hash_hex;
+            }
         } else {
             return this.get_infodict().name;
         }

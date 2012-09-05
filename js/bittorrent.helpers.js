@@ -1,6 +1,21 @@
 window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8030}
+    tracker_proxy: 'http://192.168.56.1:6969/proxy'
 }
+
+window.base64 = {
+    _chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+
+    // 6 bits per character
+
+    // -----|-----|-----|-----|
+    // -------|-------|-------|
+
+    toBits: function(str) {
+        //str = str.replace(/\s|=/g,''); // remove whitespace?
+
+        }
+};
 
 window.assert = function(v) {
     if (!v) { 

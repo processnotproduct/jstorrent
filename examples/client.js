@@ -58,6 +58,11 @@ var TorrentView = BaseView.extend({
             evt.preventDefault();
         },this));
 
+        this.$('.icon-upload').click( _.bind(function(evt) {
+            this.model.handle_new_peer( config.debug_torrent_client );
+            evt.preventDefault();
+        },this));
+
     },
     render: function() {
         this.$('.name').text( this.model.get_name() );

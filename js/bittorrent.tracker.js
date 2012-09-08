@@ -59,11 +59,12 @@ TrackerConnection.prototype = {
                        port: 0,
                        downloaded: 0,
                        uploaded: 0,
+                       compact: 1,
                        left: 0
                      };
         jQuery.ajax( { url: this.get_url(params),
                        success: _.bind(this.on_success,this),
-                       dataType: 'jsonp',
+                       dataType: 'jsonp', // TODO -- insecure - force trackers to support websockets instead
                        error: function(xhr, status, text) {
                            debugger;
                        }

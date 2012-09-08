@@ -31,6 +31,7 @@ TorrentFile.process_write_queue = function() {
             // writes piece's data. byte_range is relative to this file.
             file.get_filesystem_entry( function(entry) {
                 //mylog(1,'got entry',entry);
+                // entry.file is a function, that also gives size
                 entry.getMetadata( function(metadata) {
                     //mylog(1,'got metadata',metadata);
                     entry.createWriter( function(writer) {
@@ -46,6 +47,7 @@ TorrentFile.process_write_queue = function() {
 
 TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writer, file_byte_range, file) {
     // write the data, when done process the queue
+    assert(file_metadata.size <= file.get_size()); // file on disk is too large!
     var _this = file;
     writer.onerror = function(evt) {
         debugger;
@@ -74,6 +76,7 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
         var i = 0;
 
         function write_next(evt) {
+
             function oncomplete(piecedone) {
                 TorrentFile._write_queue_active = false;
                 TorrentFile.process_write_queue();
@@ -81,10 +84,12 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
                     mylog(LOGMASK.disk,'piece',piece.num,'wrote out all data',file.repr(),'CLEARING OUT RESPONSES');
                     piece._chunk_responses = [];
                 } else {
+                    file.on_download_complete();
                     mylog(LOGMASK.disk,'piece',piece.num,'done for',file.repr(),'piece continues to next file');
                 }
                 file.torrent.notify_have_piece(piece);
             }
+
             if (i == piece.numchunks) {
                 var file_b = file.end_byte;
                 var chunk_b = piece.start_byte + constants.chunk_size * i;
@@ -102,7 +107,7 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
             var chunk_b = chunk_a + constants.chunk_size - 1;
 
             var file_a = file.start_byte;
-            var file_b = file.end_byte - 1; // had to subtract 1 from end because intersect is inclusive on endpoints
+            var file_b = file.end_byte;
 
             if (chunk_a > file_b) {
                 // piece chunks continue onto another file!
@@ -152,8 +157,14 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
 
 
 TorrentFile.prototype = {
-    get_data_from_piece: function(piecenum) {
-        // returns the file data that intersects a specific piece
+    on_download_complete: function() {
+        var _this = this;
+        this.get_filesystem_entry( function(entry) {
+            // check size matches metadata!
+            entry.getMetadata( function(metadata) {
+                assert( metadata.size == _this.get_size() );
+            });
+        });
     },
     repr: function() {
         return this.info.path.join('/');
@@ -198,6 +209,7 @@ TorrentFile.prototype = {
         debugger;
     },
     process_read_data_queue: function() {
+        var _this = this;
         if (this._processing_read_queue) {
             return;
         } else {
@@ -205,18 +217,24 @@ TorrentFile.prototype = {
                 this._processing_read_queue = true;
                 var item = this._read_queue.shift();
                 this.torrent.get_by_path(this.info.path, _.bind(function(dndfile) {
+                    // XXX -- maybe check file metadata make sure the file is large enough!
                     assert(dndfile);
                     var filereader = new FileReader(); // todo - re-use and seek!
                     filereader.onload = _.bind(this.got_queue_data, this, item);
                     var byte_range = item.byte_range;
                     var offset = byte_range[0] - this.start_byte;
-                    var bytesRemaining = byte_range[1] - byte_range[0];
+                    var bytesRemaining = byte_range[1] - byte_range[0] + 1;
                     assert(bytesRemaining > 0);
 
                     function on_file(file) {
+                        assert( file.size == _this.get_size() );
                         var blob = file.slice(offset, offset + bytesRemaining);
+
+                        assert( offset + bytesRemaining <= _this.get_size() )
+
                         //item.slice = [offset, bytesRemaining];
-                        //mylog(1,'reading blob',offset,bytesRemaining);
+
+                        mylog(LOGMASK.disk,'reading blob from',_this,_this.repr(),file,dndfile,'slice',[offset,offset+bytesRemaining]);
                         filereader.readAsArrayBuffer(blob);
                     }
 
@@ -236,7 +254,8 @@ TorrentFile.prototype = {
     got_queue_data: function(item, evt) {
         this._processing_read_queue = false;
         var binary = evt.target.result;
-        assert(binary.byteLength == (item.byte_range[1] - item.byte_range[0]));
+        mylog(LOGMASK.disk,'read bytes',binary.byteLength,'from range',item.byte_range);
+        assert(binary.byteLength == (item.byte_range[1] - item.byte_range[0] + 1));
         var callback = item.callback;
         callback(binary);
         this.process_read_data_queue();

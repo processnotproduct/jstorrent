@@ -84,6 +84,7 @@ var Torrent = Backbone.Model.extend({
             this.size = this.get_infodict().length;
         }
         this.num_pieces = this.get_num_pieces();
+        this.num_files = this.get_num_files();
         if (this.get('bitmask')) {
             //assert(this.get('bitmask').length == this.num_pieces);
             if (this.get('bitmask').length != this.num_pieces) {
@@ -292,6 +293,13 @@ var Torrent = Backbone.Model.extend({
         this.connections.remove(conn)
         this.set('numpeers', this.connections.models.length);
     },
+    get_num_files: function() {
+        if (this.is_multifile()) {
+            return 1;
+        } else {
+            this.get_infodict()['files'].length;
+        }
+    },
     get_num_pieces: function() {
         return Math.ceil( this.size / this.piece_size );
     },
@@ -314,8 +322,8 @@ var Torrent = Backbone.Model.extend({
         // writes this piece's data to the filesystem
         var files_info = piece.get_file_info(0, piece.sz);
         for (var i=0; i<files_info.length; i++) {
-            var filenum = files_info[i][0];
-            var filebyterange = files_info[i][1];
+            var filenum = files_info[i].filenum;
+            var filebyterange = files_info[i].filerange;
             var file = this.get_file(filenum);
             file.write_piece_data( piece, filebyterange );
         }
@@ -337,7 +345,7 @@ var Torrent = Backbone.Model.extend({
         }
     },
     is_multifile: function() {
-        return this.get_infodict().files;
+        return !! this.get_infodict().files;
     },
     get_file: function(n) {
         if (this.files[n]) {
@@ -437,8 +445,12 @@ var Torrent = Backbone.Model.extend({
         }
         this.fake_info.pieces = s;
         this.metadata = { 'info': _.clone(this.fake_info) };
+        this.metadata['announce'] = "udp://tracker.openbittorrent.com:80/announce";
+        this.metadata['announce-list'] = [
+            ["udp://tracker.openbittorrent.com:80/announce"],
+            ["udp://tracker.publicbt.com:80/announce"]
+        ];
         this.set('metadata',this.metadata);
-
         this.process_metadata();
         this.fake_info = null;
         callback();
@@ -573,12 +585,14 @@ var Torrent = Backbone.Model.extend({
                         var item = entries[i].get_by_path(path);
                         if (item) {
                             callback(item);
+                            return
                         }
                     }
                 } else {
                     if (path.length == 1) {
                         if (path[0] == entries[i].entry.name) {
                             callback(entries[i]);
+                            return;
                         }
                     } else {
                         // does not apply...

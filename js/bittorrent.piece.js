@@ -202,23 +202,25 @@ Piece.prototype = {
     get_file_info: function(offset, size) {
         // returns file objects + offsets needed to serially read from them
         var info = [];
-        var my_range = [ this.start_byte + offset, this.start_byte + offset + size ];
+        var my_range = [ this.start_byte + offset, this.start_byte + offset + size - 1]; // ranges are endpoint-inclusive, so subtract one!
 
         for (var i=0; i<this.torrent._file_byte_accum.length; i++) {
 
             if (i == this.torrent._file_byte_accum.length - 1) {
-                var high_byte = this.torrent.get_size();
+                var high_byte = this.torrent.get_size() - 1;
             } else {
-                var high_byte = this.torrent._file_byte_accum[i+1];
+                var high_byte = this.torrent._file_byte_accum[i+1] - 1;
             }
             assert(high_byte);
+            // ASSERT high byte does not pass file boundary
 
             var file_range = [this.torrent._file_byte_accum[i], high_byte];
 
             // TODO speed this up using binary search and terminate once no more intersections found
             var intersection = intersect( file_range, my_range );
             if (intersection) {
-                info.push( [i, intersection] );
+                //assert(intersection[1] < this.torrent.get_size());
+                info.push( {filenum:i, filerange:intersection} );
             }
         }
         return info
@@ -243,19 +245,20 @@ Piece.prototype = {
             if (this._requests.length > 0) {
                 var request = this._requests[ this._requests.length - 1 ];
 
-                var found = null;
+                var found_unread = null;
 
                 for (var i=0; i<request.info.length; i++) {
+                    // look for more file data to read...
                     var data = request.info[i];
                     if (! data.response) {
-                        found = data;
+                        found_unread = data;
                         break;
                     }
                 }
-                if (found) {
-                    var file = this.torrent.get_file(data[0]);
+                if (found_unread) {
+                    var file = this.torrent.get_file(data.filenum);
                     file.get_data( _.bind(this.got_file_data, this, request, file, data),
-                                   data[1] );
+                                   data.filerange );
                 } else {
                     var callback = request['callback'];
                     // should we format out the responses?

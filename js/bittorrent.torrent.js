@@ -14,10 +14,11 @@ var Torrent = Backbone.Model.extend({
 
          */
 
-        this.connections = {};
+        this.connections = new TorrentPeerCollection();
         this.pieces = [];
         this.files = [];
         this._metadata_requests = {};
+        this._chunk_request_timeout = 1000 * 60; // 60 seconds
 
         if (opts.metadata) {
             // initialize a torrent from torrent metadata
@@ -51,6 +52,7 @@ var Torrent = Backbone.Model.extend({
             this.hash = hex2arr(this.hash_hex);
             assert (this.hash.length == 20);
             this.magnet_info = d;
+            // set stuffs
             return;
         } else if (opts.container) {
             this.container = opts.container;
@@ -95,7 +97,7 @@ var Torrent = Backbone.Model.extend({
             } else {
                 var bitmask = this.create_bitmask({empty:true})
             }
-            this.set('bitmask', bitmask); // XOXOXOXOXXX!!!!! BAD!!! bad bad bad
+            this.set('bitmask', bitmask); // XOXOXOXOXXX!!!!! BAD!!! bad bad bad ?
             assert(bitmask.length == this.num_pieces);
         }
         this.meta_requests = [];
@@ -103,10 +105,11 @@ var Torrent = Backbone.Model.extend({
     },
     set_metadata: function(metadata) {
         this.metadata = metadata;
+        this.set('metadata',this.metadata);
         this.process_metadata();
         this.process_post_metadata();
     },
-    process_metadata: function(meta) {
+    process_metadata: function() {
         // TODO -- move into method
         this.piece_size = this.metadata['info']['piece length'];
         var hasher = new Digest.SHA1();
@@ -151,35 +154,46 @@ var Torrent = Backbone.Model.extend({
         // maybe need to have "availability" of pieces already determined.
         // rarest first is a neat way to do this.
 
+/*
         if (conn._requests_outbound > conn._maximum_requests_outbound) {
             return;
         }
+*/
 
-
+        //mylog(1,conn.repr(),'make chunk requests');
         if (! conn.handshaking) {
             if (conn._remote_bitmask) {
                 if (! conn._interested) {
                     // XXX -- only send when we're not 100% complete
                     conn.send_message('INTERESTED');
                 } else if (this.magnet_only()) {
+                    //mylog(1,conn.repr(),'magnet wants metadata!');
                     var hs = conn._remote_extension_handshake;
-                    if (hs['m'] && hs['m']['ut_metadata']) {
-                        var metasize = hs['metadata_size'];
-                        conn.request_metadata();
+                    if (hs) {
+                        if (hs['m'] && hs['m']['ut_metadata']) {
+                            var metasize = hs['metadata_size'];
+                            conn.request_metadata();
+                        }
                     }
                 } else {
                     if (! conn._choked) {
+
+                        if (conn._outbound_chunk_requests >= conn._outbound_chunk_requests_limit) {
+                            //mylog(1,'cannot make chunk requests, outbound',conn._outbound_chunk_requests);
+                            return;
+                        }
                         // select piece i'm missing but they have
 
                         var piece = this.choose_incomplete_piece(conn._remote_bitmask);
                         if (piece) {
-                            var requests = piece.create_chunk_requests(num_to_request);
+                            var requests = piece.create_chunk_requests(conn, num_to_request);
                             if (requests.length > 0) {
                                 // all were already in-flight?
                                 for (var i=0; i<requests.length; i++) {
                                     var payload = new JSPack().Pack('>III', requests[i]);
                                     conn.send_message("REQUEST", payload);
                                 }
+                                return requests.length;
                             } else {
                                 debugger;
                             }
@@ -223,35 +237,60 @@ var Torrent = Backbone.Model.extend({
     },
     get_tracker: function() {
         if (this.magnet_info && this.magnet_info.tr) {
-            return config.tracker_proxy + '?_tracker_url=' + encodeURIComponent(this.magnet_info.tr[0]);
+            return this.magnet_info.tr[0];
+        } else if (this.get('metadata')) {
+            var metadata = this.get('metadata');
+            if (metadata['announce-list']) {
+                var tier1 = metadata['announce-list'][0];
+                return tier1[0];
+            } else if (metadata['announce']) {
+                if (typeof metadata.announce == 'string') {
+                    return metadata.announce
+                } else {
+                    debugger;
+                }
+            }
         } else {
             return 'http://192.168.56.1:6969/announce';
         }
     },
     announce: function() {
-        this.tracker = new TrackerConnection(this.get_tracker(), this);
+        // TODO -- announce to all trockers!
+        var tracker = this.get_tracker();
+        assert(tracker);
+        this.tracker = new TrackerConnection(tracker, this);
         this.tracker.bind('newpeer', this.handle_new_peer);
         this.tracker.announce()
+        //setTimeout( _.bind(this.tracker.announce,this.tracker) , 1000 );
     },
     handle_new_peer: function(data) {
         if (data.port && data.port > 0) {
             var key = data.ip + ':' + data.port;
-            if (this.connections[key]) {
+            if (this.connections.contains(key)) {
                 // already have this peer..
                 mylog(1,'already have this peer',this.connections,key);
             } else {
-                var conn = new WSPeerConnection({host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
-                this.connections[key] = conn
-                this.set('numpeers', _.keys(this.connections).length);
+                var conn = new WSPeerConnection({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
+
+                this.connections.add(conn);
+
+                //this.connections[key] = conn
+
+                conn.on('connected', _.bind(function() {
+                    // this.connections[key] = conn
+                    this.set('numpeers', this.connections.models.length);
+                },this));
+
                 conn.bind('onclose', this.on_connection_close);
+
+                // TODO -- figure out correct remove on error or close
             }
         }
     },
     on_connection_close: function(conn) {
-        var key = conn._host + ':' + conn._port;
-        assert(this.connections[key]);
-        delete this.connections[key];
-        this.set('numpeers', _.keys(this.connections).length);
+        var key = conn.get_key();
+        this.connections.remove(conn)
+        this.set('numpeers', this.connections.models.length);
     },
     get_num_pieces: function() {
         return Math.ceil( this.size / this.piece_size );
@@ -272,7 +311,6 @@ var Torrent = Backbone.Model.extend({
         this.process_meta_request();
     },
     write_data_from_piece: function(piece) {
-        // CRASHING!!!!!!!!!
         // writes this piece's data to the filesystem
         var files_info = piece.get_file_info(0, piece.sz);
         for (var i=0; i<files_info.length; i++) {
@@ -291,8 +329,11 @@ var Torrent = Backbone.Model.extend({
         //this.set('complete', 
         this.save();
         // sends have message to all connections
-        for (var k in this.connections) {
-            this.connections[k].send_have(piece.num);
+        for (var i=0; i<this.connections.models.length; i++) {
+            var conn = this.connections.models[i];
+            if (conn.can_send_messages()) {
+                conn.send_have(piece.num);
+            }
         }
     },
     is_multifile: function() {
@@ -346,9 +387,9 @@ var Torrent = Backbone.Model.extend({
     },
     stop: function() {
         this.set('state','stopped');
-        for (var k in this.connections) {
-            this.connections[k].stream.close();
-        }
+        this.connections.each( function(conn) {
+            conn.stream.close();
+        });
     },
     get_files_spanning_bytes: function(start_byte, end_byte) {
         var filenums = [];
@@ -460,6 +501,14 @@ var Torrent = Backbone.Model.extend({
         }
         return bitmask;
     },
+    metadata_download_complete: function(infodict) {
+        var metadata = {'info':infodict};
+        if (this.magnet_info) {
+            metadata['announce-list'] = [this.magnet_info.tr];
+            //metadata['announce'] = this.magnet_info.tr;
+        }
+        this.set_metadata(metadata);
+    },
     create_bitmask_payload: function(opts) {
         var bitfield = [];
         var curval = null;
@@ -512,28 +561,53 @@ var Torrent = Backbone.Model.extend({
         //var piece = this.get_piece(piecenum);
         return this.get_bitmask()[piecenum];
     },
-    get_by_path: function(spath) {
+    get_by_path: function(spath, callback) {
         var path = _.clone(spath); // don't accidentally modify our argument
-        var entries = this.container.items();
-        for (var i=0; i<entries.length; i++) {
-            if (entries[i].entry.isDirectory) {
-                if (entries[i].entry.name == path[0]) {
-                    path.shift();
-                    var item = entries[i].get_by_path(path);
-                    if (item) {
-                        return item;
-                    }
-                }
-            } else {
-                if (path.length == 1) {
-                    if (path[0] == entries[i].entry.name) {
-                        return entries[i];
+
+        if (this.container) {
+            var entries = this.container.items();
+            for (var i=0; i<entries.length; i++) {
+                if (entries[i].entry.isDirectory) {
+                    if (entries[i].entry.name == path[0]) {
+                        path.shift();
+                        var item = entries[i].get_by_path(path);
+                        if (item) {
+                            callback(item);
+                        }
                     }
                 } else {
-                    // does not apply...
+                    if (path.length == 1) {
+                        if (path[0] == entries[i].entry.name) {
+                            callback(entries[i]);
+                        }
+                    } else {
+                        // does not apply...
+                    }
                 }
             }
+            callback(null);
+        } else {
+            // get from html5 filesystem
+            if (this.is_multifile()) {
+                var path = [this.get_infodict().name];
+                var path = path.concat(spath);
+                jsclient.get_filesystem().get_file_by_path( path, callback )
+            } else {
+                jsclient.get_filesystem().get_file_by_path( path, callback )
+            }
         }
+    },
+    repr: function() {
+        return "<Torrent:"+this.hash_hex+">";
+    },
+    reset_attributes: function() {
+        for (var key in this.attributes) {
+            if (key != 'id' && key != 'metadata') {
+                this.unset(key)
+            }
+        }
+        this.process_post_metadata();
+        mylog(1,'reset attributes',this.repr(),this.attributes);
     },
     get_metadata_piece: function(metapiecenum, request) {
         // lazy piece generation
@@ -666,7 +740,7 @@ var Torrent = Backbone.Model.extend({
     get_name: function() {
         if (this.magnet_only()) {
             if (this.magnet_info.dn) {
-                return this.magnet_info.dn[0];
+                return 'magnet: ' + this.magnet_info.dn[0];
             } else {
                 return 'magnet:' + this.hash_hex;
             }

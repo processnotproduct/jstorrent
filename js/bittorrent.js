@@ -18,7 +18,7 @@
         new_torrent_piece_size: Math.pow(2,14),
         chunk_size: Math.pow(2,14),
         metadata_request_piece_size: Math.pow(2,14),
-        //metadata_request_piece_size: Math.pow(2,10),
+        keepalive_interval: 60 * 1000,
         messages: [
             'CHOKE',
             'UNCHOKE',
@@ -78,7 +78,7 @@
 
     function parse_handshake(bytearray) {
         var protocol_str_len = new Uint8Array(bytearray, 0, 1)[0];
-        var protocol_str = ab2str(new Uint8Array(bytearray, 1, protocol_str_len + 1));
+        var protocol_str = ab2str(new Uint8Array(bytearray, 1, protocol_str_len));
         var i = 1 + protocol_str_len;
 
         var reserved = new Uint8Array(bytearray, i, 8);
@@ -123,23 +123,41 @@
            connection that acts like a bittorrent connection, wrapped just inside a websocket
 
         */
+        get_client: function() {
+            var hs = this._remote_extension_handshake;
+            if (hs) {
+                return hs.v;
+            }
+        },
+        get_host: function() {
+            if (config.bittorrent_proxy) {
+                var uri = '/wsproxy';
+                var strurl = 'ws://' + config.bittorrent_proxy + uri + '?target=' + encodeURIComponent(this._host+':'+this._port);
+            } else {
+                var uri = '/wsclient';
+                var strurl = 'ws://'+this._host+':'+this._port+uri;
+            }
+            return strurl;
+        },
         reconnect: function() {
-            var uri = '/api/upload/ws';
-            var uri = '/wsclient';
-            var strurl = 'ws://'+this._host+':'+this._port+uri;
-            this.strurl = strurl;
+            this.strurl = this.get_host();
+            this.inittime = new Date();
             try {
-                this.stream = new WebSocket(strurl);
+                this.stream = new WebSocket(this.strurl);
             } catch(e) {
                 mylog(1,'error creating websocket!');
+                debugger;
             }
-            mylog(LOGMASK.network,'initializing stream to',strurl);
-            this.stream.binaryType = "arraybuffer"; // blobs dont have a synchronous API?
+            mylog(LOGMASK.network,'initializing stream to',this.strurl);
+            this.stream.binaryType = "arraybuffer";
             this.stream.onerror = this.onerror;
             this.stream.onopen = this.onopen;
             this.stream.onclose = this.onclose;
             this.stream.onmessage = this.onmessage;
             this.read_buffer = []; // utorrent does not send an entire message in each websocket frame
+        },
+        can_send_messages: function() {
+            return ! this.handshaking && this._connected && ! this._closed && ! this._error;
         },
         initialize: function(opts) {
             _.bindAll(this, 'onopen', 'onclose', 'onmessage', 'onerror', 'on_connect_timeout',
@@ -159,13 +177,16 @@
                       'handle_not_interested',
                       'handle_piece_hashed',
                       'handle_keepalive',
-                      'handle_piece'
+                      'handle_piece',
+                      'handle_cancel'
                      );
             var host = opts.host;
             var port = opts.port;
             assert( typeof opts.port == 'number' );
             var torrent = opts.torrent;
 
+            this.set('bytes_received',0);
+            this.set('bytes_sent',0);
             //var infohash = opts.hash; // array buffers and stuff no bueno... just want simple array
             assert(opts.hash.length == 20);
             var infohash = [];
@@ -173,8 +194,8 @@
                 infohash.push( opts.hash[i] );
             }
 
-            this._requests_outbound = 0;
-            this._maximum_requests_outbound = 10;
+            this._outbound_chunk_requests = 0;
+            this._outbound_chunk_requests_limit = 5;
 
             this._host = host;
             this._port = port;
@@ -187,7 +208,7 @@
                 this.torrent_metadata_size = bencode(infodict).length
                 this.torrent._metadata_requests = {};
             }
-            mylog(LOGMASK.network,'initialize peer connection with infohash',this.infohash);
+            mylog(LOGMASK.network,'initialize peer connection with infohash',ab2hex(this.infohash));
             this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
             this._connected = false;
             this._connecting = true;
@@ -217,16 +238,19 @@
                 'PIECE': this.handle_piece,
                 'BITFIELD': this.handle_bitfield,
                 'REQUEST': this.handle_request,
+                'CANCEL': this.handle_cancel,
                 'keepalive': this.handle_keepalive
             };
             this.reconnect();
         },
         handle_piece: function(data) {
+            this._outbound_chunk_requests --;
+            this.set('outbound_chunks',this._outbound_chunk_requests);
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
             var index = view.getUint32(0);
             var offset = view.getUint32(4);
             var chunk = new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8);
-            //mylog(1,'got piece idx',index,'offset',offset,'chunk data len',chunk.byteLength);
+            //mylog(LOGMASK.network,'got piece idx',index,'offset',offset,'len',chunk.byteLength);
             this.torrent.handle_piece_data(this, index, offset, chunk);
         },
         handle_piece_hashed: function(piece) {
@@ -237,6 +261,7 @@
             this.send_keepalive();
         },
         send_extension_handshake: function() {
+            if (this._sent_extension_handshake) { debugger; return; }
             // woo!!
             var resp = {'v': 'jstorrent 0.0.1',
                         'm': {},
@@ -278,14 +303,21 @@
             //mylog(1, 'send message of type',type, payload?payload.length:'');
             if (type == 'UNCHOKE') {
                 this._remote_choked = false;
+                this.set('is_choked', false);
+            } else if (type == 'CHOKE') {
+                this._remote_choked = true;
+                this.set('is_choked', true);
+            } else if (type == 'REQUEST') {
+                this._outbound_chunk_requests ++;
+                this.set('outbound_chunks',this._outbound_chunk_requests);
             } else if (type == 'BITFIELD') {
                 this._sent_bitmask = true;
-            } else if (type == 'BITFIELD') {
-                this._requests_outbound ++;
             } else if (type == 'INTERESTED') {
                 this._interested = true;
+                this.set('am_interested',true);
             } else if (type == 'NOT_INTERESTED') {
                 this._interested = false;
+                this.set('am_interested',false);
             }
 
             if (payload) {
@@ -302,6 +334,7 @@
             mylog(LOGMASK.network, 'sending message',type,payload);
             var buf = packet.buffer;
             this.send(buf);
+            this._last_message_out = new Date().getTime();
         },
         serve_metadata_piece: function(metapiece, request, piecedata) {
             // optional piecedata
@@ -315,7 +348,7 @@
             
             var meta = { 'total_size': total_size,
                          'piece': metapiece,
-                         'msg_type': constants.tor_meta_codes.data};
+                         'msg_type': constants.tor_meta_codes_r.data};
             mylog(LOGMASK.network_verbose,'responding to metadata request with meta',meta,piecedata.length);
             var payload = [this._remote_extension_handshake['m']['ut_metadata']];
 /*
@@ -343,6 +376,7 @@
                 this.torrent._metadata_requests[i] = { conn: this,
                                                        time: new Date().getTime(),
                                                        num: i };
+                mylog(1,'requesting metadata',i);
                 var payload = [this._remote_extension_handshake['m']['ut_metadata']];
                 payload = payload.concat( bencode(req) );
                 this.send_message('UTORRENT_MSG', payload);
@@ -352,8 +386,9 @@
             var size = this._remote_extension_handshake.metadata_size;
             var numchunks = Math.ceil(size/constants.metadata_request_piece_size);
             for (var i=0; i<numchunks; i++) {
-                if (! this.torrent._metadata_requests[i]) {
-                    debugger;
+                if (this.torrent._metadata_requests[i] && this.torrent._metadata_requests[i].data) {
+                    // continue
+                } else {
                     return false;
                 }
             }
@@ -397,11 +432,14 @@
                         var data = new Uint8Array(data.payload.buffer, data.payload.byteOffset + bencode(info).length+1);
                         if (this.torrent._metadata_requests) {
                             var reqdata = this.torrent._metadata_requests[info.piece];
+                            mylog(1, 'received metadata piece', info.piece);
                             reqdata.data = data;
                             var meta = this.check_have_all_metadata();
                             if (meta) {
+                                mylog(1, 'have all metadata', meta);
                                 var decoded = bdecode(arr2str(meta));
-                                this.torrent.set_metadata({'info':decoded});
+                                this.torrent.metadata_download_complete(decoded);
+                                //this.torrent.set_metadata({'info':decoded});
                             }
                         }
                     } else {
@@ -440,15 +478,19 @@
         handle_interested: function(data) {
             this._remote_interested = true;
             this.send_message('UNCHOKE'); // unchoke everybody
+            this.set('is_interested',true);
         },
         handle_not_interested: function(data) {
             this._remote_interested = false;
+            this.set('is_interested',false);
         },
         handle_choke: function(data) {
             this._choked = true;
+            this.set('am_choked',true);
         },
         handle_unchoke: function(data) {
             this._choked = false;
+            this.set('am_choked',false);
         },
         handle_have_all: function(data) {
             mylog(1, 'handle have all');
@@ -457,17 +499,23 @@
                 this._remote_bitmask[i] = 1;
             }
             this.trigger('handle_have');
+            this.set('complete', this.fraction_complete(this._remote_bitmask));
             this.trigger('completed'); // XXX -- make "remote_completed" event instead
         },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
             //mylog(3, 'handle have index', index);
+            if (! this._remote_bitmask) {
+                var err = 'client sent HAVE without sending bitmask';
+                mylog(1,err);
+                this.close(err);
+                return;
+            }
             this._remote_bitmask[index] = 1;
-            this._requests_outbound --;
             this.trigger('handle_have', index);
 
             // update torrent piece availability...
-
+            this.set('complete', this.fraction_complete(this._remote_bitmask));
             if (this.seeding()) {
                 if (this.remote_complete()) {
                     this.trigger('completed');
@@ -477,16 +525,17 @@
         seeding: function() {
             return this.bitmask_complete(this.torrent.get_bitmask());
         },
-        fraction_complete: function() {
+        fraction_complete: function(bitmask) {
             // todo -- optimize
-            var bitmask = this._remote_bitmask;
             var s = 0;
             for (var i=0; i<bitmask.length; i++) {
                 if (bitmask[i] == 1) {
                     s++;
                 }
             }
-            return s/bitmask.length;
+            var val = s/bitmask.length;
+            assert(bitmask.length);
+            return val;
         },
         bitmask_complete: function(bitmask) {
             // TODO -- keep a count of zeros and keep it up to date
@@ -503,6 +552,15 @@
         },
         remote_complete: function() {
             return this.bitmask_complete(this._remote_bitmask);
+        },
+        handle_cancel: function(data) {
+            var index = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 0, 4))[0];
+            var offset = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 4, 4))[0];
+            var size = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8, 4))[0];
+            mylog(LOGMASK.network,'CANCEL piece request',index,'offset',offset,'of size',size);
+
+            var piece = this.torrent.get_piece(index);
+            // TODO -- cancel the read job if pending, don't send the packet
         },
         handle_request: function(data) {
             var index = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 0, 4))[0];
@@ -530,6 +588,7 @@
         handle_bitfield: function(data) {
             mylog(1, 'handle bitfield message');
             this._remote_bitmask = this.torrent.parse_bitmask(data.payload);
+            this.set('complete', this.fraction_complete(this._remote_bitmask));
             mylog(1,'parsed bitmask',this._remote_bitmask);
             if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                 this.send_bitmask();
@@ -550,7 +609,7 @@
         },
         on_connect_timeout: function() {
             if (! this._connected && !this._error && !this._closed) {
-                this.close();
+                this.close('connection timeout');
                 this.trigger('timeout');
             }
         },
@@ -559,9 +618,10 @@
             clearTimeout( this.connect_timeout );
             // Web Socket is connected, send data using send()
             this._connected = true;
-            mylog(LOGMASK.network, "connected!");
+            mylog(LOGMASK.network, this.repr(), "connected!");
             this.trigger('connected'); // send HAVE, unchoke
-            _.delay( this.send_handshake, 100 );
+            //_.delay( this.send_handshake, 100 );
+            this.send_handshake();
         },
         send_have: function(num) {
             var payload = jspack.Pack('>I',[num]);
@@ -572,23 +632,25 @@
             mylog(LOGMASK.network, 'sending handshake of len',handshake.length,[handshake])
             var s = new Uint8Array(handshake);
             this.send( s.buffer );
-            if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
-                this.send_bitmask();
-            }
         },
         send_keepalive: function() {
             var s = new Uint8Array(4);
             this.send( s.buffer );
         },
         send: function(msg) {
+            this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
             this.stream.send(msg);
         },
-        close: function() {
+        close: function(reason) {
+            if (reason) {
+                mylog(1,'close connection',reason);
+            }
             this.stream.close()
         },
         handle_message: function(msg_len) {
             var msg = this.read_buffer_consume(msg_len);
             var data = parse_message(msg);
+            this._last_message_in = new Date().getTime();
             mylog(LOGMASK.network,'handle message',data.msgtype,data);
             var handler = this.handlers[data.msgtype];
             if (handler) {
@@ -596,38 +658,68 @@
             } else {
                 throw Error('unhandled message ' + data.msgtype);
             }
+            _.defer(_.bind(this.check_more_messages_in_buffer, this));
         },
         handle_handshake: function(handshake_len) {
             this.handshaking = false;
             var blob = this.read_buffer_consume(handshake_len);
             var data = parse_handshake(blob);
-            mylog(LOGMASK.network,'parsed handshake',data)
-            if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
-                this.send_bitmask();
+            if (data.protocol == constants.protocol_name) {
+                mylog(LOGMASK.network,'parsed handshake',data)
+                if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
+                    this.send_bitmask();
+                }
+                this.check_more_messages_in_buffer();
+            } else {
+                debugger;
+                this.close('invalid handshake', data.protocol);
             }
         },
         read_buffer_consume: function(bytes, peek) {
+            var start_size = this.read_buffer_size();
             var retbuf = new Uint8Array(bytes);
             var consumed = 0;
+            var tearoff = 0;
             var i = 0;
-            while (i < this.read_buffer.length) {
+            while (i < this.read_buffer.length && consumed < bytes) {
                 var sz = Math.min( bytes - consumed, this.read_buffer[i].byteLength );
-                retbuf.set( new Uint8Array(this.read_buffer[i], 0, sz), consumed );
-                consumed += sz;
-                if (! peek && sz < this.read_buffer[i].byteLength) {
-                    debugger;
-                    // tear off anything partially consumed...
+                if (this.read_buffer[i].buffer) {
+                    // in case earlier was torn off
+                    retbuf.set( new Uint8Array(this.read_buffer[i].buffer, this.read_buffer[i].byteOffset, sz), consumed );
                 } else {
+                    retbuf.set( new Uint8Array(this.read_buffer[i], 0, sz), consumed );
+                }
+                consumed += sz;
+                if (! peek) {
+                    if (sz < this.read_buffer[i].byteLength) {
+                        // tearoff moar........
+
+                        var sznow = this.read_buffer[i].byteLength;
+                        var old = this.read_buffer[i];
+                        if (this.read_buffer[i].buffer) {
+                            this.read_buffer[i] = new Uint8Array( this.read_buffer[i].buffer, this.read_buffer[i].byteOffset + sz );
+                        } else {
+                            this.read_buffer[i] = new Uint8Array( this.read_buffer[i], sz );
+                        }
+                        assert(this.read_buffer[i].byteLength == sznow - sz);
+                        // mylog(1, 'tearing off partially consumed data');
+                        // tear off anything partially consumed...
+                    } else {
+                        tearoff++;
+                    }
                 }
 
                 i ++;
             }
 
             if (! peek) {
-                for (var j=0;j<i;j++){
-                    this.read_buffer.shift(); // tear off everything consumed ....
-                    // too aggressive!!!
+                for (var j=0;j<tearoff;j++){
+                    this.read_buffer.shift(); // tear off everything completely
                 }
+            }
+
+            if (! peek) {
+                assert( start_size - bytes == this.read_buffer_size() );
             }
 
             return retbuf.buffer;
@@ -643,13 +735,28 @@
             // todo - fix
             // return new Uint8Array( this.read_buffer[0], bytes );
         },
+        check_more_messages_in_buffer: function() {
+            var bufsz = this.read_buffer_size();
+            //mylog(LOGMASK.network,'check for more messages in buf, bufsz', bufsz);
+            if (bufsz >= 4) {
+                var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0);
+                assert( msg_len < Math.pow(2,15) ); // packets shouldn't be dat bigg
+                //mylog(LOGMASK.network,'read packet header of sz', msg_len);
+                if (bufsz >= msg_len + 4) {
+                    this.handle_message(msg_len + 4);
+                }
+            } else {
+
+            }
+        },
         onmessage: function(evt) {
             var msg = evt.data;
+            this.set('bytes_received', this.get('bytes_received') + msg.byteLength);
             this.read_buffer.push(msg);
-
-            var bufsz = this.read_buffer_size();
+            //mylog(LOGMASK.network, 'receive new packet', msg.byteLength);
 
             if (this.handshaking) {
+                var bufsz = this.read_buffer_size();
                 var protocol_str_len = new Uint8Array(this.read_buffer_consume(1,true), 0, 1)[0];
                 var handshake_len = 1 + protocol_str_len + 8 + 20 +20;
                 if (bufsz < handshake_len) {
@@ -659,16 +766,7 @@
                     this.handle_handshake(handshake_len);
                 }
             } else {
-                if (bufsz >= 4) {
-                    // enough to read payload size
-                    var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0); // equivalent to jspack... use that?
-                    //mylog(1,'onmessage, desired message len',msg_len,'cur buf',bufsz);
-                    if (bufsz >= msg_len + 4) {
-                        this.handle_message(msg_len + 4);
-                    }
-                } else {
-                    mylog(1,'not large enough buffer to read message size');
-                }
+                this.check_more_messages_in_buffer();
             }
         },
         repr: function() {
@@ -678,39 +776,51 @@
             // websocket is closed.
             // trigger cleanup of pending requests etc
             if (this._error) {
-                mylog(1,this.repr(),'onclose, already triggered error',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'');
+                mylog(1,this.repr(),'onclose, already triggered error',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
             } else {
                 this._closed = true;
                 this.trigger('onclose', this)
-                mylog(1,this.repr(),'onclose',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'');
+                mylog(1,this.repr(),'onclose',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
                 //_.delay( _.bind(this.reconnect, this), 2000 );
             }
+        },
+        get_key: function() {
+            return this._host + ':' + this._port;
         },
         onerror: function(evt) {
             clearTimeout( this.connect_timeout );
             if (this._closed) {
                 mylog(1,this.repr(),'onerror, already triggered onclose',evt);
             } else {
+                //this.close();
                 this._error = true;
                 this.trigger('onerror',this);
                 mylog(1,this.repr(),'onerror', evt);
+
+                if (! this._closed) {
+                    this.trigger('onclose', this);
+                }
             }
         }
     });
 
 
-
+    var TorrentPeerCollection = Backbone.Collection.extend({
+        //localStorage: new Store('TorrentCollection'),
+        model: WSPeerConnection
 /*
-    var input = 'hello world!';
-    var blocksize = 8;
-    var h = naked_sha1_head();
-    for (var i = 0; i < input.length; i += blocksize) {
-        var len = Math.min(blocksize, input.length - i);
-        var block = input.substr(i, len);
-        naked_sha1(str2binb(block), len*chrsz, h);
-    }
-    var result = binb2hex(naked_sha1_tail(h));
-    assert(result == '430ce34d020724ed75a196dfc2ad67c77772d169');
-    // not using naked_sha1 stuff anymore
+        contains: function(key) {
+            for (var i=0; i<this.models.length; i++) {
+                var conn = this.models[i];
+                if (conn.get_key == key) {
+                    return true;
+                }
+            }
+            return false;
+        }
 */
+    });
+
+    window.TorrentPeerCollection = TorrentPeerCollection;
+
 })();

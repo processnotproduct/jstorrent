@@ -47,7 +47,6 @@ function btURIEncode(s) {
 
 TrackerConnection.prototype = {
     announce: function() {
-
         if (window.config && config.debug_torrent_client) {
             // bypass tracker and always connect to a debug torrent client (ktorrent)
             this.trigger('newpeer',config.debug_torrent_client);
@@ -63,38 +62,55 @@ TrackerConnection.prototype = {
                        left: 0
                      };
         jQuery.ajax( { url: this.get_url(params),
-                       success: function(b64data, status, xhr) {
-                           // need to base64 decode
-                           var data = atob(b64data);
-                           //var data = base64.toBits(b64data)
-                           var decoded = bdecode(data);
-                           if (decoded.peers) {
-                               var peers = decoded.peers;
-                               assert(peers.length % 6 == 0);
-
-                               var itermax = peers.length/6;
-
-                               if (true) {
-                                   // pick a single peer, for debugging
-                                   var i = Math.floor( Math.random() * itermax );
-                                   var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
-                                   _this.trigger('newpeer',peerdata);
-                                   mylog(1,'got peer',peerdata);
-                                   
-                               } else {
-                                   for (var i=0; i<itermax; i++) {
-                                       var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
-                                       _this.trigger('newpeer',peerdata);
-                                       mylog(1,'got peer',peerdata);
-                                   }
-                               }
-                           }
-                       },
+                       success: _.bind(this.on_success,this),
                        dataType: 'jsonp',
                        error: function(xhr, status, text) {
                            debugger;
                        }
                      });
+    },
+    is_udp: function() {
+        return this.url.slice(0,4) == 'udp:';
+    },
+    compact_peer_response: function(decoded) {
+        return this.is_udp() || typeof decoded.peers == 'string';
+    },
+    on_success: function(b64data, status, xhr) {
+        // need to base64 decode
+        var data = atob(b64data);
+        //var data = base64.toBits(b64data)
+        var decoded = bdecode(data);
+        if (decoded.peers) {
+            var peers = decoded.peers;
+            if (this.compact_peer_response(decoded)) {
+                assert(peers.length % 6 == 0);
+
+                var itermax = peers.length/6;
+                if (true) {
+                    var numpeers = 4;
+                    // pick a single peer, for debugging
+                    for (j=0;j<numpeers;j++){
+                        var i = Math.floor( Math.random() * itermax );
+                        var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                        this.trigger('newpeer',peerdata);
+                        mylog(1,'got peer',peerdata);
+                    }
+                    
+                } else {
+                    for (var i=0; i<itermax; i++) {
+                        var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                        this.trigger('newpeer',peerdata);
+                        mylog(1,'got peer',peerdata);
+                    }
+                }
+            } else {
+                for (var i=0; i<peers.length; i++) {
+                    var peer = peers[i];
+                    this.trigger('newpeer',peer);
+                    mylog(1,'got peer',peer);
+                }
+            }
+        }
     },
     get_url: function(params) {
         //var s = this.url + '?info_hash=' + params.info_hash;
@@ -109,7 +125,11 @@ TrackerConnection.prototype = {
             s += (i==0?'':'&') + key + '=' + btURIEncode(params[key]);
             i++;
         }
-        return s;
+        if (config.tracker_proxy) {
+            return config.tracker_proxy + '?_tracker_url=' + encodeURIComponent(s);
+        } else {
+            return s;
+        }
     }
 }
 

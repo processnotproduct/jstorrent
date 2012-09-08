@@ -121,7 +121,6 @@ var FileSystem = Backbone.Model.extend({
         this.fs = filesystem;
         //mylog(1, 'got filesystem',filesystem);
         this.update_quota();
-        this.trigger('initialized');
         this.read_entries();
     },
     fs_error: function(err) {
@@ -137,6 +136,8 @@ var FileSystem = Backbone.Model.extend({
             var entry = results[i];
             this.entries.add( new FileEntry({entry:entry}) );
         }
+        this.trigger('initialized');
     }
+
 });
 

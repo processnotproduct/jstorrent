@@ -83,7 +83,13 @@ Piece.prototype = {
         for (var k in this._outbound_request_offsets) {
             i++;
         }
-        return (i == this.numchunks);
+        for (var j=0; j<this.numchunks; j++) {
+            if (this._chunk_responses[j]) {
+                i++;
+            }
+        }
+        assert (i <= this.numchunks);
+        return (i >= this.numchunks);
     },
     check_downloaded_hash: function() {
         var hasher = new Digest.SHA1();
@@ -93,12 +99,19 @@ Piece.prototype = {
         var hash = hasher.finalize();
         return hash;
     },
+    repr: function() {
+        return '<Piece '+this.num+'>';
+    },
     handle_data: function(conn, offset, data) {
-        mylog(LOGMASK.disk, 'piece',this.num,'handle data with offset',offset);
+        mylog(LOGMASK.network, 'piece',this.num,'handle data with offset',offset);
         if (this._outbound_request_offsets[offset]) {
+
+            delete this._outbound_request_offsets[offset];
+
             this._chunk_responses[Math.floor(offset/constants.chunk_size)] = data;
             var complete = this.check_responses_complete();
             if (complete) {
+                mylog(LOGMASK.disk,'piece download complete',this.repr());
                 // hash check it, then write to disk
 
                 var hash = new Uint8Array(this.check_downloaded_hash());
@@ -116,7 +129,8 @@ Piece.prototype = {
                 this.write_data_to_filesystem();
             }
         } else {
-            debugger; // didn't ask for this data!
+            mylog(1, "didn't ask for this piece!", this.num,offset)
+            //debugger; // didn't ask for this data!
         }
     },
     cleanup: function() {
@@ -139,11 +153,13 @@ Piece.prototype = {
         }
         return true;
     },
-    create_chunk_requests: function(num) {
+    create_chunk_requests: function(conn, num) {
         // piecenum, offset, sz
         var requests = [];
         for (var i=0; i<this.numchunks; i++) {
-            if (! this._outbound_request_offsets[i*constants.chunk_size]) {
+            if (! this._outbound_request_offsets[i*constants.chunk_size]
+                && ! this._chunk_responses[i]
+               ) {
                 var offset = constants.chunk_size * i;
                 if (offset + constants.chunk_size >= this.sz) {
                     var sz = this.sz - offset;
@@ -159,7 +175,19 @@ Piece.prototype = {
                 }
             }
         }
+        // set timeouts for all these requests
+        setTimeout( _.bind(this.check_chunk_request_timeouts, this, conn, requests), this.torrent._chunk_request_timeout );
         return requests;
+    },
+    check_chunk_request_timeouts: function(conn, requests) {
+        for (var i=0; i<requests.length; i++) {
+            var offset = requests[i][1];
+            if (this._outbound_request_offsets[offset]) {
+                mylog(1,'timing out piece w offset',this.num, offset);
+                delete this._outbound_request_offsets[offset];
+                conn._outbound_chunk_requests--;
+            }
+        }
     },
     got_data_for_compute_hash: function(callback, piece, request, responses) {
         var hasher = new Digest.SHA1();

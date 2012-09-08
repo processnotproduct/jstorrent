@@ -1,4 +1,31 @@
-var TorrentView = Backbone.View.extend({
+function try_register_protocol() {
+    try {
+        mylog(1,'registering prot handler');
+        var result = navigator.registerProtocolHandler('web+magnet', config.jstorrent_host + '/static/kzahel/jstorrent/examples/client.html?q=%s', 'JSTorrent');
+    } catch(e) {
+        var errmsg = e.message;
+        mylog(1,'error registering prot handler', errmsg, e);
+    }
+    mylog(1,'result register',result);
+}
+
+var BaseView = Backbone.View.extend({
+    destroy: function() {
+        this.undelegateEvents();
+        this.$el.removeData().unbind();
+        this.$el.empty();
+        //this.$el.html( this.template() );
+        if (this.views) {
+            this.views = null;
+        }
+        //Backbone.View.prototype.remove.call(this);
+        if (this.ondestroy) {
+            this.ondestroy();
+        }
+    }
+});
+
+var TorrentView = BaseView.extend({
     initialize: function(opts) {
         this.template = _.template( $('#torrent_template').html() );
         this.$el.html( this.template() );
@@ -17,12 +44,17 @@ var TorrentView = Backbone.View.extend({
         },this));
 
         this.$('.name').click( _.bind(function(evt) {
-            jsclientview.select(this.model);
+            jsclientview.select_torrent(this.model);
             evt.preventDefault();
         },this));
 
         this.$('.icon-remove').click( _.bind(function(evt) {
             jsclient.remove_torrent(this.model);
+            evt.preventDefault();
+        },this));
+
+        this.$('.icon-refresh').click( _.bind(function(evt) {
+            this.model.reset_attributes();
             evt.preventDefault();
         },this));
 
@@ -34,7 +66,6 @@ var TorrentView = Backbone.View.extend({
         if (this.model.get('complete')) {
             this.$('.complete').text( this.model.get('complete')/10 + '%' );
         }
-
         if (this.model.get('state') == 'started') {
             this.$('.start-stop').removeClass('icon-play');
             this.$('.start-stop').addClass('icon-stop');
@@ -42,11 +73,10 @@ var TorrentView = Backbone.View.extend({
             this.$('.start-stop').addClass('icon-play');
             this.$('.start-stop').removeClass('icon-stop');
         }
-
     }
 });
 
-var TorrentsView = Backbone.View.extend({
+var TorrentsView = BaseView.extend({
     initialize: function(opts) {
         this.model.on('remove',_.bind(this.removed,this));
         this.model.on('add',_.bind(this.added,this));
@@ -75,37 +105,137 @@ var TorrentsView = Backbone.View.extend({
     }
 });
 
-var PeerView = Backbone.View.extend({
+var PeerView = BaseView.extend({
     initialize: function(opts) {
-        this.template = _.template( $('#peers_template').html() );
+        this.template = _.template( $('#peer_template').html() );
         this.$el.html( this.template() );
+        this.render()
+        this.model.bind('change',_.bind(this.render,this));
+    },
+    bind_actions: function() {
+        this.$('.host').click( _.bind(function(evt) {
+            jsclientview.select_peer(this.model);
+            evt.preventDefault();
+        },this));
+    },
+    render: function() {
+        this.$('.host').text( this.model.get_key() );
+        this.$('.client').text( this.model.get_client() );
+        this.$('.outbound-chunks').text( this.model.get('outbound_chunks') );
+        this.$('.complete').text( Math.floor(this.model.get('complete') * 1000)/10 + '%' );
+
+        this.$('.bytes_sent').text( this.model.get('bytes_sent') );
+        this.$('.bytes_received').text( this.model.get('bytes_received') );
+
+        var state = [];
+        var keys = ['am_interested', 'am_choked', 'is_interested', 'is_choked'];
+        for (var i=0; i<keys.length; i++) {
+            var key = keys[i];
+            if (this.model.get(key)) {
+                state.push(key);
+            }
+        }
+        this.$('.state').text( JSON.stringify(state) );
+
+        if (this.more_render) {
+            this.more_render();
+        }
     }
 });
 
-var DetailView = Backbone.View.extend({
+var DetailedPeerView = PeerView.extend({
+    initialize: function(opts) {
+        this.template = _.template( $('#detailed_peer_template').html() );
+        this.$el.html( this.template() );
+        this.render()
+        this.model.bind('change',_.bind(this.render,this));
+    },
+    more_render: function() {
+        if (this.model._remote_extension_handshake) {
+            this.$('.handshake').text( JSON.stringify( this.model._remote_extension_handshake ) );
+        }
+    }
+});
+
+var PeersView = BaseView.extend({
+    initialize: function(opts) {
+        this.template = _.template( $('#peers_template').html() );
+        this.$el.html( this.template() );
+        this.model.on('remove',_.bind(this.removed,this));
+        this.model.on('add',_.bind(this.added,this));
+        this.views = [];
+    },
+    ondestroy: function() {
+        this.model.unbind('remove');
+        this.model.unbind('add');
+    },
+    added: function(model) {
+        var view = new PeerView({model:model});
+        this.views.push(view);
+        this.$('.peers').append( view.el );
+        view.bind_actions();
+    },
+    removed: function(model) {
+        for (var i=0; i<this.views.length; i++) {
+            var view = this.views[i];
+            if (view.model == model) {
+                this.$('.peers')[0].removeChild(view.el);
+                break;
+            }
+        }
+    },
+    render: function() {
+        for (var i=0; i<this.model.models.length; i++) {
+            var model = this.model.models[i];
+            this.added(model);
+        }
+    }
+});
+
+var DetailView = BaseView.extend({
     initialize: function(opts) {
         this.template = _.template( $('#detail_template').html() );
         this.$el.html( this.template() );
         this.subview = null;
     },
     set_model: function(model) {
-        if (this.subview) {
-            this.subview.destroy({parent:this.el});
+        if (this.subview && this.subview.model == model) {
+            mylog(LOGMASK.ui,'this view model already set');
+            return
         }
-        this.subview = new PeerView({model:model});
+
+        if (model instanceof Torrent) {
+            if (this.subview) {
+                this.subview.destroy();
+            }
+
+            this.subview = new PeersView({model:model.connections, el: this.$('.detail_container')});
+        } else if (model instanceof WSPeerConnection) {
+            if (this.subview) {
+                this.subview.destroy();
+            }
+
+            this.subview = new DetailedPeerView({model:model, el: this.$('.detail_container')});
+        } else {
+            debugger;
+        }
+        this.subview.render();
     }
 });
 
-var JSTorrentClientView = Backbone.View.extend({
+var JSTorrentClientView = BaseView.extend({
     initialize: function(opts) {
         this.template = _.template( $('#client_template').html() );
         this.$el.html( this.template() );
         this.torrentsview = new TorrentsView({model:this.model.torrents, el: this.$('.torrents')});
         this.torrentsview.render();
-        //this.detailview = new DetailView({el: this.$('.details')});
+        this.detailview = new DetailView({el: this.$('.details')});
     },
     select_torrent: function(torrent) {
-        //this.detailview.set_model( torrent );
+        this.detailview.set_model( torrent );
+    },
+    select_peer: function(peer) {
+        this.detailview.set_model( peer );
     },
     render: function() {
 
@@ -175,6 +305,10 @@ jQuery(function() {
 
     });
 
+    $('#magnet').click( function() {
+        try_register_protocol();
+    });
 
     jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
+
 });

@@ -21,15 +21,14 @@ function TorrentFile(torrent, num) {
 TorrentFile._write_queue = [];
 TorrentFile._write_queue_active = false;
 TorrentFile.process_write_queue = function() {
-    if (! this._write_queue_active ){
-        if (this._write_queue.length > 0) {
+    if (! TorrentFile._write_queue_active ) {
+        if (TorrentFile._write_queue.length > 0) {
             var item = this._write_queue.shift(1);
             TorrentFile._write_queue_active = true;
             var piece = item[0];
             var byte_range = item[1];
             var file = item[2];
             // writes piece's data. byte_range is relative to this file.
-
             file.get_filesystem_entry( function(entry) {
                 //mylog(1,'got entry',entry);
                 entry.getMetadata( function(metadata) {
@@ -51,7 +50,10 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
     writer.onerror = function(evt) {
         debugger;
     }
-    if (file_byte_range[0] > file_metadata.size) {
+
+    var infile = (file_byte_range[0] - file.start_byte);
+
+    if (infile > file_metadata.size) {
         // need first to pad beginning of the file with null bytes
         TorrentFile._write_queue = [ [piece, file_byte_range, file] ].concat( TorrentFile._write_queue ); // put this job back onto the write queue.
         writer.seek( file_metadata.size );
@@ -59,32 +61,55 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
             TorrentFile._write_queue_active = false;
             TorrentFile.process_write_queue();
         }
-        sz = file_byte_range[0] - file_metadata.size;
+        sz = infile - file_metadata.size;
         if (sz > Math.pow(2,25)) {
             // filling too many zeroes!
             debugger;
         }
         var zeroes = new Uint8Array( sz );
+        mylog(LOGMASK.disk,'writing',sz,'zeros to',file.repr());
         writer.write( new Blob([zeroes]) );
     } else {
 
         var i = 0;
 
         function write_next(evt) {
-            if (i == piece.numchunks) {
-                mylog(LOGMASK.disk,'wrote to disk all piece chunks',piece.num);
+            function oncomplete(piecedone) {
                 TorrentFile._write_queue_active = false;
                 TorrentFile.process_write_queue();
+                if (piecedone) {
+                    mylog(LOGMASK.disk,'piece',piece.num,'wrote out all data',file.repr(),'CLEARING OUT RESPONSES');
+                    piece._chunk_responses = [];
+                } else {
+                    mylog(LOGMASK.disk,'piece',piece.num,'done for',file.repr(),'piece continues to next file');
+                }
                 file.torrent.notify_have_piece(piece);
-                piece._chunk_responses = [];
+            }
+            if (i == piece.numchunks) {
+                var file_b = file.end_byte;
+                var chunk_b = piece.start_byte + constants.chunk_size * i;
+                if (chunk_b >= file_b) {
+                    oncomplete(false); // chunk responses needed for next file!
+                } else {
+                    oncomplete(true); // piece was entirely consumed
+                }
                 return;
             }
+
+
             var chunk = piece._chunk_responses[i];
             var chunk_a = piece.start_byte + constants.chunk_size * i;
             var chunk_b = chunk_a + constants.chunk_size - 1;
 
             var file_a = file.start_byte;
             var file_b = file.end_byte - 1; // had to subtract 1 from end because intersect is inclusive on endpoints
+
+            if (chunk_a > file_b) {
+                // piece chunks continue onto another file!
+                mylog(LOGMASK.disk,'piece chunks continue onto another file');
+                oncomplete(false);
+                return;
+            }
 
             /*
 
@@ -99,22 +124,29 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
 
             // need to intersect...
 
+
             var intersection = intersect([chunk_a,chunk_b],[file_a,file_b])
-
-            var data = new Uint8Array(chunk.buffer,
-                                      chunk.byteOffset + (intersection[0] - chunk_a),
-                                      intersection[1] - intersection[0] + 1);
-            if (chunk_a > file_a) {
-                writer.seek( chunk_a - file_a ); // seek into the file a little
+            if (intersection) {
+                var numbytes = intersection[1] - intersection[0] + 1;
+                var data = new Uint8Array(chunk.buffer,
+                                          chunk.byteOffset + (intersection[0] - chunk_a),
+                                          numbytes);
+                var seekto = chunk_a - file_a;
+                if (chunk_a > file_a) {
+                    writer.seek( seekto ); // seek into the file a little
+                }
+                //mylog(1,'piece',piece.num,'write chunk',i);
+                writer.onwrite = write_next;
+                writer.write( new Blob([data]) );
+                mylog(LOGMASK.disk,'write to',file.repr(), (seekto>=0)?('seeked at',seekto,'numbytes',numbytes):'');
+                i++;
+            } else {
+                mylog(LOGMASK.disk,'piece',piece.num,'writing chunk',i,'does not intersect file',file.repr())
+                i++;
+                write_next();
             }
-            //mylog(1,'piece',piece.num,'write chunk',i);
-            writer.write( new Blob([data]) );
-            i++;
         }
-
-        writer.onwrite = write_next;
         write_next();
-
     }
 };
 
@@ -122,6 +154,9 @@ TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writ
 TorrentFile.prototype = {
     get_data_from_piece: function(piecenum) {
         // returns the file data that intersects a specific piece
+    },
+    repr: function() {
+        return this.info.path.join('/');
     },
     get_data: function(callback, byte_range) {
         // check if it's in the cache...
@@ -169,18 +204,32 @@ TorrentFile.prototype = {
             if (this._read_queue.length > 0) {
                 this._processing_read_queue = true;
                 var item = this._read_queue.shift();
-                var dndfile = this.torrent.get_by_path(this.info.path);
-                assert(dndfile);
-                var filereader = new FileReader(); // todo - re-use and seek!
-                filereader.onload = _.bind(this.got_queue_data, this, item);
-                var byte_range = item.byte_range;
-                var offset = byte_range[0] - this.start_byte;
-                var bytesRemaining = byte_range[1] - byte_range[0];
-                assert(bytesRemaining > 0);
-                var blob = dndfile.file.slice(offset, offset + bytesRemaining);
-                //item.slice = [offset, bytesRemaining];
-                //mylog(1,'reading blob',offset,bytesRemaining);
-                filereader.readAsArrayBuffer(blob);
+                this.torrent.get_by_path(this.info.path, _.bind(function(dndfile) {
+                    assert(dndfile);
+                    var filereader = new FileReader(); // todo - re-use and seek!
+                    filereader.onload = _.bind(this.got_queue_data, this, item);
+                    var byte_range = item.byte_range;
+                    var offset = byte_range[0] - this.start_byte;
+                    var bytesRemaining = byte_range[1] - byte_range[0];
+                    assert(bytesRemaining > 0);
+
+                    function on_file(file) {
+                        var blob = file.slice(offset, offset + bytesRemaining);
+                        //item.slice = [offset, bytesRemaining];
+                        //mylog(1,'reading blob',offset,bytesRemaining);
+                        filereader.readAsArrayBuffer(blob);
+                    }
+
+                    if (typeof dndfile.file == 'function') {
+                        // dndfile came from get from filesystem
+                        dndfile.file( on_file );
+                    } else {
+                        // dndfile came from a drag n drop reference
+                        on_file(dndfile.file);
+                    }
+
+                }, this));
+
             }
         }
     },

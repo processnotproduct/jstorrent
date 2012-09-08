@@ -111,7 +111,7 @@
             //mylog(1,'upload session hash progress',data);
         },
         upload_progress: function(index) {
-            var frac = this.connection.fraction_complete();
+            var frac = this.connection.fraction_complete(this.connection._remote_bitmask);
             //mylog(1,'upload session upload progress', frac);
             this.trigger('progress', {'upload': frac});
         },

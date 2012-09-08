@@ -34,6 +34,7 @@
             <a href="#"><i class="start-stop icon-start"></i></a>
             <a href="#"><i class="icon-remove"></i></a>
             <a href="#"><i class="icon-upload"></i></a>
+            <a href="#"><i class="icon-refresh"></i></a>
           </span>
 
     </script>
@@ -41,9 +42,26 @@
 
     <script type="text/template" id="peer_template">
       <span class="host"></span>
-      <span class="complete"></span>
-      <span class="requests"></span>
+      (v <span class="client"></span>)
+      (<span class="complete"></span>)
+      (reqs <span class="outbound-chunks"></span>)
+      <span class="state"></span>
+      (<span class="bytes_sent"></span> up,
+      <span class="bytes_received"></span> down)
     </script>
+
+    <script type="text/template" id="detailed_peer_template">
+      <span class="host"></span>
+      (v <span class="client"></span>)
+      (<span class="complete"></span>)
+      (reqs <span class="outbound-chunks"></span>)
+      <span class="state"></span>
+      (<span class="bytes_sent"></span> up,
+      <span class="bytes_received"></span> down)
+
+      <span class="handshake"></span>
+    </script>
+
 
     <script type="text/template" id="peers_template">
       Peers View
@@ -81,7 +99,13 @@
       <div id="client">
       </div>
 
-
+<a id="magnet" href="#">register protocol!</a>
+<br />
+<a href="magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80">big buck bunny magnet</a>
+<br />
+<a href="mailto:foobar@bar.com">mail</a>
+<br />
+<a href="unregisteredthing:foobar@bar.com">unregistered</a>
 
 
   </body>

@@ -1,10 +1,16 @@
 window.config = {
-    debug_torrent_client: {ip:'127.0.0.1', port:8031},
+    //debug_torrent_client: {ip:'127.0.0.1', port:8031},
     //debug_torrent_client: {ip:'192.168.56.101', port:64399},
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     bittorrent_proxy: '192.168.56.1:8030'
     //bittorrent_proxy: 'kzahel.dyndns.org:8030' // torrent proxy service
+}
+
+if (window.location.host.match('jstorrent.com')) {
+    config.tracker_proxy = 'http://kzahel.dyndns.org:6969/proxy';
+    jstorrent_host = 'http://jstorrent.com';
+    bittorrent_proxy = 'kzahel.dyndns.org:8030';
 }
 
 window.base64 = {

@@ -295,9 +295,9 @@ var Torrent = Backbone.Model.extend({
     },
     get_num_files: function() {
         if (this.is_multifile()) {
-            return 1;
-        } else {
             this.get_infodict()['files'].length;
+        } else {
+            return 1;
         }
     },
     get_num_pieces: function() {

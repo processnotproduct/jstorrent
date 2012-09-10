@@ -11,7 +11,7 @@
 
         //mylog(1,'torrents synced', this.torrents.models);
 
-        this.tick_interval = 200;
+        this.tick_interval = 500;
         this.requests_per_tick = 5;
         //this.filesystem.on('initialized', _.bind(this.tick,this));
         this.filesystem.on('initialized', _.bind(function() {
@@ -68,6 +68,7 @@
                 if (torrent.get('state') == 'started') {
 
                     torrent.try_add_peers();
+                    torrent.try_announce();
 
                     // if torrent in streaming mode, need to complete pieces in sequential order...
                     // otherwise, make some requests for each connected peer.

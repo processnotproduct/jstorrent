@@ -1,8 +1,8 @@
 (function(){
     jstorrent.Swarm = Backbone.Collection.extend({
-        initialize: function(opts) {
-            this.torrent = opts.torrent;
-        },
-        model: jstorrent.Peer
+        model: jstorrent.Peer,
+        set_torrent: function(torrent) {
+            this.torrent = torrent;
+        }
     });
 })();

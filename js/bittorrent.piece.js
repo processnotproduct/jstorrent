@@ -95,10 +95,13 @@
         },
         check_downloaded_hash: function() {
             var hasher = new Digest.SHA1();
+            mylog(LOGMASK.hash, 'hashing...',this.repr());
+            var start = new Date();
             for (var i=0; i<this._chunk_responses.length; i++) {
                 hasher.update( this._chunk_responses[i] );
             }
             var hash = hasher.finalize();
+            mylog(LOGMASK.hash, 'hashed',this.repr(), new Date() - start);
             return hash;
         },
         repr: function() {

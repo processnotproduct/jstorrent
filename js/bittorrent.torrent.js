@@ -16,11 +16,13 @@ jstorrent.Torrent = Backbone.Model.extend({
          */
 
         this.connections = new jstorrent.TorrentPeerCollection();
-        this.swarm = new jstorrent.Swarm({torrent:this});
+        this.swarm = new jstorrent.Swarm();
+        this.swarm.set_torrent(this);
         this.pieces = [];
         this.files = [];
         this.trackers = [];
         this.set('bytes_received',0);
+        this.set('maxconns',20);
         this.set('bytes_sent',0);
         this.set('numpeers', 0);
         this._trackers_initialized = false;
@@ -281,14 +283,31 @@ jstorrent.Torrent = Backbone.Model.extend({
         if (! this._trackers_initialized) {
             this.initialize_trackers();
         }
-
         for (var i=0; i<this.trackers.length; i++) {
             this.trackers[i].announce();
         }
     },
+    try_announce: function() {
+        for (var i=0; i<this.trackers.length; i++) {
+            var tracker = this.trackers[i];
+            tracker.announce(); // checks it didn't do it too recently
+        }
+    },
     try_add_peers: function() {
-        if (this.swarm.models.length > 0) {
-            debugger;
+        if (this.connections.models.length < this.get('maxconns')) {
+            for (var i=0; i<this.swarm.models.length; i++) {
+                var peer = this.swarm.models[i];
+                if (peer.can_reconnect()) {
+                    if (! this.connections.get(peer.id)) {
+                        this.connections.add_peer(peer);
+
+                        if (this.connections.models.length >= this.get('maxconns')) {
+                            return;
+                        }
+
+                    }
+                }
+            }
         }
     },
     handle_new_peer: function(data) {
@@ -298,24 +317,10 @@ jstorrent.Torrent = Backbone.Model.extend({
                 // already have this peer..
                 mylog(1,'already have this peer',this.connections,key);
             } else {
-
-                // dont connect, simply add to a swarm
-                var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash, torrent:this});
-                this.swarm.add(peer);
-                return;
-
-                var conn = new jstorrent.WSPeerConnection({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
-
-                this.connections.add(conn);
-
-                conn.on('connected', _.bind(function() {
-                    // this.connections[key] = conn
-                    this.set('numpeers', this.connections.models.length);
-                },this));
-
-                conn.bind('onclose', this.on_connection_close);
-
-                // TODO -- figure out correct remove on error or close
+                var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
+                if (! this.swarm.get(key)) {
+                    this.swarm.add(peer);
+                }
             }
         }
     },

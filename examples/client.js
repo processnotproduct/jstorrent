@@ -66,7 +66,7 @@ var TorrentView = BaseView.extend({
     },
     render: function() {
         this.$('.name').text( this.model.get_name() );
-        this.$('.peers').text( this.model.connections.models.length + ' peers' );
+        this.$('.peers').text( this.model.get('numpeers') + ' peers, ' + this.model.swarm.models.length + ' swarm' );
 
         this.$('.bytes_sent').text( this.model.get('bytes_sent') );
         this.$('.bytes_received').text( this.model.get('bytes_received') );
@@ -209,7 +209,7 @@ var TabsView = BaseView.extend({
         this.bind_actions();
     },
     bind_actions: function() {
-        _.each(['peers','general','files'], _.bind(function(tabname) {
+        _.each(['peers','general','files','trackers'], _.bind(function(tabname) {
             this.$('.' + tabname).click( function() {
                 jsclientview.set_tab(tabname);
             });
@@ -231,12 +231,12 @@ var DetailView = BaseView.extend({
             mylog(LOGMASK.ui,'this view model already set');
             return
         }
-        if (model instanceof Torrent) {
+        if (model instanceof jstorrent.Torrent) {
             if (this.subview) {
                 this.subview.destroy();
             }
             this.subview = new PeersView({model:model.connections, el: this.$('.detail_container')});
-        } else if (model instanceof WSPeerConnection) {
+        } else if (model instanceof jstorrent.WSPeerConnection) {
             if (this.subview) {
                 this.subview.destroy();
             }

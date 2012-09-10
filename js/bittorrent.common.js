@@ -35,7 +35,8 @@ window.LOGMASK = {'general':1,
                   'disk':Math.pow(2,3),
                   'hash':Math.pow(2,4),
                   'ui':Math.pow(2,5), // user interface
-                  'error': Math.pow(2,6)
+                  'error': Math.pow(2,6),
+                  'peer': Math.pow(2,7)
                  };
 LOGMASK_R = {}
 for (var name in LOGMASK) {
@@ -51,7 +52,7 @@ LOGMASK.all = b;
 //var curlogmask = LOGMASK.network | LOGMASK.general
 //var curlogmask = LOGMASK.general | LOGMASK.hash;
 //var curlogmask = LOGMASK.all;
-var curlogmask = LOGMASK.general | LOGMASK.ui;
+var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;
 
 window.mylog = function(level) {

@@ -183,6 +183,7 @@
                      );
             var host = opts.host;
             var port = opts.port;
+            this.peer = opts.peer;
             assert( typeof opts.port == 'number' );
             var torrent = opts.torrent;
 
@@ -665,6 +666,7 @@
         handle_handshake: function(handshake_len) {
             this.handshaking = false;
             var blob = this.read_buffer_consume(handshake_len);
+            this._remote_handshake = blob;
             var data = parse_handshake(blob);
             if (data.protocol == constants.protocol_name) {
                 mylog(LOGMASK.network,'parsed handshake',data)
@@ -779,11 +781,12 @@
             // websocket is closed.
             // trigger cleanup of pending requests etc
             if (this._error) {
-                mylog(1,this.repr(),'onclose, already triggered error',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
+                //mylog(1,this.repr(),'onclose, already triggered error',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
             } else {
                 this._closed = true;
-                this.trigger('onclose', this)
-                mylog(1,this.repr(),'onclose',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
+                this.handle_close(evt, this);
+                this.trigger('onclose', this);
+                //mylog(1,this.repr(),'onclose',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
                 //_.delay( _.bind(this.reconnect, this), 2000 );
             }
         },
@@ -793,20 +796,24 @@
         onerror: function(evt) {
             clearTimeout( this.connect_timeout );
             if (this._closed) {
-                mylog(1,this.repr(),'onerror, already triggered onclose',evt);
+                //mylog(1,this.repr(),'onerror, already triggered onclose',evt);
             } else {
                 //this.close();
                 this._error = true;
                 this.trigger('onerror',this);
-                mylog(1,this.repr(),'onerror', evt);
+                //mylog(1,this.repr(),'onerror', evt);
 
                 if (! this._closed) {
+                    this.handle_close(evt, this);
                     this.trigger('onclose', this);
                 }
             }
+        },
+        handle_close: function(data) {
+            // gets called 
+            this.peer.notify_closed(data);
         }
     });
-
 
     jstorrent.TorrentPeerCollection = Backbone.Collection.extend({
         //localStorage: new Store('TorrentCollection'),
@@ -822,6 +829,24 @@
             return false;
         }
 */
+        add_peer: function(peer) {
+            var torrent = peer.get('torrent');
+            var conn = new jstorrent.WSPeerConnection({id: peer.id, 
+                                                       host:peer.get('host'), 
+                                                       port:peer.get('port'), 
+                                                       hash:peer.get('hash'),
+                                                       peer:peer,
+                                                       torrent:peer.get('torrent')});
+            this.add(conn);
+
+            conn.on('connected', _.bind(function() {
+                // this.connections[key] = conn
+                this.set('numpeers', this.connections.models.length);
+            },torrent));
+
+            conn.bind('onclose', torrent.on_connection_close);
+        }
+
     });
 
 })();

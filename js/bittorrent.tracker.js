@@ -29,23 +29,30 @@
 
     jstorrent.TrackerConnection.prototype = {
         min_announce_interval: function() {
-            return 20 * 1000;
+            return 60 * 1000;
         },
         repr: function() {
             return '<Tracker ' + this.url + '>';
         },
-        announce: function() {
-            var now = new Date();
+        can_announce: function(t) {
+            var now = t || new Date();
             if (this._last_announce && now - this._last_announce < this.min_announce_interval()) {
-                mylog(1, this.repr(), 'cannot announce so soon');
+                return false;
+            }
+            return true;
+        },
+        announce: function() {
+            if (! this.can_announce()) {
                 return;
             }
 
-            if (window.config && config.debug_torrent_client) {
+            if (config.debug_torrent_client) {
                 // bypass tracker and always connect to a debug torrent client (ktorrent)
                 this.trigger('newpeer',config.debug_torrent_client);
                 return;
             }
+
+            this._last_announce = new Date();
 
             var _this = this;
             var params = { info_hash: hex2str(this.torrent.get_infohash('hex')), event: 'started',
@@ -71,7 +78,6 @@
             return this.is_udp() || typeof decoded.peers == 'string';
         },
         on_success: function(b64data, status, xhr) {
-            this._last_announce = new Date();
             // need to base64 decode
             var data = atob(b64data);
             //var data = base64.toBits(b64data)
@@ -89,14 +95,12 @@
                             var i = Math.floor( Math.random() * itermax );
                             var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
                             this.trigger('newpeer',peerdata);
-                            mylog(1,'got peer',peerdata);
                         }
                         
                     } else {
                         for (var i=0; i<itermax; i++) {
                             var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
                             this.trigger('newpeer',peerdata);
-                            mylog(1,'got peer',peerdata);
                         }
                     }
                 } else {

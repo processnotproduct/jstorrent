@@ -3,7 +3,7 @@ jstorrent = {
 
 window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8031},
-    debug_torrent_client: {ip:'192.168.56.101', port:64399},
+    //debug_torrent_client: {ip:'192.168.56.101', port:64399},
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     bittorrent_proxy: '192.168.56.1:8030',
@@ -53,7 +53,8 @@ LOGMASK.all = b;
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
 //var curlogmask = LOGMASK.general | LOGMASK.hash;
-var curlogmask = LOGMASK.all;
+var curlogmask = LOGMASK.general
+//var curlogmask = LOGMASK.all;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;
 

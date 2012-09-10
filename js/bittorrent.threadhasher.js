@@ -16,11 +16,12 @@
             this.msgid++;
         },
         onmessage: function(msg) {
-            mylog(1,'got worker message',msg);
+            mylog(LOGMASK.hash,'got worker message',msg);
             var callback = this.requests[msg.data.id];
             callback(msg.data);
         },
         onerror: function(data) {
+            mylog(LOGMASK.error,'worker error');
             debugger;
         }
     };

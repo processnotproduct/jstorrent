@@ -1,3 +1,50 @@
+Fixes
+
+- Websockets don't really send close notification. Need better detection that a connection is stale... if last packet in was say 60 seconds ago, the connection is likely bad. It seems to disconnect after about 5 minutes ok...
+
+- adjust number of outbound requests based on history/bitrate. Always have at least 1 outbound request per connected peer.
+
+- swarm object -- keeps track of all peers known on a swarm. stores in local storage. tracker info feeds into this.
+
+
+TESTING
+
+- write tests for file boundaries
+
+- simulated torrent file
+
+- small torrent with several files. variable chunk sizes.
+
+SPEED/OPTIMIZATION
+
+- sha1 hashing speed... perhaps hash as files come in rather than waiting for entire piece to be done.
+
+
+UI
+
+- "add torrent" view
+
+- switch detail tabs
+
+- displaying images/videos
+
+
+IDEAS
+
+- support incoming connections via single long lived connection
+ 
+
+VIDEO
+
+- download last few chunks of an mp4 and attempt to parse the metadata (html5 video player need last chunk typically)
+
+
+ETC
+
+- file priorities
+
+
+
 Core Protocol
 
 - implement PEX (peer exchange protocol)

@@ -66,8 +66,11 @@ var TorrentView = BaseView.extend({
     },
     render: function() {
         this.$('.name').text( this.model.get_name() );
-        this.$('.peers').text( this.model.get('numpeers') + ' peers' );
-        
+        this.$('.peers').text( this.model.connections.models.length + ' peers' );
+
+        this.$('.bytes_sent').text( this.model.get('bytes_sent') );
+        this.$('.bytes_received').text( this.model.get('bytes_received') );
+
         if (this.model.get('complete')) {
             this.$('.complete').text( this.model.get('complete')/10 + '%' );
         }
@@ -168,6 +171,7 @@ var PeersView = BaseView.extend({
         this.$el.html( this.template() );
         this.model.on('remove',_.bind(this.removed,this));
         this.model.on('add',_.bind(this.added,this));
+        mylog(LOGMASK.ui, 'init peersview',this.model);
         this.views = [];
     },
     ondestroy: function() {
@@ -176,6 +180,7 @@ var PeersView = BaseView.extend({
     },
     added: function(model) {
         var view = new PeerView({model:model});
+        //mylog(LOGMASK.ui, 'peersview add',model);
         this.views.push(view);
         this.$('.peers').append( view.el );
         view.bind_actions();
@@ -197,23 +202,39 @@ var PeersView = BaseView.extend({
     }
 });
 
+var TabsView = BaseView.extend({
+    initialize: function(opts) {
+        this.template = _.template( $('#tabs_template').html() );
+        this.$el.html( this.template() );
+        this.bind_actions();
+    },
+    bind_actions: function() {
+        _.each(['peers','general','files'], _.bind(function(tabname) {
+            this.$('.' + tabname).click( function() {
+                jsclientview.set_tab(tabname);
+            });
+        },this));
+    }
+});
+
 var DetailView = BaseView.extend({
     initialize: function(opts) {
         this.template = _.template( $('#detail_template').html() );
         this.$el.html( this.template() );
         this.subview = null;
     },
+    set_type: function(type) {
+        mylog(1,'set detail view to type',type);
+    },
     set_model: function(model) {
         if (this.subview && this.subview.model == model) {
             mylog(LOGMASK.ui,'this view model already set');
             return
         }
-
         if (model instanceof Torrent) {
             if (this.subview) {
                 this.subview.destroy();
             }
-
             this.subview = new PeersView({model:model.connections, el: this.$('.detail_container')});
         } else if (model instanceof WSPeerConnection) {
             if (this.subview) {
@@ -235,8 +256,13 @@ var JSTorrentClientView = BaseView.extend({
         this.torrentsview = new TorrentsView({model:this.model.torrents, el: this.$('.torrents')});
         this.torrentsview.render();
         this.detailview = new DetailView({el: this.$('.details')});
+        this.tabsview = new TabsView({el: this.$('.tabs')});
+    },
+    set_tab: function(tabtype) {
+        this.detailview.set_type( tabtype );
     },
     select_torrent: function(torrent) {
+        mylog(LOGMASK.ui,'select torrent',torrent.repr());
         this.detailview.set_model( torrent );
     },
     select_peer: function(peer) {
@@ -249,7 +275,7 @@ var JSTorrentClientView = BaseView.extend({
 
 jQuery(function() {
 
-    window.jsclient = new JSTorrentClient();
+    window.jsclient = new jstorrent.JSTorrentClient();
     window.jsclientview = new JSTorrentClientView({model:jsclient, el: $('#client')});
 
 

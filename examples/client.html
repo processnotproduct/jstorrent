@@ -8,8 +8,9 @@
     <!--script src="../js/deps/jstorage.js"></script-->
     <script src="../js/deps/digest.js"></script>  
 
-    <script src="../js/deps/FileSaver.js"></script>  
+    <!--script src="../js/deps/FileSaver.js"></script-->
 
+    <script src="../js/bittorrent.common.js"></script>  
     <script src="../js/bittorrent.dnd.js"></script>  
     <script src="../js/bittorrent.helpers.js"></script>  
     <script src="../js/bittorrent.tracker.js"></script>  
@@ -17,6 +18,8 @@
     <script src="../js/bittorrent.filesystem.js"></script>  
     <script src="../js/bittorrent.client.js"></script>  
     <script src="../js/bittorrent.piece.js"></script>  
+    <script src="../js/bittorrent.peer.js"></script>  
+    <script src="../js/bittorrent.swarm.js"></script>  
     <script src="../js/bittorrent.torrent.js"></script>  
     <script src="../js/bittorrent.js"></script>  
 
@@ -30,6 +33,8 @@
           <span class="status"></span>
           <span class="complete"></span>
           <span class="peers"></span>
+          (<span class="bytes_sent"></span> up,
+          <span class="bytes_received"></span> down)
           <span class="commands">
             <a href="#"><i class="start-stop icon-start"></i></a>
             <a href="#"><i class="icon-remove"></i></a>
@@ -63,6 +68,15 @@
     </script>
 
 
+    <script type="text/template" id="tabs_template">
+      <ul>
+        <li class="general">General</li>
+        <li class="peers">Peers</li>
+        <li class="files">Files</li>
+      </ul>
+    </script>
+    
+
     <script type="text/template" id="peers_template">
       Peers View
       <div class="peers"></div>
@@ -79,15 +93,18 @@
       Torrents:
       <div class="torrents"></div>
 
+      <div style="border:1px dashed green" class="tabs"></div>
+
       Details:
-      <div class="details"></div>
+      <div style="border:1px dashed grey" class="details"></div>
       
     </script>
 
     <link rel="stylesheet" href="bootstrap/css/bootstrap.css" type="text/css" />
     <style>
-      .hover { background: #888; }
-      .torrentlist { background:#eee; }
+      .hover { background: #aaa; }
+      .selected { border: 2px solid blue; }
+      .torrentlist { background:#eff; }
     </style>
   </head>
   <body>
@@ -99,13 +116,13 @@
       <div id="client">
       </div>
 
-<a id="magnet" href="#">register protocol!</a>
+<!--a id="magnet" href="#">register protocol!</a>
 <br />
 <a href="magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80">big buck bunny magnet</a>
 <br />
 <a href="mailto:foobar@bar.com">mail</a>
 <br />
-<a href="unregisteredthing:foobar@bar.com">unregistered</a>
+<a href="unregisteredthing:foobar@bar.com">unregistered</a-->
 
 
   </body>

@@ -1,6 +1,6 @@
 (function() {
 
-    window.get_althash = function(container) {
+    jstorrent.get_althash = function(container) {
         var l = [];
         entries = container.items();
         for (var i=0; i<entries.length; i++) {
@@ -26,7 +26,7 @@
         return b;
     }
 
-    var UploadSession = Backbone.Model.extend({
+    jstorrent.UploadSession = Backbone.Model.extend({
         initialize: function(opts) {
             _.bindAll(this, 'completed', 'upload_progress', 'hash_progress');
             this.btapp = opts.btapp;
@@ -78,8 +78,8 @@
                     this.client.doreq( 'action=add-url&s=' + encodeURIComponent('magnet:?xt=urn:alth:' + ab2hex( althash ) ), _.bind(function() {
                         mylog(1,'told client to add, waiting 1 sec before connecting');
                         _.delay(_.bind(function(){
-                            this.torrent = new Torrent({container:this.container, althash:althash});
-                            this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.torrent});
+                            this.torrent = new jstorrent.Torrent({container:this.container, althash:althash});
+                            this.connection = new jstorrent.WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.torrent});
                             this.connection.bind('handle_have', this.upload_progress);
                             this.connection.bind('hash_progress', this.hash_progress);
                             this.connection.bind('completed', this.completed);
@@ -94,8 +94,8 @@
                 var defer = this.btapp.get('add').torrent( ab2hex( althash ) );
                 defer.then( _.bind(function() {
                     // get this from backbone
-                    this.torrent = new Torrent({container:this.container, althash:althash});
-                    this.connection = new WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.torrent});
+                    this.torrent = new jstorrent.Torrent({container:this.container, althash:althash});
+                    this.connection = new jstorrent.WSPeerConnection({host:host, port:connection_port, hash:althash, torrent:this.torrent});
                     this.connection.bind('handle_have', this.upload_progress);
                     this.connection.bind('hash_progress', this.hash_progress);
                     this.connection.bind('completed', this.completed);
@@ -122,7 +122,7 @@
         }
     });
 
-    var DNDFileEntry = Backbone.Model.extend({
+    jstorrent.DNDFileEntry = Backbone.Model.extend({
         initialize: function(opts) {
             this.entry = opts.entry;
             this.directory = opts.directory;
@@ -186,7 +186,7 @@
         }
     });
 
-    var DNDDirectoryEntry = Backbone.Model.extend({
+    jstorrent.DNDDirectoryEntry = Backbone.Model.extend({
         initialize: function(opts) {
             this.entry = opts.entry;
             this.parent = opts.parent;
@@ -273,11 +273,11 @@
                         for (var j=0; j<result.length; j++) {
                             var it = result[j];
                             if (it.isDirectory) {
-                                var dir = new DNDDirectoryEntry( { entry: it, parent: _this } );
+                                var dir = new jstorrent.DNDDirectoryEntry( { entry: it, parent: _this } );
                                 _this.directories.push( dir );
                                 dir.populate(cb); // XXX callbacks being fired before directories are populated!
                             } else {
-                                var file = new DNDFileEntry({entry:it, directory:_this});
+                                var file = new jstorrent.DNDFileEntry({entry:it, directory:_this});
                                 _this.files.push( file );
                                 file.populate(cb);
                             }
@@ -324,7 +324,7 @@
         }
     });
 
-    UploadView = Backbone.View.extend({
+    jstorrent.UploadView = Backbone.View.extend({
         initialize: function(opts) {
             _.bindAll(this, 'dragenter', 'dragleave', 'drop','oncomplete','onprogress','reset');
             var dropbox = opts.el;
@@ -345,8 +345,8 @@
                 this.model.destroy();
             }
 
-            this.container = new DNDDirectoryEntry({parent:null, entry:null});;
-            this.model = new UploadSession( {btapp:this.btapp} );
+            this.container = new jstorrent.DNDDirectoryEntry({parent:null, entry:null});;
+            this.model = new jstorrent.UploadSession( {btapp:this.btapp} );
         },
         dragover: function(evt) {
             // console.log('dragover'); // triggered when mouse moves over drop zone
@@ -414,11 +414,11 @@
 
                         if (item.isDirectory) {
                             // need this to happen recursively...
-                            var dir = new Directory({entry:item});
+                            var dir = new jstorrent.Directory({entry:item});
                             // this.entries.push(dir);
                             this.container.directories.push(dir);
                         } else {
-                            var file = new File({entry:item, directory:null}); // XXX DNDFile?
+                            var file = new jstorrent.File({entry:item, directory:null}); // XXX DNDFile?
                             this.container.files.push(file);
                         }
 
@@ -456,8 +456,5 @@
         }
     });
 
-    window.UploadSession = UploadSession;
-    window.DNDDirectoryEntry = DNDDirectoryEntry;
-    window.DNDFileEntry = DNDFileEntry;
 
-}).call(this);
+})();

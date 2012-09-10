@@ -117,7 +117,8 @@
 
     var jspack = new JSPack();
 
-    window.WSPeerConnection = Backbone.Model.extend({
+    jstorrent.WSPeerConnection = Backbone.Model.extend({
+        className: 'WSPeerConnection',
         /* 
 
            connection that acts like a bittorrent connection, wrapped just inside a websocket
@@ -586,10 +587,10 @@
             this.send_message('PIECE', payload);
         },
         handle_bitfield: function(data) {
-            mylog(1, 'handle bitfield message');
+            mylog(LOGMASK.network, 'handle bitfield message');
             this._remote_bitmask = this.torrent.parse_bitmask(data.payload);
             this.set('complete', this.fraction_complete(this._remote_bitmask));
-            mylog(1,'parsed bitmask',this._remote_bitmask);
+            mylog(LOGMASK.network,'parsed bitmask',this._remote_bitmask);
             if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                 this.send_bitmask();
             }
@@ -605,7 +606,7 @@
 */
         },
         handle_port: function(data) {
-            mylog(1, 'handle port message');
+            mylog(LOGMASK.network, 'handle port message');
         },
         on_connect_timeout: function() {
             if (! this._connected && !this._error && !this._closed) {
@@ -639,6 +640,7 @@
         },
         send: function(msg) {
             this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
+            this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
             this.stream.send(msg);
         },
         close: function(reason) {
@@ -752,6 +754,7 @@
         onmessage: function(evt) {
             var msg = evt.data;
             this.set('bytes_received', this.get('bytes_received') + msg.byteLength);
+            this.torrent.set('bytes_received', this.torrent.get('bytes_received') + msg.byteLength);
             this.read_buffer.push(msg);
             //mylog(LOGMASK.network, 'receive new packet', msg.byteLength);
 
@@ -805,9 +808,9 @@
     });
 
 
-    var TorrentPeerCollection = Backbone.Collection.extend({
+    jstorrent.TorrentPeerCollection = Backbone.Collection.extend({
         //localStorage: new Store('TorrentCollection'),
-        model: WSPeerConnection
+        model: jstorrent.WSPeerConnection,
 /*
         contains: function(key) {
             for (var i=0; i<this.models.length; i++) {
@@ -820,7 +823,5 @@
         }
 */
     });
-
-    window.TorrentPeerCollection = TorrentPeerCollection;
 
 })();

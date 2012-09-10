@@ -1,4 +1,5 @@
-var Torrent = Backbone.Model.extend({
+jstorrent.Torrent = Backbone.Model.extend({
+    className: "Torrent",
     // misnomer -- not just a new torrent anymore.
     initialize: function(opts) {
         _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close');
@@ -14,9 +15,15 @@ var Torrent = Backbone.Model.extend({
 
          */
 
-        this.connections = new TorrentPeerCollection();
+        this.connections = new jstorrent.TorrentPeerCollection();
+        this.swarm = new jstorrent.Swarm({torrent:this});
         this.pieces = [];
         this.files = [];
+        this.trackers = [];
+        this.set('bytes_received',0);
+        this.set('bytes_sent',0);
+        this.set('numpeers', 0);
+        this._trackers_initialized = false;
         this._metadata_requests = {};
         this._chunk_request_timeout = 1000 * 60; // 60 seconds
 
@@ -124,7 +131,7 @@ var Torrent = Backbone.Model.extend({
         } else {
             var s = 'magnet:?xt=urn:btih:' + this.hash_hex;
         }
-        s += '&tr=' + encodeURIComponent('http://192.168.56.1:6969/announce');
+        s += '&tr=' + encodeURIComponent(config.default_tracker);
         return s;
     },
     get_infohash: function(format) {
@@ -236,33 +243,53 @@ var Torrent = Backbone.Model.extend({
             return this.metadata ? this.metadata['info'] : this.fake_info;
         }
     },
-    get_tracker: function() {
+    initialize_trackers: function() {
+        var strs = [];
         if (this.magnet_info && this.magnet_info.tr) {
-            return this.magnet_info.tr[0];
+            for (var i=0; i<this.magnet_info.tr.length; i++) {
+                strs.push( this.magnet_info.tr[i] );
+            }
         } else if (this.get('metadata')) {
             var metadata = this.get('metadata');
             if (metadata['announce-list']) {
-                var tier1 = metadata['announce-list'][0];
-                return tier1[0];
+                for (var tn=0; tn<metadata['announce-list'].length; tn++) {
+                    var tier = metadata['announce-list'][tn];
+                    for (var i=0; i<metadata['announce-list'][tn].length; i++) {
+                        strs.push( metadata['announce-list'][tn][i] );
+                    }
+                }
             } else if (metadata['announce']) {
-                if (typeof metadata.announce == 'string') {
-                    return metadata.announce
+                if (typeof metadata['announce'] == 'string') {
+                    strs.push(metadata['announce']);
                 } else {
                     debugger;
                 }
             }
+        } else if (config.default_tracker) {
+             strs.push(config.default_tracker);
         } else {
-            return 'http://192.168.56.1:6969/announce';
+            debugger;
+        }
+        this._trackers_initialized = true;
+        for (var i=0; i<strs.length; i++) {
+            var tracker = new jstorrent.TrackerConnection( strs[i], this );
+            tracker.bind('newpeer', this.handle_new_peer);
+            this.trackers.push( tracker );
         }
     },
     announce: function() {
-        // TODO -- announce to all trockers!
-        var tracker = this.get_tracker();
-        assert(tracker);
-        this.tracker = new TrackerConnection(tracker, this);
-        this.tracker.bind('newpeer', this.handle_new_peer);
-        this.tracker.announce()
-        //setTimeout( _.bind(this.tracker.announce,this.tracker) , 1000 );
+        if (! this._trackers_initialized) {
+            this.initialize_trackers();
+        }
+
+        for (var i=0; i<this.trackers.length; i++) {
+            this.trackers[i].announce();
+        }
+    },
+    try_add_peers: function() {
+        if (this.swarm.models.length > 0) {
+            debugger;
+        }
     },
     handle_new_peer: function(data) {
         if (data.port && data.port > 0) {
@@ -271,11 +298,15 @@ var Torrent = Backbone.Model.extend({
                 // already have this peer..
                 mylog(1,'already have this peer',this.connections,key);
             } else {
-                var conn = new WSPeerConnection({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
+
+                // dont connect, simply add to a swarm
+                var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash, torrent:this});
+                this.swarm.add(peer);
+                return;
+
+                var conn = new jstorrent.WSPeerConnection({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
 
                 this.connections.add(conn);
-
-                //this.connections[key] = conn
 
                 conn.on('connected', _.bind(function() {
                     // this.connections[key] = conn
@@ -351,7 +382,7 @@ var Torrent = Backbone.Model.extend({
         if (this.files[n]) {
             return this.files[n]
         } else {
-            var file = new TorrentFile(this, n);
+            var file = new jstorrent.TorrentFile(this, n);
             this.files[n] = file;
             return file;
         }
@@ -360,7 +391,7 @@ var Torrent = Backbone.Model.extend({
         if (this.pieces[n]) {
             return this.pieces[n]
         } else {
-            var piece = new Piece(this, n);
+            var piece = new jstorrent.Piece(this, n);
             this.pieces[n] = piece;
             return piece;
         }
@@ -412,7 +443,7 @@ var Torrent = Backbone.Model.extend({
     },
     finished_a_file: function(file) {
         var result = file.hasher.finalize();
-        mylog(1,'got a sha hash',ab2hex(new Uint8Array(result)));
+        mylog(LOGMASK.hash,'got a sha hash',ab2hex(new Uint8Array(result)));
         this.process_meta_request(); // pass in index of completed file...
     },
     hash_all_pieces: function(callback) {
@@ -774,9 +805,9 @@ var Torrent = Backbone.Model.extend({
     
 });
 
-var TorrentCollection = Backbone.Collection.extend({
+jstorrent.TorrentCollection = Backbone.Collection.extend({
     localStorage: new Store('TorrentCollection'),
-    model: Torrent,
+    model: jstorrent.Torrent,
     contains: function(torrent) {
         for (var i=0; i<this.models.length; i++) {
             if (torrent.hash_hex.toLowerCase() == this.models[i].hash_hex.toLowerCase()) {

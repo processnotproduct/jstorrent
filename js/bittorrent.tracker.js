@@ -46,12 +46,6 @@
                 return;
             }
 
-            if (config.debug_torrent_client) {
-                // bypass tracker and always connect to a debug torrent client (ktorrent)
-                this.trigger('newpeer',config.debug_torrent_client);
-                return;
-            }
-
             this._last_announce = new Date();
 
             var _this = this;

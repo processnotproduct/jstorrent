@@ -288,6 +288,12 @@ jstorrent.Torrent = Backbone.Model.extend({
         }
     },
     try_announce: function() {
+        if (config.debug_torrent_client) {
+            // bypass tracker and always connect to a debug torrent client (ktorrent)
+            this.handle_new_peer(config.debug_torrent_client);
+            return;
+        }
+
         for (var i=0; i<this.trackers.length; i++) {
             var tracker = this.trackers[i];
             tracker.announce(); // checks it didn't do it too recently

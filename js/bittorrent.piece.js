@@ -93,9 +93,14 @@
             assert (i <= this.numchunks);
             return (i >= this.numchunks);
         },
-        check_downloaded_hash: function() {
+        check_downloaded_hash: function(callback) {
             var hasher = new Digest.SHA1();
             mylog(LOGMASK.hash, 'hashing...',this.repr());
+
+            jsclient.threadhasher.send({msg:'hashplease', chunks: this._chunk_responses}, callback);
+            //return callback([0]);
+            return;
+/*
             var start = new Date();
             for (var i=0; i<this._chunk_responses.length; i++) {
                 hasher.update( this._chunk_responses[i] );
@@ -103,6 +108,7 @@
             var hash = hasher.finalize();
             mylog(LOGMASK.hash, 'hashed',this.repr(), new Date() - start);
             return hash;
+*/
         },
         repr: function() {
             return '<Piece '+this.num+'>';
@@ -119,19 +125,24 @@
                     mylog(LOGMASK.disk,'piece download complete',this.repr());
                     // hash check it, then write to disk
 
-                    var hash = new Uint8Array(this.check_downloaded_hash());
-                    var metahash = str2arr(this.torrent.get_infodict().pieces.slice( this.num*20, (this.num+1)*20 ))
-                    
-                    for (var i=0; i<hash.length; i++) {
-                        if (hash[i] != metahash[i]) {
-                            mylog(1,'hash mismatch!')
-                            debugger;
+                    this.check_downloaded_hash( _.bind(function(response) {
+                        var arr = response.hash;
+                        var hash = new Uint8Array(arr);
+                        var metahash = str2arr(this.torrent.get_infodict().pieces.slice( this.num*20, (this.num+1)*20 ))
+                        
+                        for (var i=0; i<hash.length; i++) {
+                            if (hash[i] != metahash[i]) {
+                                mylog(1,'hash mismatch!')
+                                debugger;
+                            }
                         }
-                    }
 
-                    //mylog(1,'downloaded piece hash match!')
-                    //this.torrent.notify_have_piece(this); // happens after the successful write
-                    this.write_data_to_filesystem();
+                        //mylog(1,'downloaded piece hash match!')
+                        //this.torrent.notify_have_piece(this); // happens after the successful write
+                        this.write_data_to_filesystem();
+
+                    },this));
+
                 }
             } else {
                 mylog(1, "didn't ask for this piece!", this.num,offset)

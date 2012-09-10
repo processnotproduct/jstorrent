@@ -2,6 +2,8 @@
     jstorrent.JSTorrentClient = function() {
         this.filesystem = new jstorrent.FileSystem();
         this.filesystem.request_fs();
+        this.threadhasher = new jstorrent.ThreadHasher();
+        //this.worker.postMessage();
 
         //this.torrents = {};
         this.torrents = new jstorrent.TorrentCollection();
@@ -66,7 +68,6 @@
             for (var j=0; j<this.torrents.models.length; j++) {
                 var torrent = this.torrents.models[j];
                 if (torrent.get('state') == 'started') {
-
                     torrent.try_add_peers();
                     torrent.try_announce();
 

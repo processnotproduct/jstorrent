@@ -828,16 +828,12 @@
       });
     */
 
-    var prototypeConfig = _.extend({}, Slickback.CollectionAdaptorMixin);
-    var myCollection = Backbone.Collection.extend(prototypeConfig);
-//var myCollection = Backbone.Collection;
-    //jstorrent.TorrentCollection = Backbone.Collection.extend({
-    jstorrent.TorrentCollection = myCollection.extend({
-        /*
-          getLength: function() { return this.models.length; },
-          getItem: function(i) { return this.models[i]; },
-          getFormatter: function(col) { debugger; },
-        */
+    jstorrent.TorrentCollection = Backbone.Collection.extend({
+
+        getLength: function() { return this.models.length; },
+        getItem: function(i) { return this.models[i]; },
+        //getFormatter: function(col) { debugger; },
+
         localStorage: new Store('TorrentCollection'),
         model: jstorrent.Torrent,
         className: 'TorrentCollection',

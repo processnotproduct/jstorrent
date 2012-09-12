@@ -207,13 +207,13 @@ jQuery(function() {
                 // sending invalid packet length (likely only for
                 // multi-file torrents. ktorrent handles it fine)
 
-                var container = new DNDDirectoryEntry({parent:null, entry:null});;
+                var container = new jstorrent.DNDDirectoryEntry({parent:null, entry:null});;
                 //var container = entry;
                 if (entry.isFile) {
-                    container.files.push( new DNDFileEntry({entry:entry, directory: container}) );
+                    container.files.push( new jstorrent.DNDFileEntry({entry:entry, directory: container}) );
                     container.populate( function() {
                         var althash = get_althash(container);
-                        var torrent = new Torrent( {container: container, althash: althash} );
+                        var torrent = new jstorrent.Torrent( {container: container, althash: althash} );
                         jsclient.torrents.add(torrent);
                         torrent.hash_all_pieces( function() {
                             mylog(1, 'torrent ready!');
@@ -221,7 +221,7 @@ jQuery(function() {
                         });
                     });
                 } else if (entry.isDirectory) {
-                    container.files.push( new DNDDirectoryEntry({entry:entry, parent: null}) );
+                    container.files.push( new jstorrent.DNDDirectoryEntry({entry:entry, parent: null}) );
                     debugger;
                 } else {
                     debugger;
@@ -279,7 +279,7 @@ jQuery(function() {
                 if (items[i].webkitGetAsEntry) {
                     var item = items[i].webkitGetAsEntry();
                     mylog(1,'dropped entry',item);
-                    var entry = new FileEntry({entry:item});
+                    var entry = new jstorrent.FileEntry({entry:item});
                     entry.set('status','copying');
                     //jsclient.get_filesystem().entries.add(entry);
                     item.copyTo( jsclient.get_filesystem().fs.root, null, _.bind(copy_success, this, entry) );

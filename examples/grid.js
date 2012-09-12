@@ -125,6 +125,7 @@ var SuperTableView = Backbone.View.extend({
         this.model.on('add', _.bind(function(m) {
             mylog(1,'model added');
             this.grid.updateRowCount();
+            this.grid.render();
         },this));
 
         this.grid.onSelectedRowsChanged.subscribe( _.bind(function(evt,data) {
@@ -167,9 +168,7 @@ var SuperTableView = Backbone.View.extend({
             this.grid.setSelectedRows([]);            
             this.grid.invalidate();
             this.grid.updateRowCount();
-
             this.grid.scrollRowIntoView(m); // ?
-
             this.grid.render();
         } else if (action == 'play') {
             var rows = this.grid.getSelectedRows();
@@ -212,7 +211,7 @@ jQuery(function() {
                 if (entry.isFile) {
                     container.files.push( new jstorrent.DNDFileEntry({entry:entry, directory: container}) );
                     container.populate( function() {
-                        var althash = get_althash(container);
+                        var althash = jstorrent.get_althash(container);
                         var torrent = new jstorrent.Torrent( {container: container, althash: althash} );
                         jsclient.torrents.add(torrent);
                         torrent.hash_all_pieces( function() {

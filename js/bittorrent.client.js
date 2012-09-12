@@ -46,14 +46,34 @@
             }
             if (! this.torrents.contains(torrent)) {
                 this.torrents.add(torrent);
-                torrent.start();
+                //torrent.start();
                 torrent.save();
                 //torrent.announce();
             } else {
                 mylog(1,'already had this torrent');
             }
-            
-
+        },
+        add_consec_torrent: function(num) {
+            num = num | 1;
+            jsp = new JSPack();
+            for (j=0;j<num;j++) { 
+                arr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0].concat( jsp.Pack(">I", [j*16]) );
+                var infohash = ab2hex(arr);
+                this.add_torrent( {infohash: infohash} );
+            }
+        },
+        add_random_torrent: function(num) {
+            num = num | 1;
+            for (j=0;j<num;j++) { 
+                var s = '';
+                for (i=0;i<20;i++) {
+                    s += String.fromCharCode( Math.floor( Math.random() * 256 ) );
+                }
+                var hasher = new Digest.SHA1();
+                hasher.update( s );
+                var hash = hasher.finalize();
+                this.add_torrent( { infohash: ab2hex(new Uint8Array(hash)) } );
+            }
         },
         remove_torrent: function(torrent) {
             torrent.stop();
@@ -80,7 +100,9 @@
                             if (! numchunks) {
                                 if (now - conn._last_message_in > constants.keepalive_interval ||
                                     now - conn._last_message_out > constants.keepalive_interval) {
-                                    conn.send_keepalive();
+                                    if (! conn._keepalive_sent) {
+                                        conn.send_keepalive();
+                                    }
                                 }
 
                             }
@@ -93,5 +115,7 @@
             // called every once an a while
         },
     };
+
+
 
 })();

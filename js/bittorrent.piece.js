@@ -144,8 +144,10 @@
                     },this));
 
                 }
+                return true;
             } else {
                 mylog(1, "didn't ask for this piece!", this.num,offset)
+                return false;
                 //debugger; // didn't ask for this data!
             }
         },

@@ -1,10 +1,17 @@
 (function() {
+
+    jstorrent.Worker = function(id) {
+        this.id = id;
+        // TODO -- encapsulate worker in this class
+    }
+
     jstorrent.ThreadHasher = function() {
         //this.worker = new Worker('../js/bittorrent.hasher.worker.js');
         this.workers = [];
         this.numthreads = 4;
         for (var i=0; i<this.numthreads; i++) {
             var worker = new Worker('../js/bittorrent.hasher.worker.js');
+            worker.id = i;
             this.workers.push( worker );
             worker.addEventListener('message', _.bind(this.onmessage,this,worker));
             worker.addEventListener('error', _.bind(this.onerror,this,worker));
@@ -24,6 +31,7 @@
         },
         send: function(data, callback) {
             worker = this.get_worker();
+            mylog(LOGMASK.hash,'sending data to worker',data,worker.id);
             worker.processing = true;
             this.requests[this.msgid] = callback
             data.id = this.msgid;
@@ -32,7 +40,7 @@
         },
         onmessage: function(worker, msg) {
             worker.processing = false;
-            mylog(LOGMASK.hash,'got worker message',msg);
+            mylog(LOGMASK.hash,'got worker message',worker.id,msg);
             var callback = this.requests[msg.data.id];
             callback(msg.data);
         },

@@ -228,7 +228,8 @@
                         assert(bytesRemaining > 0);
 
                         function on_file(file) {
-                            assert( file.size == _this.get_size() );
+                            //assert( file.size == _this.get_size() );
+                            // TODO -- ASSERT something similar -- (previous assert is wrong)
                             var blob = file.slice(offset, offset + bytesRemaining);
 
                             assert( offset + bytesRemaining <= _this.get_size() )

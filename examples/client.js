@@ -275,6 +275,7 @@ var JSTorrentClientView = BaseView.extend({
 
 jQuery(function() {
 
+
     window.jsclient = new jstorrent.JSTorrentClient();
     window.jsclientview = new JSTorrentClientView({model:jsclient, el: $('#client')});
 
@@ -312,6 +313,41 @@ jQuery(function() {
             }
         });
     }
+    $(document).on('paste', function(evt) {
+        return; // doesn't work in my chrome... returns a prefab image, always a PNG
+        var data = evt.originalEvent.clipboardData;
+        
+        var a = [];
+        console.log(JSON.stringify(data.items))
+        // doesn't really work... paste only pastes a single file!
+        for (var i=0; i<data.items.length; i++) {
+            var d = { type:data.items[i].type, 
+                      kind:data.items[i].kind, 
+                      blob:data.items[i].getAsFile() };
+            a.push(d);
+
+            if (d.blob) {
+                var fr = new FileReader();
+                fr.onload = function(e) {
+                    debugger;
+/*
+                    var buf = e.target.result;
+                    mylog(1,'pasted--',ab2str(new Uint8Array(e.target.result,0,50)))
+*/
+                    var img = document.createElement('img');
+                    img.src = e.target.result;
+                    document.body.appendChild(img);
+
+                };
+                //fr.readAsArrayBuffer(d.blob);
+                fr.readAsDataURL(d.blob);
+
+                
+            }
+        }
+
+
+    });
     $(document.body).on("dragenter", function(evt){mylog(1,'dragenter');});
     $(document.body).on("dragleave", function(evt){mylog(1,'dragleave');});
     $(document.body).on("dragover", function(evt){mylog(1,'dragover');});
@@ -340,6 +376,7 @@ jQuery(function() {
         try_register_protocol();
     });
 
-    jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
+    //jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
+
 
 });

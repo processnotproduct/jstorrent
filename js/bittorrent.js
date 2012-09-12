@@ -236,6 +236,7 @@
                 'CHOKE': this.handle_choke,
                 'UNCHOKE': this.handle_unchoke,
                 'INTERESTED': this.handle_interested,
+                'NOT_INTERESTED': this.handle_not_interested,
                 'HAVE_ALL': this.handle_have_all,
                 'PIECE': this.handle_piece,
                 'BITFIELD': this.handle_bitfield,
@@ -246,19 +247,23 @@
             this.reconnect();
         },
         handle_piece: function(data) {
-            this._outbound_chunk_requests --;
+
             this.set('outbound_chunks',this._outbound_chunk_requests);
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
             var index = view.getUint32(0);
             var offset = view.getUint32(4);
             var chunk = new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8);
             //mylog(LOGMASK.network,'got piece idx',index,'offset',offset,'len',chunk.byteLength);
-            this.torrent.handle_piece_data(this, index, offset, chunk);
+            var handled = this.torrent.handle_piece_data(this, index, offset, chunk);
+            if (handled) {
+                this._outbound_chunk_requests --;
+            }
         },
         handle_piece_hashed: function(piece) {
             this.trigger('hash_progress', (piece.num / (this.torrent.num_pieces-1)))
         },
         handle_keepalive: function() {
+            this._keepalive_sent = null;
             mylog(1,'got keepalive');
             this.send_keepalive();
         },
@@ -336,7 +341,6 @@
             mylog(LOGMASK.network, 'sending message',type,payload);
             var buf = packet.buffer;
             this.send(buf);
-            this._last_message_out = new Date().getTime();
         },
         serve_metadata_piece: function(metapiece, request, piecedata) {
             // optional piecedata
@@ -442,6 +446,8 @@
                                 var decoded = bdecode(arr2str(meta));
                                 this.torrent.metadata_download_complete(decoded);
                                 //this.torrent.set_metadata({'info':decoded});
+                            } else {
+                                mylog(1,'dont have all metadata yet');
                             }
                         }
                     } else {
@@ -636,10 +642,13 @@
             this.send( s.buffer );
         },
         send_keepalive: function() {
+            this._keepalive_sent = new Date();
+            mylog(1,'send keepalive');
             var s = new Uint8Array(4);
             this.send( s.buffer );
         },
         send: function(msg) {
+            this._last_message_out = new Date().getTime();
             this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
             this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
             this.stream.send(msg);

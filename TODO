@@ -4,7 +4,9 @@ Fixes
 
 - adjust number of outbound requests based on history/bitrate. Always have at least 1 outbound request per connected peer.
 
-- swarm object -- keeps track of all peers known on a swarm. stores in local storage. tracker info feeds into this.
+- store more states for peers. for instance, if connected to a peer that seems to be snubbing me, try out another one...
+
+- ENDGAME - all piece requests pending. simply get from "best" peer... or perhaps just decrease chunk timeouts
 
 
 TESTING
@@ -15,10 +17,6 @@ TESTING
 
 - small torrent with several files. variable chunk sizes.
 
-SPEED/OPTIMIZATION
-
-- sha1 hashing speed... perhaps hash as files come in rather than waiting for entire piece to be done.
-
 
 UI
 
@@ -27,6 +25,8 @@ UI
 - switch detail tabs
 
 - displaying images/videos
+
+- integrate sortable infinite scroll data table view
 
 
 IDEAS
@@ -45,7 +45,7 @@ ETC
 
 
 
-Core Protocol
+PROTOCOL
 
 - implement PEX (peer exchange protocol)
 

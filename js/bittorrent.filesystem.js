@@ -59,10 +59,57 @@
         initialize: function() {
             this.entries = new jstorrent.FileEntryCollection();
             //this.entries.on('add', this.entry_added);
-            _.bindAll(this, 'fs_success', 'request_fs', 'read_entries','on_read_entries','queried_storage');
-        },
+            this.fss = {};
+            this.fs_sizes = {persistent: 10 * 1024*1024*1024,
+                             temporary: 20 * 1024*1024*1024 };// doesn't matter at all
 
-        get_file_by_path: function(path, callback) {
+            _.bindAll(this, 'read_entries','on_read_entries');
+        },
+        init_filesystems: function(callback) {
+            if (window.webkitRequestFileSystem) {
+
+                var types = ['persistent','temporary'];
+
+                var fns = [ { fn: window.webkitRequestFileSystem, arguments: [webkitStorageInfo.PERSISTENT, this.fs_sizes['persistent']], callbacks: [2,3], error:3 },
+                            { fn: window.webkitRequestFileSystem, arguments: [webkitStorageInfo.TEMPORARY, this.fs_sizes['temporary']], callbacks: [2,3], error:3 } ];
+                
+                new Multi(fns).sequential( _.bind(function(result) {
+                    if (result.error) {
+                        callback({error:true})
+                    } else {
+                        for (var i=0; i<result.called.length; i++) {
+                            this.fss[types[i]] = result.called[i].data[0];
+                        }
+
+                        this.get_quotas( callback )
+
+                        //callback(this.fss);
+                    }
+                }, this))
+                              
+            } else {
+                this.trigger('unsupported');
+                mylog(LOGMASK.error,'no fs support');
+            }
+        },
+        get_quotas: function(callback) {
+            var fns = [ { fn: webkitStorageInfo.queryUsageAndQuota, this:webkitStorageInfo, arguments: [webkitStorageInfo.PERSISTENT], callbacks: [1,2], error:2 },
+                        { fn: webkitStorageInfo.queryUsageAndQuota, this:webkitStorageInfo,arguments: [webkitStorageInfo.TEMPORARY], callbacks: [1,2], error:2 } ];
+            new Multi(fns).sequential( _.bind(function(result) {
+                if (result.error) {
+                    callback({error:true})
+                } else {
+                    var quotas = {'persistent': {used:result.called[0].data[0], capacity:result.called[0].data[1]},
+                                  'temporary': {used:result.called[1].data[0], capacity:result.called[1].data[0]}};
+                    mylog(LOGMASK.disk, 'got quotas', quotas);
+                    this.set('quotas',quotas);
+                    callback(quotas);
+                }
+            },this));
+
+        },
+        get_file_by_path: function(path, callback, area) {
+            area = area || 'temporary'
             // returns file entry for given path, recursively creating directories as necessary
             var curpath = path.slice();
             var _this = this;
@@ -81,55 +128,11 @@
                     callback({error:'error getting file by path'});
                 }
             }
-
-            next(this.fs.root);
+            next(this.fss[area].root);
         },
-        write_piece: function(piece) {
-            // writes piece data to disk
-
-            // sparse files not supported, so we may need to seek to the end of a file by writing null bytes...
-            // use torrent piece information to determine if this is necessary.
-
-            
-
-
-            debugger;
-
-        },
-
-        update_quota: function() {
-            window.webkitStorageInfo.queryUsageAndQuota(window.TEMPORARY,
-                                                        this.queried_storage,
-                                                        this.queried_storage);
-
-        },
-        queried_storage: function(result, result2) {
-            if (result && result.code) {
-                debugger;
-            } else {
-                //mylog(1,'queried storage',result,result2);
-                this.set('quota',[result,result2]);
-            }
-        },
-        request_fs: function() {
-            if (window.webkitRequestFileSystem) {
-                window.webkitRequestFileSystem(window.TEMPORARY, 1024 * 1024, this.fs_success, this.fs_error);
-            } else {
-                console.error('no fs support');
-            }
-        },
-        fs_success: function(filesystem) {
-            this.fs = filesystem;
-            //mylog(1, 'got filesystem',filesystem);
-            this.update_quota();
-            this.read_entries();
-        },
-        fs_error: function(err) {
-            mylog(1, 'error');
-            this.trigger('error', {error:err});
-        },
-        read_entries: function() {
-            var reader = this.fs.root.createReader();
+        read_entries: function(area) {
+            area = area || 'temporary'
+            var reader = this.fss[area].root.createReader();
             reader.readEntries( this.on_read_entries );
         },
         on_read_entries: function(results) {
@@ -138,8 +141,24 @@
                 this.entries.add( new jstorrent.FileEntry({entry:entry}) );
             }
             this.trigger('initialized');
+        },
+        request_persistent_storage: function(callback) {
+            webkitStorageInfo.requestQuota( 
+                webkitStorageInfo.PERSISTENT,
+                this.fs_sizes.persistent,
+                function(quota) {
+                    mylog(LOGMASK.disk, 'user allowed quota',quota);
+                    if (quota > 0) {
+                        callback( {bytes:quota} )
+                    } else {
+                        callback( {error:'zero quota returned'} );
+                    }
+                },
+                function(a,b,c) {
+                    debugger;
+                    callback( { error: 'unknown error' } )
+                });
         }
-
     });
 
 })();

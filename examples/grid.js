@@ -1,7 +1,9 @@
 function try_register_protocol() {
     try {
         mylog(1,'registering prot handler');
-        var result = navigator.registerProtocolHandler('web+magnet', config.jstorrent_host + '/static/kzahel/jstorrent/examples/client.html?q=%s', 'JSTorrent');
+        //var hostpart = config.jstorrent_host;
+        var hostpart = '';
+        var result = navigator.registerProtocolHandler('web+magnet', hostpart + '/static/kzahel/jstorrent/examples/client.html?q=%s', 'JSTorrent');
     } catch(e) {
         var errmsg = e.message;
         mylog(1,'error registering prot handler', errmsg, e);
@@ -42,18 +44,39 @@ var CommandsView = BaseView.extend({
     }
 });
 
+var AddView = BaseView.extend({
+    initialize: function(opts) {
+        this.template = _.template( $('#add_template').html() );
+        this.$el.html( this.template() );
+        this.bind_actions();
+    },
+    bind_actions: function() {
+        this.$('.add').click( _.bind(this.do_add,this) );
+        this.$('.url').keypress( _.bind(function(evt) {
+            if (evt.keyCode == 13) {
+                this.do_add();
+            }
+        },this));
+    },
+    do_add: function() {
+        var url = this.$('.url').val();
+        this.$('.url').val('');
+        jsclient.add_unknown(url);
+    }
+});
 
 var SuperTableView = Backbone.View.extend({
     initialize: function(opts) {
         //var attrcolumns = ['bytes_sent','bytes_received','numpeers','state']
         var columns = [
             {id: "#", name: "num", field: "num", sortable:true, width:30 },
-            {id: "hash", name: "infohash", field: "hash", sortable:true, width:50 },
+//            {id: "hash", name: "infohash", field: "hash", sortable:true, width:50 },
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
+            {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
             {id: "state", name: "state", field: "state", sortable: true },
             {id: "%", name: "% Complete", field: "complete", sortable: true },
-            {id: "bytes_sent", name: "bytes sent", field: "bytes_sent", sortable: true},
-            {id: "bytes_received", name: "bytes received", field: "bytes_received", sortable: true},
+            {id: "bytes_sent", unit:'bytes',name: "bytes sent", field: "bytes_sent", sortable: true},
+            {id: "bytes_received", unit:'bytes',name: "bytes received", field: "bytes_received", sortable: true},
             {id: "numpeers", name: "numpeers", field: "numpeers", sortable: true},
             {id: "numswarm", name: "numswarm", field: "numswarm", sortable: true}
         ];
@@ -61,18 +84,32 @@ var SuperTableView = Backbone.View.extend({
         for (var i=0; i<columns.length; i++) {
             this.columnByAttribute[columns[i].field] = i;
         }
+        //this.specialColumns = ['numswarm'];
+        
         
         var makeColumnFormatter = {
             getFormatter: function(column) {
+/*
                 if (column.field == 'name') {
                     return function(row,cell,value,col,data) { return data.get_name(); }
-                } else if (column.field == 'hash') {
+*/
+                if (column.field == 'hash') {
                     return function(row,cell,value,col,data) { return data.get_infohash('hex'); }
-                } else if (column.field == 'numswarm') {
+/*                } else if (column.field == 'numswarm') {
                     return function(row,cell,value,col,data) { return data.swarm.models.length; }
+*/
                 } else if (column.field == 'num') {
                     return function(row,cell,value,col,data) { 
                         return row;
+                    }
+                } else if (column.unit == 'bytes') {
+                    return function(row,cell,value,col,data) { 
+                        var val = data.get(col.field)
+                        if (val > 0) {
+                            return to_file_size(val);
+                        } else {
+                            return '';
+                        }
                     }
                 } else {
                     return function(row,cell,value,col,data) {
@@ -294,8 +331,11 @@ jQuery(function() {
 
     //jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
 
+    window.addview = new AddView({el:$('#addview')});
     window.torrenttable = new SuperTableView({ model: jsclient.torrents, elid: '#myGrid' });
     window.commands = new CommandsView({el:$('#commands'), table:window.torrenttable});
+
+
 
     //jsclient.add_random_torrent();
 });

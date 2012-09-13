@@ -91,6 +91,14 @@
     </script>
 
 
+    <script type="text/template" id="add_template">
+      <fieldset>
+      <label>add torrent</label>
+      <input type="text" class="url" />
+      <input type="button" value="add" class="add" />
+      </fieldset>
+    </script>
+
     <script type="text/template" id="commands_template">
       <ul class="commands">
         <li><a class="play" href="#"><i class="icon-play"></i></a></li>
@@ -138,18 +146,21 @@
 
 
       <h1>jstorrent</h1>
-      Welcome to jstorrent! 
+      Welcome to jstorrent! Drag in files to create torrents. Drag in a torrent to start downloading!
 
       <!--div id="client">
       </div-->
 
 
       <div id="commands"></div>
+      <div id="addview"></div>
+      <!--div id="myGrid" style="width:100%; height:800px;"></div-->
+      <div id="myGrid" style="position: absolute; top:200px; bottom:0px; left:0px; right:0px"></div>
 
-      <div id="myGrid" style="width:100%; height:500px;"></div>
 
-<!--a id="magnet" href="#">register protocol!</a>
-<br />
+
+      <a id="magnet" href="#">register protocol!</a>
+<!--br />
 <a href="magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80">big buck bunny magnet</a>
 <br />
 <a href="mailto:foobar@bar.com">mail</a>

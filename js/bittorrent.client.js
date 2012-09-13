@@ -1,7 +1,6 @@
 (function() {
     jstorrent.JSTorrentClient = function() {
         this.filesystem = new jstorrent.FileSystem();
-        this.filesystem.request_fs();
         this.threadhasher = new jstorrent.ThreadHasher();
         //this.worker.postMessage();
 
@@ -16,17 +15,30 @@
         this.tick_interval = 200;
         this.requests_per_tick = 5;
         //this.filesystem.on('initialized', _.bind(this.tick,this));
-        this.filesystem.on('initialized', _.bind(function() {
 
-            for (var i=0; i<this.torrents.models.length; i++) {
-                var torrent = this.torrents.models[i];
-                if (torrent.started()) {
-                    this.torrents.models[i].announce();
+        function ready(data) {
+            if (data && data.error) {
+                mylog(LOGMASK.error,'filesystem init error');
+            } else {
+                mylog(1,'filesystems ready!');
+                for (var i=0; i<this.torrents.models.length; i++) {
+                    var torrent = this.torrents.models[i];
+                    if (torrent.started()) {
+                        this.torrents.models[i].announce();
+                    }
                 }
+                this.tick();
+                this.free_temporary();
             }
-            this.tick();
+            
+        }
+/*
+        this.filesystem.on('initialized', _.bind(ready, this));
+        this.filesystem.on('unsupported', _.bind(ready, this));
+        this.filesystem.request_fs();
+*/
 
-        }, this));
+        this.filesystem.init_filesystems(_.bind(ready,this));
     }
 
     jstorrent.JSTorrentClient.prototype = {
@@ -53,6 +65,17 @@
                 mylog(1,'already had this torrent');
             }
         },
+        add_unknown: function(str) {
+            if (str.slice(0,'magnet:'.length) == 'magnet:') {
+                this.add_torrent({magnet:str});
+            } else if (str.slice(0,'http://'.length) == 'http://') {
+                debugger; // use a proxy service to download and serve back
+            } else if (str.length == 40) {
+                this.add_torrent({infohash:str});
+            } else {
+                debugger;
+            }
+        },
         add_consec_torrent: function(num) {
             num = num | 1;
             jsp = new JSPack();
@@ -60,6 +83,57 @@
                 arr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0].concat( jsp.Pack(">I", [j*16]) );
                 var infohash = ab2hex(arr);
                 this.add_torrent( {infohash: infohash} );
+            }
+        },
+        notify_filesystem_full: function() {
+            mylog(LOGMASK.error,'filesystem is FULL!!!');
+            //var bytes = 1024 * 1024 * 1024; // gigabyte
+            this.get_filesystem().request_persistent_storage( _.bind(function(data) {
+
+                this.get_filesystem().query_quotas( _.bind(function(quotas) {
+
+                    this.get_filesystem().request_fs('persistent', _.bind(function() {
+                        this.free_temporary();
+                    },this));
+                    //this.get_filesystem().get('quotas');
+
+                },this));
+
+                //this.have_more_persistent_storage(bytes);
+            },this) );
+        },
+        have_more_persistent_storage: function(bytes) {
+            // called when more persistent storage is available. migrate some torrents over to persistent storage...
+
+
+        },
+        free_temporary: function() {
+            mylog(1,'FREE TEMP');
+            // out of temporary space. move some torrent data to persistent storage!
+            var quotas = this.get_filesystem().get('quotas');
+            var pfree = quotas.persistent.capacity - quotas.persistent.used;
+            var movebytes = 0;
+            var movetorrents = [];
+
+            for (var i=0; i<this.torrents.models.length; i++) {
+                var torrent = this.torrents.models[i];
+                if (torrent.get('complete') == 1000 &&
+                    torrent.get_storage_area() == 'temporary' &&
+                    movebytes + torrent.get_size() < pfree) {
+                    movetorrents.push(torrent)
+                }
+            }
+
+            if (movetorrents.length > 0) {
+                var fns = [];
+
+                for (var i=0; i<movetorrents.length; i++) {
+                    var torrent = movetorrents[i];
+                    fns.push( { fn: torrent.move_storage_area, this: torrent, arguments: ['persistent'], callbacks: [1] } );
+                }
+                new Multi(fns).sequential( function(result) {
+                    mylog(1,'freed temporary!');
+                });
             }
         },
         add_random_torrent: function(num) {
@@ -78,6 +152,7 @@
         remove_torrent: function(torrent) {
             torrent.stop();
             torrent.cleanup();
+            torrent.remove_files();
             //this.torrents.remove(torrent);
             torrent.destroy();
             this.torrents.remove(torrent);

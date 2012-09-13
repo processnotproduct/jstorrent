@@ -51,7 +51,12 @@
         assert(file_metadata.size <= file.get_size()); // file on disk is too large!
         var _this = file;
         writer.onerror = function(evt) {
-            debugger;
+            if (evt.target.error.code == FileError.QUOTA_EXCEEDED_ERR) {
+                _this.torrent.stop();
+                jsclient.notify_filesystem_full();
+            } else {
+                debugger;
+            }
         }
 
         var infile = (file_byte_range[0] - file.start_byte);
@@ -170,6 +175,13 @@
         repr: function() {
             return this.info.path.join('/');
         },
+        remove_from_disk: function() {
+            this.get_filesystem_entry( function(entry) {
+                entry.remove( function() {
+                    mylog(1,'removed from disk!')
+                });
+            });
+        },
         get_data: function(callback, byte_range) {
             // check if it's in the cache...
             this._read_queue.push({'callback':callback,'byte_range':byte_range});
@@ -198,7 +210,7 @@
                     }
                     this.filesystem_entry = file;
                     callback(file);
-                },this));
+                },this), this.torrent.get_storage_area());
             }
         },
         write_piece_data: function(piece, byte_range) {

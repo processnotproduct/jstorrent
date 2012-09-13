@@ -76,34 +76,42 @@
             var data = atob(b64data);
             //var data = base64.toBits(b64data)
             var decoded = bdecode(data);
+            mylog(LOGMASK.tracker, 'tracker response',decoded);
             if (decoded.peers) {
                 var peers = decoded.peers;
+                var decodedpeers = [];
                 if (this.compact_peer_response(decoded)) {
                     assert(peers.length % 6 == 0);
 
                     var itermax = peers.length/6;
-                    if (true) {
+                    if (false) {
                         var numpeers = 4;
                         // pick a single peer, for debugging
                         for (j=0;j<numpeers;j++){
                             var i = Math.floor( Math.random() * itermax );
                             var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                            decodedpeers.push(peerdata);
                             this.trigger('newpeer',peerdata);
                         }
                         
                     } else {
                         for (var i=0; i<itermax; i++) {
                             var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                            decodedpeers.push(peerdata);
                             this.trigger('newpeer',peerdata);
                         }
                     }
                 } else {
                     for (var i=0; i<peers.length; i++) {
                         var peer = peers[i];
+                        decodedpeers.push(peer);
                         this.trigger('newpeer',peer);
                         mylog(1,'got peer',peer);
                     }
                 }
+
+                mylog(LOGMASK.tracker, 'decoded peers',decodedpeers);
+
             } else if (decoded.error) {
                 mylog(LOGMASK.error, 'tracker connection error', decoded.error, decoded);
             }

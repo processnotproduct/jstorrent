@@ -181,6 +181,7 @@
                       'handle_piece',
                       'handle_cancel'
                      );
+            //mylog(LOGMASK.network,'initialize wspeerconn');
             var host = opts.host;
             var port = opts.port;
             this.peer = opts.peer;

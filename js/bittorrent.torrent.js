@@ -19,6 +19,10 @@
             this.connections = new jstorrent.TorrentPeerCollection();
             this.swarm = new jstorrent.Swarm();
             this.swarm.set_torrent(this);
+            this.set('numswarm',0);
+            this.swarm.on('add', _.bind(function() {
+                this.set('numswarm', this.get('numswarm')+1);
+            },this));
             this.pieces = [];
             this.files = [];
             this.trackers = [];
@@ -26,6 +30,7 @@
             this.set('maxconns',20);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
+            this.set('size',0);
             this._trackers_initialized = false;
             this._metadata_requests = {};
             this._chunk_request_timeout = 1000 * 60; // 60 seconds
@@ -42,12 +47,14 @@
                 // initialization via infohash (i.e. magnet link) {
                 this.hash_hex = opts.infohash;
                 this.hash = str2arr(hex2str(this.hash_hex));
+                this.set('name',this.get_name());
                 return;
             } else if (opts.magnet) {
                 var url = opts.magnet;
                 var uri = url.slice(url.indexOf(':')+2)
                 var parts = uri.split('&');
-                var d = {}
+                var d = {};
+                mylog(1,'init torrent from magnet',d);
                 for (var i=0; i<parts.length; i++) {
                     var kv = parts[i].split('=');
                     var k = decodeURIComponent(kv[0]);
@@ -58,10 +65,21 @@
                     d[k].push(v);
                 }
                 var xtparts = d.xt[0].split(':');
-                this.hash_hex = xtparts[xtparts.length-1];
-                this.hash = hex2arr(this.hash_hex);
+
+                var encodedhash = xtparts[xtparts.length-1];
+                if (encodedhash.length == 40) {
+                    this.hash_hex = encodedhash.toLowerCase();
+                    this.hash = hex2arr(this.hash_hex);
+                } else if (encodedhash.length == 32) {
+                    var output = b32decode(encodedhash);
+                    this.hash = str2arr(output);
+                    this.hash_hex = ab2hex(this.hash);
+                }
+
+                assert (this.hash_hex.length == 40);
                 assert (this.hash.length == 20);
                 this.magnet_info = d;
+                this.set('name',this.get_name());
                 // set stuffs
                 return;
             } else if (opts.container) {
@@ -78,7 +96,82 @@
                 throw Error('unrecognized initialization options');
                 debugger;
             }
+            this.set('name',this.get_name());
 
+        },
+        get_storage: function(callback, area) {
+            area = area || 'temporary';
+            if (this.is_multifile()) {
+                this.get_directory( callback );
+            } else {
+                jsclient.get_filesystem().fss[area].root.getFile( this.get_name(), null, callback, callback );
+            }
+        },
+        move_storage_area: function(target_fs_type, callback) {
+            var _this = this;
+
+            this.get_storage( _.bind(function(res) {
+                if (res instanceof FileError) {
+                    log_file_error(res);
+                    callback({error:true});
+                } else {
+
+                    function onremove(remres) {
+                        if (res && res.code) {
+                            log_file_error(res);
+                            callback({error:true})
+                        } else {
+                            callback(true);
+                        }
+                    }
+
+                    function oncopy(copyres) {
+                        if (res && res.code) {
+                            log_file_error(res);
+                            callback({error:true})
+                        } else {
+                            _this.set('storage_area','persistent');
+                            _this.save();
+                            mylog(LOGMASK.disk,'remove',res);
+                            res.remove(onremove, onremove);
+                        }
+                    }
+                    var newroot = jsclient.get_filesystem().fss['persistent'].root;
+                    mylog(LOGMASK.disk,'copy',res,'to',newroot);
+                    res.copyTo( newroot,
+                                null,
+                                oncopy,
+                                oncopy );
+                    
+                    //res.moveTo( //XXX
+                }
+            },this), this.get_storage_area());
+        },
+        get_directory: function(callback, area) {
+            area = area || 'temporary';
+            jsclient.get_filesystem().fss[area].root.getDirectory( this.get_name(), null, callback, callback );
+        },
+        remove_files: function() {
+            if (this.magnet_only()) {
+                return;
+            }
+
+            if (this.is_multifile()) {
+                this.get_directory( function(dir) {
+                    dir.removeRecursively(function() {
+                        mylog(1,'recursively removed directory');
+                    });
+                });
+/*
+                // better remove recursively torrent's directory...?
+                for (var i=0; i<this.num_files; i++) {
+                    var file = this.get_file(i);
+                    file.remove_from_disk();
+                }
+*/
+            } else {
+                this.get_file(0).remove_from_disk();
+            }
         },
         process_post_metadata: function() {
             this._file_byte_accum = [];
@@ -113,6 +206,8 @@
             }
             this.meta_requests = [];
             this._processing_meta_request = false;
+            this.set('name',this.get_name());
+            this.set('size',this.get_size());
         },
         set_metadata: function(metadata) {
             this.metadata = metadata;
@@ -300,6 +395,9 @@
                 tracker.announce(); // checks it didn't do it too recently
             }
         },
+        get_storage_area: function() {
+            return this.get('storage_area') || 'temporary';
+        },
         try_add_peers: function() {
             if (this.connections.models.length < this.get('maxconns')) {
                 for (var i=0; i<this.swarm.models.length; i++) {
@@ -307,7 +405,6 @@
                     if (peer.can_reconnect()) {
                         if (! this.connections.get(peer.id)) {
                             this.connections.add_peer(peer);
-
                             if (this.connections.models.length >= this.get('maxconns')) {
                                 return;
                             }
@@ -318,6 +415,7 @@
             }
         },
         handle_new_peer: function(data) {
+            //mylog(LOGMASK.network,this.repr(),'handle new peer',data);
             if (data.port && data.port > 0) {
                 var key = data.ip + ':' + data.port;
                 if (this.connections.contains(key)) {

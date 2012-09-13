@@ -318,7 +318,7 @@ jQuery(function() {
                     var entry = new jstorrent.FileEntry({entry:item});
                     entry.set('status','copying');
                     //jsclient.get_filesystem().entries.add(entry);
-                    item.copyTo( jsclient.get_filesystem().fs.root, null, _.bind(copy_success, this, entry) );
+                    item.copyTo( jsclient.get_filesystem().fss['temporary'].root, null, _.bind(copy_success, this, entry) );
                 }
             }
         }

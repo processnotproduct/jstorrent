@@ -1,5 +1,6 @@
 (function() {
     jstorrent.FileEntry = Backbone.Model.extend({
+        /* XXX HOW is this distinct from DNDFileEntry */
         initialize: function() {
             _.bindAll(this,'got_metadata');
             this.get('entry').getMetadata( this.got_metadata, this.got_metadata );

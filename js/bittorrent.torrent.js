@@ -157,11 +157,11 @@
             }
 
             if (this.is_multifile()) {
-                this.get_directory( function(dir) {
+                this.get_directory( _.bind(function(dir) {
                     dir.removeRecursively(function() {
                         mylog(1,'recursively removed directory');
                     });
-                });
+                }, this));
 /*
                 // better remove recursively torrent's directory...?
                 for (var i=0; i<this.num_files; i++) {
@@ -436,7 +436,7 @@
         },
         get_num_files: function() {
             if (this.is_multifile()) {
-                this.get_infodict()['files'].length;
+                return this.get_infodict()['files'].length;
             } else {
                 return 1;
             }

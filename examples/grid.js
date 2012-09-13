@@ -234,37 +234,56 @@ jQuery(function() {
 
 
     function copy_success(model, entry) {
-        model.check_is_torrent( function(result) {
-            mylog(1,'copy success',model,entry);
-            if (result) {
-                jsclient.add_torrent( { metadata: result } );
-            } else {
-                // lazy torrent creation with althash -- client still
-                // sending invalid packet length (likely only for
-                // multi-file torrents. ktorrent handles it fine)
+        mylog(1,'copy success',model,entry);
+        if (entry instanceof FileError) {
+            log_file_error(entry);
+        }
 
-                var container = new jstorrent.DNDDirectoryEntry({parent:null, entry:null});;
-                //var container = entry;
-                if (entry.isFile) {
-                    container.files.push( new jstorrent.DNDFileEntry({entry:entry, directory: container}) );
-                    container.populate( function() {
-                        var althash = jstorrent.get_althash(container);
-                        var torrent = new jstorrent.Torrent( {container: container, althash: althash} );
-                        jsclient.torrents.add(torrent);
-                        torrent.hash_all_pieces( function() {
-                            mylog(1, 'torrent ready!');
-                            torrent.start();
-                        });
-                    });
-                } else if (entry.isDirectory) {
-                    container.files.push( new jstorrent.DNDDirectoryEntry({entry:entry, parent: null}) );
-                    debugger;
-                } else {
-                    debugger;
-                }
-                //}
+        function do_create() {
+            var container = new jstorrent.DNDDirectoryEntry({parent:null, entry:null});;
+            //var container = entry;
+            if (entry.isFile) {
+                container.files.push( new jstorrent.DNDFileEntry({entry:entry, directory: container}) );
+            } else if (entry.isDirectory) {
+                container.directories.push( new jstorrent.DNDDirectoryEntry({entry:entry, parent: null}) );
             }
-        });
+
+            var fired = false;
+            function check_populated() {
+                mylog(1,'check populated...');
+                if (! fired && container.populated()) {
+                    fired = true;
+                    var althash = jstorrent.get_althash(container);
+                    var torrent = new jstorrent.Torrent( {container: container, althash: althash} );
+                    jsclient.torrents.add(torrent);
+                    torrent.hash_all_pieces( function() {
+                        mylog(1, 'torrent ready!');
+                        torrent.start();
+                    });
+                }
+            }
+
+            container.populate( check_populated );
+        }
+
+        if (model instanceof jstorrent.DNDDirectoryEntry) {
+            do_create();
+        } else {
+
+            var fe_compat = new jstorrent.FileEntry({entry:entry});
+            
+            fe_compat.check_is_torrent( function(result) {
+                if (result) {
+                    jsclient.add_torrent( { metadata: result } );
+                } else {
+                    // lazy torrent creation with althash -- client still
+                    // sending invalid packet length (likely only for
+                    // multi-file torrents. ktorrent handles it fine)
+                    do_create();
+                }
+            });
+        }
+
     }
     $(document).on('paste', function(evt) {
         return; // doesn't work in my chrome... returns a prefab image, always a PNG
@@ -314,11 +333,32 @@ jQuery(function() {
             for (var i=0; i<items.length; i++) {
                 if (items[i].webkitGetAsEntry) {
                     var item = items[i].webkitGetAsEntry();
-                    mylog(1,'dropped entry',item);
-                    var entry = new jstorrent.FileEntry({entry:item});
-                    entry.set('status','copying');
-                    //jsclient.get_filesystem().entries.add(entry);
-                    item.copyTo( jsclient.get_filesystem().fss['temporary'].root, null, _.bind(copy_success, this, entry) );
+                    var fs = jsclient.get_filesystem().fss['temporary'];
+                    mylog(LOGMASK.disk,'dropped entry',item);
+                    if (item.isFile) {
+                        var entry = new jstorrent.DNDFileEntry({entry:item});
+                        entry.set('status','copying');
+                        //jsclient.get_filesystem().entries.add(entry);
+                        item.copyTo( fs.root, null, _.bind(copy_success, this, entry), _.bind(copy_success, this, entry) );
+                    } else {
+                        var _this = this;
+                        function dir_ready() {
+                            var entry = new jstorrent.DNDDirectoryEntry({entry:item});
+                            entry.set('status','copying');
+                            //jsclient.get_filesystem().entries.add(entry);
+                            item.copyTo( fs.root, null, _.bind(copy_success, _this, entry), _.bind(copy_success, _this, entry) );
+                        }
+
+                        fs.root.getDirectory(item.name, null, _.bind(function(entry) {
+                            if (entry instanceof FileError) {
+                                log_file_error(entry);
+                            } else {
+                                entry.removeRecursively(function() {
+                                    dir_ready();
+                                });
+                            }
+                        },this));
+                    }
                 }
             }
         }

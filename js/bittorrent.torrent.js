@@ -158,6 +158,10 @@
 
             if (this.is_multifile()) {
                 this.get_directory( _.bind(function(dir) {
+                    if (dir instanceof FileError) {
+                        log_file_error(dir);
+                        return; // TODO -- remove
+                    }
                     dir.removeRecursively(function() {
                         mylog(1,'recursively removed directory');
                     });

@@ -242,7 +242,7 @@ var FileTableView = SuperTableView.extend({
         function renderLink(cellNode, row, data, colDef) {
             data.get_filesystem_entry( function() {
                 if (data.filesystem_entry) {
-                    $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' );
+                    $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' + ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'">download</a>' );
                 } else {
                     $(cellNode).empty();
                 }
@@ -258,7 +258,7 @@ var FileTableView = SuperTableView.extend({
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
-            {id:'path', name:'path', field:'path', width:80, asyncPostRender: renderLink, formatter: waitingFormatter },
+            {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderLink, formatter: waitingFormatter },
             {id: "%", name: "% Complete", field: "complete", sortable: true }
         ];
         opts.makeformatter = {

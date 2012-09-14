@@ -73,8 +73,8 @@ function to_file_size(size) {
 }
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
-var curlogmask = LOGMASK.general | LOGMASK.tracker | LOGMASK.disk;
-//var curlogmask = LOGMASK.general
+//var curlogmask = LOGMASK.general | LOGMASK.tracker | LOGMASK.disk;
+var curlogmask = LOGMASK.general
 //var curlogmask = LOGMASK.all;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;

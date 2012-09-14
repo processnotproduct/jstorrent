@@ -67,8 +67,55 @@ var AddView = BaseView.extend({
 
 var SuperTableView = Backbone.View.extend({
     initialize: function(opts) {
-        //var attrcolumns = ['bytes_sent','bytes_received','numpeers','state']
-        var columns = [
+        var columns = opts.columns;
+        this.columnByAttribute = {};
+        for (var i=0; i<columns.length; i++) {
+            this.columnByAttribute[columns[i].field] = i;
+        }
+
+        var options = {
+            enableCellNavigation: true,
+            enableColumnReorder: false,
+            formatterFactory: opts.makeformatter,
+            enableAsyncPostRender: true
+        };
+
+        this.grid = new Slick.Grid(this.options.elid, this.model, columns, options);
+        this.grid.setSelectionModel(new Slick.RowSelectionModel());
+
+        this.model.on('add', _.bind(function(m) {
+            this.grid.updateRowCount();
+            this.grid.render();
+        },this));
+
+        this.model.bind('change',_.bind(function(model,attributes) {
+            var idx = this.model.indexOf(model);
+            for (var key in attributes.changes) {
+                var i = this.columnByAttribute[key];
+                this.grid.updateCell(idx, i);
+            }
+        },this));
+
+/*
+        grid.onSort.subscribe(function(e, msg) {
+            var collection = this.getData();
+            collection.extendScope({
+                order:     msg.sortCol.field,
+                direction: (msg.sortAsc ? 'ASC' : 'DESC')
+            });
+            collection.fetchWithScope(); // NOTE: resetting pagination
+        });
+*/
+    },
+    destroy: function() {
+        this.grid.destroy();
+    }
+});
+
+
+var TorrentTableView = SuperTableView.extend({
+    initialize: function(opts) {
+        opts.columns = [
             {id: "#", name: "num", field: "num", sortable:true, width:30 },
 //            {id: "hash", name: "infohash", field: "hash", sortable:true, width:50 },
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
@@ -80,14 +127,7 @@ var SuperTableView = Backbone.View.extend({
             {id: "numpeers", name: "numpeers", field: "numpeers", sortable: true},
             {id: "numswarm", name: "numswarm", field: "numswarm", sortable: true}
         ];
-        this.columnByAttribute = {};
-        for (var i=0; i<columns.length; i++) {
-            this.columnByAttribute[columns[i].field] = i;
-        }
-        //this.specialColumns = ['numswarm'];
-        
-        
-        var makeColumnFormatter = {
+        opts.makeformatter = {
             getFormatter: function(column) {
 /*
                 if (column.field == 'name') {
@@ -118,66 +158,29 @@ var SuperTableView = Backbone.View.extend({
                 }
             }
         };
+        SuperTableView.prototype.initialize.apply(this,[opts]);
+        this.bind_events();
+    },
+    bind_events: function() {
 
-        var options = {
-            enableCellNavigation: true,
-            enableColumnReorder: false,
-            formatterFactory: makeColumnFormatter
-        };
-
-        var grid = new Slick.Grid(this.options.elid, this.model, columns, options);
-        grid.setSelectionModel(new Slick.RowSelectionModel());
-        grid.onSort.subscribe(function(e, msg) {
-            var collection = this.getData();
-            collection.extendScope({
-                order:     msg.sortCol.field,
-                direction: (msg.sortAsc ? 'ASC' : 'DESC')
-            });
-            collection.fetchWithScope(); // NOTE: resetting pagination
-        });
-        window.grid = grid;
-
-        setInterval( _.bind(this.tick,this), 100 );
-
-        this._dirtyrows = [];
-
-        this.model.bind('change',_.bind(function(model,attributes) {
-            //mylog(1,'model change',model,JSON.stringify(attributes));
-            var idx = this.model.indexOf(model);
-
-            for (var key in attributes.changes) {
-                var i = this.columnByAttribute[key];
-                this.grid.updateCell(idx, i);
+        this.grid.onDblClick.subscribe( _.bind(function(evt, data) {
+            var torrent = this.grid.getDataItem(data.row);
+            if (window.filetableview) {
+                window.filetableview.destroy();
             }
-
-            //this._dirtyrows.push(idx);
-            // TODO -- SUPER INEFFICIENT LOOKUP!!!!!
-            //this.grid.invalidateRows( [idx] );
-            //this.grid.render(); // renderRow only?
-            //debugger;
-            //model.save();
+            torrent.init_files();
+            window.filetableview = new FileTableView({ model: torrent.files, elid: '#fileGrid' });
         },this));
-        this.grid = grid;
-
-        this.model.on('add', _.bind(function(m) {
-            mylog(1,'model added');
-            this.grid.updateRowCount();
-            this.grid.render();
-        },this));
-
         this.grid.onSelectedRowsChanged.subscribe( _.bind(function(evt,data) {
             var selected = data.rows;
+            window.detail
+            var torrents = [];
             for (var i=0; i<selected.length; i++) {
                 var torrent = this.grid.getDataItem(selected[i]);
-                mylog(1,'selection',torrent,torrent.get_name());
+                torrents.push(torrent);
             }
+            //window.filetableview.notify_selection(torrents);
         },this));
-
-    },
-    tick: function() {
-        //this.grid.invalidateRows( this._dirtyrows );
-        //this._dirtyrows = [];
-        //this.grid.render();
     },
     notify_action: function(action) {
         if (action == 'remove') {
@@ -207,6 +210,15 @@ var SuperTableView = Backbone.View.extend({
             this.grid.updateRowCount();
             this.grid.scrollRowIntoView(m); // ?
             this.grid.render();
+        } else if (action == 'refresh') {
+            // removes associated files...
+            var rows = this.grid.getSelectedRows();
+            var models = [];
+            for (var i=0; i<rows.length; i++) {
+                var torrent = this.grid.getDataItem(rows[i]);
+                torrent.reset_attributes();
+                torrent.save();
+            }
         } else if (action == 'play') {
             var rows = this.grid.getSelectedRows();
             var models = [];
@@ -225,14 +237,57 @@ var SuperTableView = Backbone.View.extend({
 });
 
 
+var FileTableView = SuperTableView.extend({
+    initialize: function(opts) {
+        function renderLink(cellNode, row, data, colDef) {
+            data.get_filesystem_entry( function() {
+                if (data.filesystem_entry) {
+                    $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' );
+                } else {
+                    $(cellNode).empty();
+                }
+            });
+        }
+        function waitingFormatter() {
+            return 'fetch...';
+        }
 
+        this.torrent = opts.torrent;
+        opts.columns = [
+            {id: "#", name: "num", field: "num", sortable:true, width:30 },
+            {id: "name", name: "name", field: "name", sortable: true, width:500 },
+            {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
+//            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
+            {id:'path', name:'path', field:'path', width:80, asyncPostRender: renderLink, formatter: waitingFormatter },
+            {id: "%", name: "% Complete", field: "complete", sortable: true }
+        ];
+        opts.makeformatter = {
+            getFormatter: function(column) {
+                if (column.field == 'pathaoeu') {
+                    return function(row,cell,value,col,data) {
+                        return '<a href="' + data.filesystem_entry + '">open</a>';
+                    };
+                } else {
+                    return function(row,cell,value,col,data) {
+                        return data.get(col.field);
+                    };
+                }
+            }
+        };
+        SuperTableView.prototype.initialize.apply(this,[opts]);
+        this.bind_events();
+    },
+    bind_events: function() {
+        this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
+            var file = this.grid.getDataItem(data.row);
+            mylog(1,'click file!!!',file,evt,data,c);
+            file.open();
+        },this));
+    }
+});
 
 jQuery(function() {
-
-
     window.jsclient = new jstorrent.JSTorrentClient();
-
-
     function copy_success(model, entry) {
         mylog(1,'copy success',model,entry);
         if (entry instanceof FileError) {
@@ -372,10 +427,14 @@ jQuery(function() {
     //jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
 
     window.addview = new AddView({el:$('#addview')});
-    window.torrenttable = new SuperTableView({ model: jsclient.torrents, elid: '#myGrid' });
+    window.torrenttable = new TorrentTableView({ model: jsclient.torrents, elid: '#torrentGrid' });
+    //window.filetableview = new FileTableView({ elid: '#fileGrid' });
     window.commands = new CommandsView({el:$('#commands'), table:window.torrenttable});
 
 
-
+    var url_args = decode_url_arguments('hash');
+    if (url_args.hash) {
+        jsclient.add_unknown(url_args.hash);
+    }
     //jsclient.add_random_torrent();
 });

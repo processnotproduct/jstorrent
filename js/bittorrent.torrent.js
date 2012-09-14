@@ -24,7 +24,7 @@
                 this.set('numswarm', this.get('numswarm')+1);
             },this));
             this.pieces = [];
-            this.files = [];
+            this.files = new jstorrent.TorrentFileCollection();
             this.trackers = [];
             this.set('bytes_received',0);
             this.set('maxconns',20);
@@ -320,12 +320,20 @@
             var piece = this.get_piece(piecenum);
             return piece.handle_data(conn, offset, data);
         },
+        is_file_skipped: function(filenum) {
+            var fp = this.get('file_priority');
+            if (fp) {
+                return fp[filenum] == 'skip';
+            } else {
+                return false;
+            }
+        },
         choose_incomplete_piece: function(remote_bitmask) {
             // selects a piece... (what is a more efficient way to do this?)
             for (var i=0; i<this.num_pieces; i++) {
                 if (! this.piece_complete(i) && remote_bitmask[i]) {
                     var piece = this.get_piece(i);
-                    if (! piece.all_chunks_requested()) {
+                    if (! piece.all_chunks_requested() && ! piece.skipped()) {
                         return piece;
                     }
                 }
@@ -493,11 +501,12 @@
             return !! this.get_infodict().files;
         },
         get_file: function(n) {
-            if (this.files[n]) {
-                return this.files[n]
+            if (this.files.models[n]) {
+                return this.files.models[n]
             } else {
-                var file = new jstorrent.TorrentFile(this, n);
-                this.files[n] = file;
+                var file = new jstorrent.TorrentFile({torrent:this, num:n});
+                this.files.add(file, {at:n});
+                //this.files.models[n] = file;
                 return file;
             }
         },
@@ -556,6 +565,11 @@
                 }
             }
             return filenums;
+        },
+        init_files: function() {
+            for (var i=0; i<this.get_num_files(); i++) {
+                this.get_file(i);
+            }
         },
         finished_a_file: function(file) {
             var result = file.hasher.finalize();

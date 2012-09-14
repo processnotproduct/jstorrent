@@ -1,22 +1,198 @@
 (function() {
-    function TorrentFile(torrent, num) {
-        this.torrent = torrent;
-        this.num = num;
-        this.size = this.get_size();
-        this.start_byte = this.torrent._file_byte_accum[this.num];
-        this.end_byte = this.start_byte + this.size - 1;
-        this._data = null;
-        this._reading = false;
-        this.info = this.get_info();
-        this._cache = {};
-        this.filesystem_entry = null;
+    TorrentFile = Backbone.Model.extend({
+        initialize: function(opts) {
+            this.torrent = opts.torrent;
+            this.num = opts.num;
+            this.size = this.get_size();
+            this.start_byte = this.torrent._file_byte_accum[this.num];
+            this.end_byte = this.start_byte + this.size - 1;
+            this._data = null;
+            this._reading = false;
+            this.info = this.get_info();
+            this._cache = {};
+            this.filesystem_entry = null;
 
-        this._read_queue = [];
-        this._processing_read_queue = false;
-        //this._write_queue = [];
+            this._read_queue = [];
+            this._processing_read_queue = false;
+            //this._write_queue = [];
 
-        this.read_callback = null;
-    }
+            this.read_callback = null;
+            this.set('name',this.get_name());
+            this.set('size',this.get_size());
+            this.set('path',this.get_path());
+        },
+        on_download_complete: function() {
+            var _this = this;
+            this.get_filesystem_entry( function(entry) {
+                // check size matches metadata!
+                entry.getMetadata( function(metadata) {
+                    assert( metadata.size == _this.get_size() );
+                });
+            });
+        },
+        repr: function() {
+            return this.info.path.join('/');
+        },
+        remove_from_disk: function() {
+            this.get_filesystem_entry( function(entry) {
+                entry.remove( function() {
+                    mylog(1,'removed from disk!')
+                });
+            });
+        },
+        get_data: function(callback, byte_range) {
+            // check if it's in the cache...
+            this._read_queue.push({'callback':callback,'byte_range':byte_range});
+            this.process_read_data_queue();
+        },
+        open: function() {
+            this.get_filesystem_entry( function(entry) {
+                //window.open( entry.toURL() );
+            });
+        },
+        get_path: function() {
+            var path = [];
+            if (this.torrent.is_multifile()) {
+                path.push( this.torrent.get_infodict().name );
+                var filepaths = this.get_info().path;
+                for (var i=0; i<filepaths.length; i++ ) {
+                    path.push(filepaths[i]);
+                }
+                return path;
+            } else {
+                return this.get_info().path;
+            }
+        },
+        get_filesystem_entry: function(callback) {
+            if (this.filesystem_entry) {
+                callback(this.filesystem_entry);
+            } else {
+                jsclient.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
+                    if (file.error) {
+                        debugger;
+                    }
+                    this.filesystem_entry = file;
+                    callback(file);
+                },this), this.torrent.get_storage_area());
+            }
+        },
+        skipped: function() {
+            return this.torrent.is_file_skipped(this.num);
+        },
+        write_piece_data: function(piece, byte_range) {
+            // TODO -- handle filesystem errors.
+            TorrentFile._write_queue.push( [piece, byte_range, this] );
+            TorrentFile.process_write_queue();
+        },
+        fs_error: function(evt) {
+            debugger;
+        },
+        process_read_data_queue: function() {
+            var _this = this;
+            if (this._processing_read_queue) {
+                return;
+            } else {
+                if (this._read_queue.length > 0) {
+                    this._processing_read_queue = true;
+                    var item = this._read_queue.shift();
+                    this.torrent.get_by_path(this.info.path, _.bind(function(dndfile) {
+                        // XXX -- maybe check file metadata make sure the file is large enough!
+                        assert(dndfile);
+                        var filereader = new FileReader(); // todo - re-use and seek!
+                        filereader.onload = _.bind(this.got_queue_data, this, item);
+                        var byte_range = item.byte_range;
+                        var offset = byte_range[0] - this.start_byte;
+                        var bytesRemaining = byte_range[1] - byte_range[0] + 1;
+                        assert(bytesRemaining > 0);
+
+                        function on_file(file) {
+                            //assert( file.size == _this.get_size() );
+                            // TODO -- ASSERT something similar -- (previous assert is wrong)
+                            var blob = file.slice(offset, offset + bytesRemaining);
+
+                            assert( offset + bytesRemaining <= _this.get_size() )
+
+                            //item.slice = [offset, bytesRemaining];
+
+                            mylog(LOGMASK.disk,'reading blob from',_this,_this.repr(),file,dndfile,'slice',[offset,offset+bytesRemaining]);
+                            filereader.readAsArrayBuffer(blob);
+                        }
+
+                        if (typeof dndfile.file == 'function') {
+                            // dndfile came from get from filesystem
+                            dndfile.file( on_file );
+                        } else {
+                            // dndfile came from a drag n drop reference
+                            on_file(dndfile.file);
+                        }
+
+                    }, this));
+
+                }
+            }
+        },
+        got_queue_data: function(item, evt) {
+            this._processing_read_queue = false;
+            var binary = evt.target.result;
+            mylog(LOGMASK.disk,'read bytes',binary.byteLength,'from range',item.byte_range);
+            assert(binary.byteLength == (item.byte_range[1] - item.byte_range[0] + 1));
+            var callback = item.callback;
+            callback(binary);
+            this.process_read_data_queue();
+        },
+        read_some: function() {
+            if (this.read_byte_range) {
+                var readmax = Math.min(this.read_byte_range[1], this.offset + this.readBufferSize);
+            } else {
+                var readmax = this.offset + this.readBufferSize; // bother explicitly limiting to file boundary?
+            }
+            var blob = this.dndfile.file.slice(this.offset,readmax);
+            this.filereader.readAsArrayBuffer(blob);
+        },
+        got_data: function(range, evt) {
+            var binary = evt.target.result;
+            if (binary.byteLength == 0) {
+                assert(false, 'should not have tried to read, bytesRemaining computation bad');
+                this.got_all_data();
+            } else {
+                this.bytesRemaining -= binary.byteLength;
+                //this.hasher.update(binary);
+                this._data.push(binary);
+                this._cache[JSON.stringify(range)] = binary;
+                //mylog(1,'read some more data',this.get_name(),binary.byteLength);
+                this.offset += this.readBufferSize;
+                if (this.bytesRemaining > 0) {
+                    this.read_some();
+                } else {
+                    this.got_all_data();
+                }
+            }
+        },
+        got_all_data: function() {
+            this._reading = false;
+            var callback = this.read_callback;
+            this.read_callback = null;
+            callback(this);
+        },
+        get_name: function() {
+            return this.info.path[this.info.path.length-1];
+        },
+        get_size: function() {
+            if (this.torrent.is_multifile()) {
+                return this.torrent.get_infodict()['files'][this.num]['length'];
+            } else {
+                return this.torrent.get_size();
+            }
+        },
+        get_info: function() {
+            if (this.torrent.is_multifile()) {
+                return this.torrent.get_infodict()['files'][this.num];
+            } else {
+                return {length: this.get_size(),
+                        path: [this.torrent.get_infodict().name]};
+            }
+        }
+    });
 
     // static variables, methods
     TorrentFile._write_queue = [];
@@ -162,172 +338,15 @@
     };
 
 
-    TorrentFile.prototype = {
-        on_download_complete: function() {
-            var _this = this;
-            this.get_filesystem_entry( function(entry) {
-                // check size matches metadata!
-                entry.getMetadata( function(metadata) {
-                    assert( metadata.size == _this.get_size() );
-                });
-            });
-        },
-        repr: function() {
-            return this.info.path.join('/');
-        },
-        remove_from_disk: function() {
-            this.get_filesystem_entry( function(entry) {
-                entry.remove( function() {
-                    mylog(1,'removed from disk!')
-                });
-            });
-        },
-        get_data: function(callback, byte_range) {
-            // check if it's in the cache...
-            this._read_queue.push({'callback':callback,'byte_range':byte_range});
-            this.process_read_data_queue();
-        },
-        get_path: function() {
-            var path = [];
-            if (this.torrent.is_multifile()) {
-                path.push( this.torrent.get_infodict().name );
-                var filepaths = this.get_info().path;
-                for (var i=0; i<filepaths.length; i++ ) {
-                    path.push(filepaths[i]);
-                }
-                return path;
-            } else {
-                return this.get_info().path;
-            }
-        },
-        get_filesystem_entry: function(callback) {
-            if (this.filesystem_entry) {
-                callback(this.filesystem_entry);
-            } else {
-                jsclient.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
-                    if (file.error) {
-                        debugger;
-                    }
-                    this.filesystem_entry = file;
-                    callback(file);
-                },this), this.torrent.get_storage_area());
-            }
-        },
-        write_piece_data: function(piece, byte_range) {
-            // TODO -- handle filesystem errors.
-            TorrentFile._write_queue.push( [piece, byte_range, this] );
-            TorrentFile.process_write_queue();
-        },
-        fs_error: function(evt) {
-            debugger;
-        },
-        process_read_data_queue: function() {
-            var _this = this;
-            if (this._processing_read_queue) {
-                return;
-            } else {
-                if (this._read_queue.length > 0) {
-                    this._processing_read_queue = true;
-                    var item = this._read_queue.shift();
-                    this.torrent.get_by_path(this.info.path, _.bind(function(dndfile) {
-                        // XXX -- maybe check file metadata make sure the file is large enough!
-                        assert(dndfile);
-                        var filereader = new FileReader(); // todo - re-use and seek!
-                        filereader.onload = _.bind(this.got_queue_data, this, item);
-                        var byte_range = item.byte_range;
-                        var offset = byte_range[0] - this.start_byte;
-                        var bytesRemaining = byte_range[1] - byte_range[0] + 1;
-                        assert(bytesRemaining > 0);
 
-                        function on_file(file) {
-                            //assert( file.size == _this.get_size() );
-                            // TODO -- ASSERT something similar -- (previous assert is wrong)
-                            var blob = file.slice(offset, offset + bytesRemaining);
-
-                            assert( offset + bytesRemaining <= _this.get_size() )
-
-                            //item.slice = [offset, bytesRemaining];
-
-                            mylog(LOGMASK.disk,'reading blob from',_this,_this.repr(),file,dndfile,'slice',[offset,offset+bytesRemaining]);
-                            filereader.readAsArrayBuffer(blob);
-                        }
-
-                        if (typeof dndfile.file == 'function') {
-                            // dndfile came from get from filesystem
-                            dndfile.file( on_file );
-                        } else {
-                            // dndfile came from a drag n drop reference
-                            on_file(dndfile.file);
-                        }
-
-                    }, this));
-
-                }
-            }
-        },
-        got_queue_data: function(item, evt) {
-            this._processing_read_queue = false;
-            var binary = evt.target.result;
-            mylog(LOGMASK.disk,'read bytes',binary.byteLength,'from range',item.byte_range);
-            assert(binary.byteLength == (item.byte_range[1] - item.byte_range[0] + 1));
-            var callback = item.callback;
-            callback(binary);
-            this.process_read_data_queue();
-        },
-        read_some: function() {
-            if (this.read_byte_range) {
-                var readmax = Math.min(this.read_byte_range[1], this.offset + this.readBufferSize);
-            } else {
-                var readmax = this.offset + this.readBufferSize; // bother explicitly limiting to file boundary?
-            }
-            var blob = this.dndfile.file.slice(this.offset,readmax);
-            this.filereader.readAsArrayBuffer(blob);
-        },
-        got_data: function(range, evt) {
-            var binary = evt.target.result;
-            if (binary.byteLength == 0) {
-                assert(false, 'should not have tried to read, bytesRemaining computation bad');
-                this.got_all_data();
-            } else {
-                this.bytesRemaining -= binary.byteLength;
-                //this.hasher.update(binary);
-                this._data.push(binary);
-                this._cache[JSON.stringify(range)] = binary;
-                //mylog(1,'read some more data',this.get_name(),binary.byteLength);
-                this.offset += this.readBufferSize;
-                if (this.bytesRemaining > 0) {
-                    this.read_some();
-                } else {
-                    this.got_all_data();
-                }
-            }
-        },
-        got_all_data: function() {
-            this._reading = false;
-            var callback = this.read_callback;
-            this.read_callback = null;
-            callback(this);
-        },
-        get_name: function() {
-            return this.info.path[this.info.path.length-1];
-        },
-        get_size: function() {
-            if (this.torrent.is_multifile()) {
-                return this.torrent.get_infodict()['files'][this.num]['length'];
-            } else {
-                return this.torrent.get_size();
-            }
-        },
-        get_info: function() {
-            if (this.torrent.is_multifile()) {
-                return this.torrent.get_infodict()['files'][this.num];
-            } else {
-                return {length: this.get_size(),
-                        path: [this.torrent.get_infodict().name]};
-            }
-        },
-    };
-
-    jstorrent.TorrentFile = TorrentFile
+    var TorrentFileCollection = Backbone.Collection.extend({
+        getLength: function() { return this.models.length; },
+        getItem: function(i) { return this.models[i]; },
+        //getFormatter: function(col) { debugger; },
+        model: TorrentFile,
+        className: 'TorrentFileCollection'
+    });
+    jstorrent.TorrentFileCollection = TorrentFileCollection;
+    jstorrent.TorrentFile = TorrentFile;
 })();
 

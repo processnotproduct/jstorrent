@@ -7,7 +7,8 @@ window.config = {
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     bittorrent_proxy: '192.168.56.1:8030',
-    default_tracker: 'http://192.168.56.1:6969/announce'
+    default_tracker: 'http://192.168.56.1:6969/announce',
+    kyle_ut_home: 'kzahel.dyndns.org:38028'
     //bittorrent_proxy: 'kzahel.dyndns.org:8030' // torrent proxy service
 }
 
@@ -289,5 +290,21 @@ function b642arr(inp) {
         mylog(LOGMASK.error, err, err.code, FileErrors[err.code]);
     }
     window.log_file_error = log_file_error;
+
+    window.decode_url_arguments = function(place) {
+        place = place || search
+        var query = window.location[place];
+        var parts = query.slice(1, query.length).split('&');
+        var d = {};
+        for (var i=0; i<parts.length; i++) {
+            var kv = parts[i].split('=');
+            if (kv[0].length > 0) {
+                d[kv[0]] = decodeURIComponent(kv[1]);
+            }
+        }
+        return d;
+    }
+
+
 
 })();

@@ -217,6 +217,18 @@
             mylog(LOGMASK.hash, 'hashed a piece');
             callback();
         },
+        skipped: function() {
+            var file_info = this.get_file_info(0, this.sz);
+            var skip = true;
+            for (var i=0; i<file_info.length; i++) {
+                var file = this.torrent.get_file(file_info[i].filenum);
+                if (! file.skipped()) {
+                    skip = false;
+                    break;
+                }
+            }
+            return skip;
+        },
         get_file_info: function(offset, size) {
             // returns file objects + offsets needed to serially read from them
             var info = [];

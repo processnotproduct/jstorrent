@@ -1,10 +1,4 @@
 (function() {
-
-    jstorrent.TrackerConnection = function(url, torrent) {
-        this.url = url;
-        this.torrent = torrent;
-    }
-
     function decode_peer(str) {
         assert(str.length == 6);
         var ip = str.charCodeAt(0) + '.' + str.charCodeAt(1) + '.' + str.charCodeAt(2) + '.' + str.charCodeAt(3)
@@ -27,7 +21,12 @@
         return res;
     }
 
-    jstorrent.TrackerConnection.prototype = {
+    jstorrent.TrackerConnection = Backbone.Model.extend({
+        initialize: function(opts) {
+            this.url = opts.url;
+            this.torrent = opts.torrent;
+            this.set('announces',0);
+        },
         min_announce_interval: function() {
             return 60 * 1000;
         },
@@ -47,7 +46,7 @@
             }
 
             this._last_announce = new Date();
-
+            this.set('announces',this.get('announces')+1);
             var _this = this;
             var params = { info_hash: hex2str(this.torrent.get_infohash('hex')), event: 'started',
                            peer_id: ab2str(my_peer_id),
@@ -60,9 +59,9 @@
             jQuery.ajax( { url: this.get_url(params),
                            success: _.bind(this.on_success,this),
                            dataType: 'jsonp', // TODO -- insecure - force trackers to support websockets instead
-                           error: function(xhr, status, text) {
-                               debugger;
-                           }
+                           error: _.bind(function(xhr, status, text) {
+                               this.set('state','xhr error');
+                           },this)
                          });
         },
         is_udp: function() {
@@ -109,10 +108,11 @@
                         mylog(1,'got peer',peer);
                     }
                 }
-
+                this.set('state','active');
                 mylog(LOGMASK.tracker, 'decoded peers',decodedpeers);
 
             } else if (decoded.error) {
+                this.set('active','error');
                 mylog(LOGMASK.error, 'tracker connection error', decoded.error, decoded);
             }
         },
@@ -135,21 +135,13 @@
                 return s;
             }
         }
-    }
+    });
 
 
-    var bindable = {
-        bind: function(evt, callback) {
-            if (this.__bound === undefined) {
-                this.__bound = {};
-            }
-            this.__bound[evt] = callback;
-        },
-        trigger: function(evt, data) {
-            this.__bound[evt](data);
-        },
-    }
-
-    _.extend(jstorrent.TrackerConnection.prototype, bindable);
+    jstorrent.TrackerCollection = Backbone.Collection.extend({
+        getLength: function() { return this.models.length; },
+        getItem: function(i) { return this.models[i]; },
+        model: jstorrent.TrackerConnection
+    });
 
 })();

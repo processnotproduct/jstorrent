@@ -28,7 +28,6 @@
                     }
                 }
                 this.tick();
-                this.free_temporary();
             }
             
         }
@@ -92,9 +91,10 @@
             // TODO -- request more than before!!
             this.get_filesystem().request_persistent_storage( _.bind(function(data) {
 
-                this.get_filesystem().query_quotas( _.bind(function(quotas) {
+                this.get_filesystem().get_quotas( _.bind(function(quotas) {
 
-                    this.get_filesystem().request_fs('persistent', _.bind(function() {
+                    this.get_filesystem().request_persistent_storage(_.bind(function() {
+                        this.free_temporary();
                     },this));
                     //this.get_filesystem().get('quotas');
 

@@ -34,6 +34,7 @@
     <script src="../js/bittorrent.torrent.js"></script>  
     <script src="../js/bittorrent.js"></script>  
 
+    <script type="text/javascript" src="../js/deps/dht.js"></script>
 
     <script type="text/javascript" src="grid.js"></script>
 
@@ -115,6 +116,22 @@
       <div class="peers"></div>
     </script>
 
+    <script type="text/template" id="general_detail_template">
+
+
+      <fieldset>
+        <legend>infohash</legend>
+        <span class="infohash"><span>
+      </fieldset>
+
+      <fieldset>
+        <legend>magnet</legend>
+        <span class="magnet"><span>
+      </fieldset>
+
+
+    </script>
+
 
     <script type="text/template" id="detail_template">
       Detail View
@@ -123,14 +140,14 @@
 
     <script type="text/template" id="client_template">
 
-      Torrents:
-      <div class="torrents"></div>
+      <div class="commands"></div>
+      <div class="tabs" style="float:right">
+      </div>
+      <div class="addview"></div>
+      <!--div id="myGrid" style="width:100%; height:800px;"></div-->
+      <div class="torrentGrid" style="border:1px solid black; position: absolute; height:320px; bottom:200px; left:0px; right:0px"></div>
 
-      <div style="border:1px dashed green" class="tabs"></div>
-
-      Details:
-      <div style="border:1px dashed grey" class="details"></div>
-      
+      <div class="fileGrid" style="border:1px solid green; position: absolute; height:200px; bottom:0px; left:0px; right:0px">double click on a torrent to view files</div>
     </script>
 
 
@@ -152,13 +169,7 @@
       </div-->
 
 
-      <div id="commands"></div>
-      <div id="addview"></div>
-      <!--div id="myGrid" style="width:100%; height:800px;"></div-->
-      <div id="torrentGrid" style="border:1px solid black; position: absolute; top:200px; bottom:200px; left:0px; right:0px"></div>
-
-      <div id="fileGrid" style="border:1px solid green; position: absolute; height:200px; bottom:0px; left:0px; right:0px">double click on a torrent to view files</div>
-
+<div id="client"></div>
 
 
       <a id="magnet" href="#">register protocol!</a>

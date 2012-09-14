@@ -25,7 +25,7 @@
             },this));
             this.pieces = [];
             this.files = new jstorrent.TorrentFileCollection();
-            this.trackers = [];
+            this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
             this.set('maxconns',20);
             this.set('bytes_sent',0);
@@ -234,7 +234,8 @@
             } else {
                 var s = 'magnet:?xt=urn:btih:' + this.hash_hex;
             }
-            s += '&tr=' + encodeURIComponent(config.default_tracker);
+            //s += '&tr=' + encodeURIComponent(config.default_tracker);
+            s += '&tr=' + encodeURIComponent(config.public_trackers[0]);
             return s;
         },
         get_infohash: function(format) {
@@ -383,17 +384,17 @@
             }
             this._trackers_initialized = true;
             for (var i=0; i<strs.length; i++) {
-                var tracker = new jstorrent.TrackerConnection( strs[i], this );
+                var tracker = new jstorrent.TrackerConnection( { url: strs[i], torrent: this } );
                 tracker.bind('newpeer', this.handle_new_peer);
-                this.trackers.push( tracker );
+                this.trackers.add( tracker );
             }
         },
         announce: function() {
             if (! this._trackers_initialized) {
                 this.initialize_trackers();
             }
-            for (var i=0; i<this.trackers.length; i++) {
-                this.trackers[i].announce();
+            for (var i=0; i<this.trackers.models.length; i++) {
+                this.trackers.models[i].announce();
             }
         },
         try_announce: function() {
@@ -403,8 +404,8 @@
                 return;
             }
 
-            for (var i=0; i<this.trackers.length; i++) {
-                var tracker = this.trackers[i];
+            for (var i=0; i<this.trackers.models.length; i++) {
+                var tracker = this.trackers.models[i];
                 tracker.announce(); // checks it didn't do it too recently
             }
         },
@@ -607,11 +608,8 @@
             }
             this.fake_info.pieces = s;
             this.metadata = { 'info': _.clone(this.fake_info) };
-            this.metadata['announce'] = "udp://tracker.openbittorrent.com:80/announce";
-            this.metadata['announce-list'] = [
-                ["udp://tracker.openbittorrent.com:80/announce"],
-                ["udp://tracker.publicbt.com:80/announce"]
-            ];
+            this.metadata['announce'] = config.public_trackers[0];
+            this.metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
             this.set('metadata',this.metadata);
             this.process_metadata();
             this.fake_info = null;

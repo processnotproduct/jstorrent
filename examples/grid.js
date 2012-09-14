@@ -80,7 +80,7 @@ var SuperTableView = Backbone.View.extend({
             enableAsyncPostRender: true
         };
 
-        this.grid = new Slick.Grid(this.options.elid, this.model, columns, options);
+        this.grid = new Slick.Grid(this.options.el, this.model, columns, options);
         this.grid.setSelectionModel(new Slick.RowSelectionModel());
 
         this.model.on('add', _.bind(function(m) {
@@ -108,6 +108,8 @@ var SuperTableView = Backbone.View.extend({
 */
     },
     destroy: function() {
+        this.model.off('add');
+        this.model.off('change');
         this.grid.destroy();
     }
 });
@@ -162,23 +164,19 @@ var TorrentTableView = SuperTableView.extend({
         this.bind_events();
     },
     bind_events: function() {
-
-        this.grid.onDblClick.subscribe( _.bind(function(evt, data) {
+        this.grid.onClick.subscribe( _.bind(function(evt, data) {
+            mylog(LOGMASK.ui,'double click torrants');
             var torrent = this.grid.getDataItem(data.row);
-            if (window.filetableview) {
-                window.filetableview.destroy();
-            }
-            torrent.init_files();
-            window.filetableview = new FileTableView({ model: torrent.files, elid: '#fileGrid' });
+            jsclientview.set_subview_context(torrent);
         },this));
         this.grid.onSelectedRowsChanged.subscribe( _.bind(function(evt,data) {
             var selected = data.rows;
-            window.detail
             var torrents = [];
             for (var i=0; i<selected.length; i++) {
                 var torrent = this.grid.getDataItem(selected[i]);
                 torrents.push(torrent);
             }
+            mylog(LOGMASK.ui,'selection changed',torrents);
             //window.filetableview.notify_selection(torrents);
         },this));
     },
@@ -195,7 +193,6 @@ var TorrentTableView = SuperTableView.extend({
             for (var i=0; i<models.length; i++) {
                 jsclient.remove_torrent(models[i]);
             }
-
 
             var invalid = [];
             var m = Math.min.apply(Math,rows);
@@ -285,6 +282,184 @@ var FileTableView = SuperTableView.extend({
         },this));
     }
 });
+
+
+var PeerTableView = SuperTableView.extend({
+    initialize: function(opts) {
+        this.torrent = opts.torrent;
+        opts.columns = [
+            {id: "#", name: "num", field: "num", sortable:true, width:30 },
+            {id: "host", name: "host", field: "host", sortable: true, width:200 },
+            {id: "port", name: "port", field: "port", sortable: true, width:80 },
+            {id: "bytes_sent", name: "bytes_sent", field: "bytes_sent", unit: 'bytes', sortable: true },
+            {id: "bytes_received", name: "bytes_received", field: "bytes_received", unit: 'bytes', sortable: true },
+            {id: "%", name: "% Complete", field: "complete", sortable: true }
+        ];
+        opts.makeformatter = {
+            getFormatter: function(column) {
+                if (column.field == 'pathaoeuaoue') {
+                    return function(row,cell,value,col,data) {
+                        return '<a href="' + data.filesystem_entry + '">open</a>';
+                    };
+                } else if (column.unit == 'bytes') {
+                    return function(row,cell,value,col,data) { 
+                        var val = data.get(col.field)
+                        if (val > 0) {
+                            return to_file_size(val);
+                        } else {
+                            return '';
+                        }
+                    }
+                } else if (column.field == 'complete') {
+                    return function(row,cell,value,col,data) {
+                        return data.get(col.field);
+                    };
+                } else {
+                    return function(row,cell,value,col,data) {
+                        return data.peer.get(col.field);
+                    };
+                }
+            }
+        };
+        SuperTableView.prototype.initialize.apply(this,[opts]);
+        this.bind_events();
+    },
+    bind_events: function() {
+        this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
+            var peerconn = this.grid.getDataItem(data.row);
+            mylog(1,'click thing!!!!!',file,evt,data,c,peerconn,peerconn.peer);
+            //file.open();
+        },this));
+    }
+});
+
+var TrackerTableView = SuperTableView.extend({
+    initialize: function(opts) {
+        this.torrent = opts.torrent;
+        opts.columns = [
+            {id: "#", name: "num", field: "num", sortable:true, width:30 },
+            {id: "url", name: "url", field: "url", sortable: true, width:400 },
+            {id: "state", name: "state", field: "state", sortable: true, width:200 },
+            {id: "announces", name: "announces", field: "announces", sortable: true, width:100 },
+        ];
+        opts.makeformatter = {
+            getFormatter: function(column) {
+                if (column.field == 'pathaoeuaoue') {
+                    return function(row,cell,value,col,data) {
+                        return '<a href="' + data.filesystem_entry + '">open</a>';
+                    };
+                } else {
+                    return function(row,cell,value,col,data) {
+                        return data.get(col.field);
+                    };
+                }
+            }
+        };
+        SuperTableView.prototype.initialize.apply(this,[opts]);
+        this.bind_events();
+    },
+    bind_events: function() {
+        this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
+            var thing = this.grid.getDataItem(data.row);
+            mylog(1,'click thing!!!!!',thing);
+        },this));
+    }
+});
+
+var TabsView = BaseView.extend({
+    initialize: function(opts) {
+        this.template = _.template( $('#tabs_template').html() );
+        this.$el.html( this.template() );
+        this.bind_actions();
+    },
+    bind_actions: function() {
+        _.each(['peers','general','files','trackers'], _.bind(function(tabname) {
+            this.$('.' + tabname).click( function() {
+                jsclientview.set_tab(tabname);
+            });
+        },this));
+    }
+});
+
+var GeneralDetailView = BaseView.extend({
+    initialize: function(opts) {
+        this.template = _.template( $('#general_detail_template').html() );
+        this.$el.html( this.template() );
+        this.bind_actions();
+        this.render();
+    },
+    render: function() {
+        this.$('.infohash').text( this.model.hash_hex );
+        this.$('.magnet').text( this.model.get_magnet_link() );
+    },
+    bind_actions: function() {
+        
+    }
+});
+
+var JSTorrentClientViewSettings = Backbone.Model.extend({
+    localStorage: new Store('JSTorrentClientViewSettings'),
+    initialize: function() {
+    },
+    
+});
+
+var JSTorrentClientView = BaseView.extend({
+    initialize: function(opts) {
+        this.settings = new JSTorrentClientViewSettings();
+        this.settings.id = 'client';
+        this.settings.fetch();
+        this.template = _.template( $('#client_template').html() );
+        this.$el.html( this.template() );
+        this.addview = new AddView({el:this.$('.addview')});
+        this.torrenttable = new TorrentTableView({ model: jsclient.torrents, el: this.$('.torrentGrid') });
+        this.detailview = null;
+        this.commands = new CommandsView({el:this.$('.commands'), table:this.torrenttable});
+        this.tabs = new TabsView({el:this.$('.tabs')});
+    },
+    init_detailview: function() {
+        if (this.detailview) { this.detailview.destroy(); }
+        var ctxid = this.settings.get('subview_context');
+        var torrent = jsclient.torrents.get(ctxid);
+        var curtab = this.settings.get('tab');
+        if (curtab == 'files') {
+            torrent.init_files();
+            jsclientview.detailview = new FileTableView({ model: torrent.files, torrent: torrent, el: this.$('.fileGrid')});
+        } else if (curtab == 'peers') {
+            jsclientview.detailview = new PeerTableView({ model: torrent.connections, torrent: torrent, el: this.$('.fileGrid')});
+        } else if (curtab == 'trackers') {
+            jsclientview.detailview = new TrackerTableView({ model: torrent.trackers, torrent: torrent, el: this.$('.fileGrid')});
+        } else if (curtab == 'general') {
+            jsclientview.detailview = new GeneralDetailView({ model: torrent, el: this.$('.fileGrid') });
+        }
+    },
+    set_subview_context: function(ctx) {
+        var old = this.settings.get('subview_context');
+        if (old != ctx) {
+            this.settings.set('subview_context', ctx.id);
+            this.settings.save();
+            this.init_detailview();
+        }
+    },
+    set_tab: function(tabtype) {
+        this.settings.set('tab',tabtype);
+        this.settings.save();
+        this.init_detailview();
+        
+        //this.detailview.set_type( tabtype );
+    },
+    select_torrent: function(torrent) {
+        mylog(LOGMASK.ui,'select torrent',torrent.repr());
+        this.detailview.set_model( torrent );
+    },
+    select_peer: function(peer) {
+        this.detailview.set_model( peer );
+    },
+    render: function() {
+
+    }
+});
+
 
 jQuery(function() {
     window.jsclient = new jstorrent.JSTorrentClient();
@@ -426,11 +601,7 @@ jQuery(function() {
 
     //jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
 
-    window.addview = new AddView({el:$('#addview')});
-    window.torrenttable = new TorrentTableView({ model: jsclient.torrents, elid: '#torrentGrid' });
-    //window.filetableview = new FileTableView({ elid: '#fileGrid' });
-    window.commands = new CommandsView({el:$('#commands'), table:window.torrenttable});
-
+    window.jsclientview = new JSTorrentClientView({el:$('#client')});
 
     var url_args = decode_url_arguments('hash');
     if (url_args.hash) {

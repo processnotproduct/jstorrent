@@ -500,6 +500,27 @@
             this._choked = false;
             this.set('am_choked',false);
         },
+        update_remote_complete: function(n) {
+            n = n || 1;
+            this._remote_bitmask_complete = null;
+            this._remote_bitmask_count += n;
+            this.get_remote_complete();
+        },
+        get_remote_complete: function(update) {
+            if (this._remote_bitmask_complete) {
+                return this._remote_bitmask_complete;
+            } else if (this._remote_bitmask_count) {
+                this._remote_bitmask_complete = Math.floor(1000 * this._remote_bitmask_count / this.get_num_pieces());
+                return this._remote_bitmask_complete;
+            } else if (this._remote_bitmask) {
+                var count = 0;
+                for (var i=0; i<this._remote_bitmask.length; i++) {
+                    count += this._remote_bitmask[i];
+                }
+                return this._remote_bitmask_count = count;
+                return this.get_remote_complete()
+            }
+        },
         handle_have_all: function(data) {
             mylog(1, 'handle have all');
             this._remote_bitmask = [];
@@ -826,6 +847,9 @@
 
     jstorrent.TorrentPeerCollection = Backbone.Collection.extend({
         //localStorage: new Store('TorrentCollection'),
+        getLength: function() { return this.models.length; },
+        getItem: function(i) { return this.models[i]; },
+
         model: jstorrent.WSPeerConnection,
 /*
         contains: function(key) {

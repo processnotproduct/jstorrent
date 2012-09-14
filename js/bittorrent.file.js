@@ -265,6 +265,7 @@
                     if (piecedone) {
                         mylog(LOGMASK.disk,'piece',piece.num,'wrote out all data',file.repr(),'CLEARING OUT RESPONSES');
                         piece._chunk_responses = [];
+                        // WARNING!!! -- 
                     } else {
                         file.on_download_complete();
                         mylog(LOGMASK.disk,'piece',piece.num,'done for',file.repr(),'piece continues to next file');
@@ -278,13 +279,15 @@
                     if (chunk_b >= file_b) {
                         oncomplete(false); // chunk responses needed for next file!
                     } else {
-                        oncomplete(true); // piece was entirely consumed
+                        // XXX -- XXX !
+                        oncomplete(true); // piece was entirely consumed ( ????? perhaps not????)
                     }
                     return;
                 }
 
 
                 var chunk = piece._chunk_responses[i];
+                assert(chunk);
                 var chunk_a = piece.start_byte + constants.chunk_size * i;
                 var chunk_b = chunk_a + constants.chunk_size - 1;
 

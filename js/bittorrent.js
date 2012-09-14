@@ -208,7 +208,6 @@
             this.torrent.bind('piece_hashed', this.handle_piece_hashed);
             var infodict = this.torrent.get_infodict();
             if (! this.torrent.magnet_only()) {
-                this.torrent_metadata_size = bencode(infodict).length
                 this.torrent._metadata_requests = {};
             }
             mylog(LOGMASK.network,'initialize peer connection with infohash',ab2hex(this.infohash));
@@ -275,7 +274,7 @@
                         'm': {},
                         'p': 0}; // we don't have a port to connect to :-(
             if (! this.torrent.magnet_only()) {
-                resp['metadata_size'] = this.torrent_metadata_size;
+                resp['metadata_size'] = this.torrent.metadata_size;
             }
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
             this._my_extension_handshake = resp;

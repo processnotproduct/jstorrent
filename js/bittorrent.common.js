@@ -57,7 +57,7 @@ for (var key in LOGMASK) {
 LOGMASK.all = b;
 
 function to_file_size(size) {
-  var precision = 1;
+  var precision = 2;
   var sz = ['b', 'kb', 'Mb', 'Gb', 'Tb', 'Pb', 'Eb'];
   var szmax = sz.length-1;
 

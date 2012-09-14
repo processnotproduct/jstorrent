@@ -146,7 +146,7 @@
         request_persistent_storage: function(callback) {
             webkitStorageInfo.requestQuota( 
                 webkitStorageInfo.PERSISTENT,
-                this.fs_sizes.persistent,
+                this.fs_sizes.persistent, // multiply current by 1.5 or something
                 function(quota) {
                     mylog(LOGMASK.disk, 'user allowed quota',quota);
                     if (quota > 0) {

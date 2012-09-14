@@ -212,6 +212,7 @@
             this._processing_meta_request = false;
             this.set('name',this.get_name());
             this.set('size',this.get_size());
+            this.metadata_size = bencode(this.get_infodict()).length
         },
         set_metadata: function(metadata) {
             this.metadata = metadata;

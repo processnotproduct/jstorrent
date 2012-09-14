@@ -88,12 +88,13 @@
         notify_filesystem_full: function() {
             mylog(LOGMASK.error,'filesystem is FULL!!!');
             //var bytes = 1024 * 1024 * 1024; // gigabyte
+
+            // TODO -- request more than before!!
             this.get_filesystem().request_persistent_storage( _.bind(function(data) {
 
                 this.get_filesystem().query_quotas( _.bind(function(quotas) {
 
                     this.get_filesystem().request_fs('persistent', _.bind(function() {
-                        this.free_temporary();
                     },this));
                     //this.get_filesystem().get('quotas');
 
@@ -132,7 +133,7 @@
                     fns.push( { fn: torrent.move_storage_area, this: torrent, arguments: ['persistent'], callbacks: [1] } );
                 }
                 new Multi(fns).sequential( function(result) {
-                    mylog(1,'freed temporary!');
+                    mylog(1,'freed temporary!',result);
                 });
             }
         },

@@ -151,7 +151,7 @@
                 //debugger; // didn't ask for this data!
             }
         },
-        cleanup: function() {
+        cleanup: function(reason) {
             this.torrent = null;
             this._data = [];
             this._requests = [];
@@ -159,6 +159,10 @@
             this._peers_contributing = []; 
             this._outbound_request_offsets = {};
             this._chunk_responses = [];
+            mylog(LOGMASK.disk,'piece cleanup',this.num,reason);
+        },
+        complete: function() {
+            return this.torrent.piece_complete(this.num);
         },
         write_data_to_filesystem: function() {
             this.torrent.write_data_from_piece(this);

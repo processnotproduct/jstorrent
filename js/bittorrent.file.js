@@ -21,6 +21,28 @@
             this.set('size',this.get_size());
             this.set('path',this.get_path());
         },
+        get_percent_complete: function() {
+            // returns piece range that this file intersects
+            var idx = bisect_left( this.torrent._file_byte_accum, this.start_byte );
+            var piece;
+            var c = 0;
+            var t = 0;
+            while (true) {
+                piece = this.torrent.get_piece(idx);
+                if (intersect( [piece.start_byte, piece.end_byte], [this.start_byte, this.end_byte] )) {
+                    if (piece.complete()) {
+                        c++;
+                    }
+                } else {
+                    break;
+
+                }
+                idx++;
+                t++;
+            }
+            var pct = c/t;
+            return pct;
+        },
         on_download_complete: function() {
             var _this = this;
             this.get_filesystem_entry( function(entry) {
@@ -342,9 +364,7 @@
 
 
 
-    var TorrentFileCollection = Backbone.Collection.extend({
-        getLength: function() { return this.models.length; },
-        getItem: function(i) { return this.models[i]; },
+    var TorrentFileCollection = jstorrent.Collection.extend({
         //getFormatter: function(col) { debugger; },
         model: TorrentFile,
         className: 'TorrentFileCollection'

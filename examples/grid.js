@@ -73,6 +73,8 @@ var SuperTableView = Backbone.View.extend({
             this.columnByAttribute[columns[i].field] = i;
         }
 
+        // how to handle update dependent attributes???... (i.e. non-attribute rendered columns like percent complete that don't fire change events but depend on something else...
+
         var options = {
             enableCellNavigation: true,
             enableColumnReorder: false,
@@ -84,7 +86,8 @@ var SuperTableView = Backbone.View.extend({
         this.grid.setSelectionModel(new Slick.RowSelectionModel());
 
         this.model.on('add', _.bind(function(m) {
-            this.grid.updateRowCount();
+            this.grid.updateRowCount(); // do other stuff to make selection work correctly...
+            this.grid.invalidateAllRows();
             this.grid.render();
         },this));
 
@@ -96,16 +99,15 @@ var SuperTableView = Backbone.View.extend({
             }
         },this));
 
-/*
-        grid.onSort.subscribe(function(e, msg) {
+
+        this.grid.onSort.subscribe(function(e, msg) {
             var collection = this.getData();
-            collection.extendScope({
+            collection.setSort({
                 order:     msg.sortCol.field,
                 direction: (msg.sortAsc ? 'ASC' : 'DESC')
             });
-            collection.fetchWithScope(); // NOTE: resetting pagination
         });
-*/
+
     },
     destroy: function() {
         this.model.off('add');
@@ -129,6 +131,7 @@ var TorrentTableView = SuperTableView.extend({
             {id: "numpeers", name: "numpeers", field: "numpeers", sortable: true},
             {id: "numswarm", name: "numswarm", field: "numswarm", sortable: true}
         ];
+        var progress_template = jstorrent.tmpl("progress_template");
         opts.makeformatter = {
             getFormatter: function(column) {
 /*
@@ -153,6 +156,12 @@ var TorrentTableView = SuperTableView.extend({
                             return '';
                         }
                     }
+                } else if (column.field == 'complete') {
+                    return function(row,cell,value,col,data) {
+                        return progress_template({'percent':data.get('complete')/10,
+                                                  'isactive':(data.get('state') == 'started')?'active':''
+                                                 });
+                    }
                 } else {
                     return function(row,cell,value,col,data) {
                         return data.get(col.field);
@@ -165,8 +174,8 @@ var TorrentTableView = SuperTableView.extend({
     },
     bind_events: function() {
         this.grid.onClick.subscribe( _.bind(function(evt, data) {
-            mylog(LOGMASK.ui,'double click torrants');
             var torrent = this.grid.getDataItem(data.row);
+            mylog(LOGMASK.ui,'click on torrent',torrent);
             jsclientview.set_subview_context(torrent);
         },this));
         this.grid.onSelectedRowsChanged.subscribe( _.bind(function(evt,data) {
@@ -256,13 +265,20 @@ var FileTableView = SuperTableView.extend({
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
             {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderLink, formatter: waitingFormatter },
-            {id: "%", name: "% Complete", field: "complete", sortable: true }
+            {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false }
         ];
+        var progress_template = jstorrent.tmpl("progress_template");
         opts.makeformatter = {
             getFormatter: function(column) {
                 if (column.field == 'pathaoeu') {
                     return function(row,cell,value,col,data) {
                         return '<a href="' + data.filesystem_entry + '">open</a>';
+                    };
+                } else if (column.field == 'complete') {
+                    return function(row,cell,value,col,data) {
+                        return progress_template({'percent':data.get_percent_complete()*100,
+                                                  'isactive':(data.torrent.get('state') == 'started' && data.get_percent_complete() != 1)?'active':''
+                                                 });
                     };
                 } else {
                     return function(row,cell,value,col,data) {
@@ -289,11 +305,15 @@ var PeerTableView = SuperTableView.extend({
         this.torrent = opts.torrent;
         opts.columns = [
             {id: "#", name: "num", field: "num", sortable:true, width:30 },
+            {id: "client", name: "client", field: "client", sortable: true, width:200 },
             {id: "host", name: "host", field: "host", sortable: true, width:200 },
             {id: "port", name: "port", field: "port", sortable: true, width:80 },
+            {id: "dht_port", name: "dht_port", field: "dht_port", sortable: true, src:'conn',width:80 },
             {id: "bytes_sent", name: "bytes_sent", field: "bytes_sent", unit: 'bytes', sortable: true },
             {id: "bytes_received", name: "bytes_received", field: "bytes_received", unit: 'bytes', sortable: true },
-            {id: "%", name: "% Complete", field: "complete", sortable: true }
+            {id: "outbound_chunks", name: "outbound_chunks", field: "outbound_chunks", sortable: true, width:80, src:'conn' },
+            {id: "state", name: "state", field: "state", sortable: true, src:'conn', width:120 },
+            {id: "%", name: "% Complete", field: "complete", src:'conn',sortable: true }
         ];
         opts.makeformatter = {
             getFormatter: function(column) {
@@ -310,7 +330,13 @@ var PeerTableView = SuperTableView.extend({
                             return '';
                         }
                     }
-                } else if (column.field == 'complete') {
+                } else if (column.field == 'client') {
+                    return function(row,cell,value,col,data) {
+                        if (data._remote_extension_handshake) {
+                            return data._remote_extension_handshake['v'];
+                        }
+                    };
+                } else if (column.src == 'conn') {
                     return function(row,cell,value,col,data) {
                         return data.get(col.field);
                     };
@@ -423,8 +449,10 @@ var JSTorrentClientView = BaseView.extend({
         var torrent = jsclient.torrents.get(ctxid);
         var curtab = this.settings.get('tab');
         if (curtab == 'files') {
-            torrent.init_files();
-            jsclientview.detailview = new FileTableView({ model: torrent.files, torrent: torrent, el: this.$('.fileGrid')});
+            if (torrent.get_infodict()) {
+                torrent.init_files();
+                jsclientview.detailview = new FileTableView({ model: torrent.files, torrent: torrent, el: this.$('.fileGrid')});
+            }
         } else if (curtab == 'peers') {
             jsclientview.detailview = new PeerTableView({ model: torrent.connections, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'trackers') {

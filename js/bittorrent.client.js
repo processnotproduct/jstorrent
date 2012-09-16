@@ -44,7 +44,7 @@
         get_filesystem: function() {
             return this.filesystem;
         },
-        add_torrent: function(args) {
+        add_torrent: function(args, opts) {
             // check if already in models...
 
             if (args && args.metadata) {
@@ -57,23 +57,30 @@
             }
             if (! this.torrents.contains(torrent)) {
                 this.torrents.add(torrent);
-                //torrent.start();
+                torrent.save();
+                assert( this.torrents._byId[torrent.id] );
+                torrent.start();
                 torrent.save();
                 //torrent.announce();
             } else {
                 mylog(1,'already had this torrent');
             }
         },
-        add_unknown: function(str) {
+        add_unknown: function(str, opts) {
+
+            assert( _.keys(this.torrents._byId).length == this.torrents.models.length );
+
             if (str.slice(0,'magnet:'.length) == 'magnet:') {
-                this.add_torrent({magnet:str});
+                this.add_torrent({magnet:str}, opts);
             } else if (str.slice(0,'http://'.length) == 'http://') {
                 debugger; // use a proxy service to download and serve back
             } else if (str.length == 40) {
-                this.add_torrent({infohash:str});
+                this.add_torrent({infohash:str}, opts);
             } else {
                 debugger;
             }
+
+            assert( _.keys(this.torrents._byId).length == this.torrents.models.length );
         },
         add_consec_torrent: function(num) {
             num = num | 1;
@@ -172,7 +179,7 @@
                     for (var i=0; i<torrent.connections.models.length; i++) {
                         var conn = torrent.connections.models[i];
                         if (conn.can_send_messages()) {
-                            var numchunks = torrent.make_chunk_requests(conn, this.requests_per_tick);
+                            var numchunks = torrent.make_chunk_requests(conn, Math.min(this.requests_per_tick, conn._outbound_chunk_requests_limit));
                             if (! numchunks) {
                                 if (now - conn._last_message_in > constants.keepalive_interval ||
                                     now - conn._last_message_out > constants.keepalive_interval) {

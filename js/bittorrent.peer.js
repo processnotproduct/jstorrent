@@ -25,10 +25,13 @@
             }
 
         },
+        is_self: function() {
+            return false;
+        },
         can_reconnect: function() {
             if (! this._last_closed) {
                 return true;
-            } else if (this._unresponsive) {
+            } else if (this._unresponsive && this.collection.length > 10) {
                 // never even handshook
                 return false;
             } else if (this._reconnect_in && new Date() > this._reconnect_in) {

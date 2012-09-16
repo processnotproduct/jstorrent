@@ -179,9 +179,11 @@
                       'handle_piece_hashed',
                       'handle_keepalive',
                       'handle_piece',
-                      'handle_cancel'
+                      'handle_cancel',
+                      'handle_port'
                      );
             //mylog(LOGMASK.network,'initialize wspeerconn');
+            this.set('state','connecting');
             var host = opts.host;
             var port = opts.port;
             this.peer = opts.peer;
@@ -198,7 +200,7 @@
             }
 
             this._outbound_chunk_requests = 0;
-            this._outbound_chunk_requests_limit = 5;
+            this._outbound_chunk_requests_limit = 1;
 
             this._host = host;
             this._port = port;
@@ -247,7 +249,6 @@
             this.reconnect();
         },
         handle_piece: function(data) {
-
             this.set('outbound_chunks',this._outbound_chunk_requests);
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
             var index = view.getUint32(0);
@@ -635,6 +636,7 @@
         },
         handle_port: function(data) {
             mylog(LOGMASK.network, 'handle port message');
+            this.set('dht_port',data.payload[0] * 256 + data.payload[1]);
         },
         on_connect_timeout: function() {
             if (! this._connected && !this._error && !this._closed) {
@@ -643,6 +645,7 @@
             }
         },
         onopen: function(evt) {
+            this.set('state','connected');
             this._connecting = false;
             clearTimeout( this.connect_timeout );
             // Web Socket is connected, send data using send()
@@ -657,6 +660,7 @@
             this.send_message('HAVE', payload);
         },
         send_handshake: function() {
+            this.set('state','handshaking');
             var handshake = create_handshake(this.infohash, my_peer_id);
             mylog(LOGMASK.network, 'sending handshake of len',handshake.length,[handshake])
             var s = new Uint8Array(handshake);
@@ -700,6 +704,7 @@
             var data = parse_handshake(blob);
             if (data.protocol == constants.protocol_name) {
                 mylog(LOGMASK.network,'parsed handshake',data)
+                this.set('state','active');
                 if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                     this.send_bitmask();
                 }
@@ -845,11 +850,8 @@
         }
     });
 
-    jstorrent.TorrentPeerCollection = Backbone.Collection.extend({
+    jstorrent.TorrentPeerCollection = jstorrent.Collection.extend({
         //localStorage: new Store('TorrentCollection'),
-        getLength: function() { return this.models.length; },
-        getItem: function(i) { return this.models[i]; },
-
         model: jstorrent.WSPeerConnection,
 /*
         contains: function(key) {
@@ -863,6 +865,7 @@
         }
 */
         add_peer: function(peer) {
+            mylog(LOGMASK.network,'adding peer',peer);
             var torrent = peer.get('torrent');
             var conn = new jstorrent.WSPeerConnection({id: peer.id, 
                                                        host:peer.get('host'), 

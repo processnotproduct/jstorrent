@@ -3,6 +3,7 @@
         className: "Torrent",
         // misnomer -- not just a new torrent anymore.
         initialize: function(opts) {
+            //mylog(1,'init torrent',this.id);
             _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close');
 
             this.availability = []; // sits alongside the bitmask, stores how many distributed copies of each piece for connected peers.
@@ -196,7 +197,7 @@
                 //assert(this.get('bitmask').length == this.num_pieces);
                 if (this.get('bitmask').length != this.num_pieces) {
                     this.set('bitmask',undefined);
-                    this.save();
+                    this.save(); // ?
                 }
             } else {
                 if (! this.metadata) {
@@ -378,7 +379,9 @@
                     }
                 }
             } else if (config.default_tracker) {
-                strs.push(config.default_tracker);
+                // kind of silly!
+                strs.push(config.public_trackers[0]);
+                strs.push(config.public_trackers[1]);
             } else {
                 debugger;
             }
@@ -416,7 +419,7 @@
             if (this.connections.models.length < this.get('maxconns')) {
                 for (var i=0; i<this.swarm.models.length; i++) {
                     var peer = this.swarm.models[i];
-                    if (peer.can_reconnect()) {
+                    if (! peer.is_self() && peer.can_reconnect()) {
                         if (! this.connections.get(peer.id)) {
                             this.connections.add_peer(peer);
                             if (this.connections.models.length >= this.get('maxconns')) {
@@ -612,6 +615,7 @@
             this.metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
             this.set('metadata',this.metadata);
             this.process_metadata();
+            this.process_post_metadata();
             this.fake_info = null;
             callback();
         },
@@ -676,10 +680,15 @@
         metadata_download_complete: function(infodict) {
             var metadata = {'info':infodict};
             if (this.magnet_info) {
-                metadata['announce-list'] = [this.magnet_info.tr];
+                if (this.magnet_info.tr) {
+                    metadata['announce-list'] = [this.magnet_info.tr];
+                } else {
+                    metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
+                }
                 //metadata['announce'] = this.magnet_info.tr;
             }
             this.set_metadata(metadata);
+            this.save();
         },
         create_bitmask_payload: function(opts) {
             var bitfield = [];
@@ -943,10 +952,8 @@
       });
     */
 
-    jstorrent.TorrentCollection = Backbone.Collection.extend({
+    jstorrent.TorrentCollection = jstorrent.Collection.extend({
 
-        getLength: function() { return this.models.length; },
-        getItem: function(i) { return this.models[i]; },
         //getFormatter: function(col) { debugger; },
 
         localStorage: new Store('TorrentCollection'),

@@ -75,8 +75,8 @@ function to_file_size(size) {
 }
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
-//var curlogmask = LOGMASK.general | LOGMASK.tracker | LOGMASK.disk;
-var curlogmask = LOGMASK.general | LOGMASK.ui;
+var curlogmask = LOGMASK.general | LOGMASK.disk;
+//var curlogmask = LOGMASK.general | LOGMASK.ui;
 //var curlogmask = LOGMASK.all;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;
@@ -308,5 +308,59 @@ function b642arr(inp) {
     }
 
 
+    window.bisect_left = function(arr, v, lo, hi) {
+        var mid;
+        lo = lo || 0;
+        hi = hi || arr.length;
+        while (lo < hi) {
+            mid = Math.floor((lo+hi)/2);
+            if (arr[mid] < v) { lo = mid+1; }
+            else { hi = mid; }
+        }
+        return lo
+    }
+        
+    jstorrent.Collection = Backbone.Collection.extend({
+        setSort: function(params) {
+            mylog(LOGMASK.ui,'set sort',params);
+        },
+        getLength: function() { return this.models.length; },
+        getItem: function(i) { return this.models[i]; },
+
+    });
 
 })();
+
+
+(function (ctx) {
+    var cache = {};
+
+    ctx.tmpl = function tmpl(str, data) {
+        // Figure out if we're getting a template, or if we need to
+        // load the template - and be sure to cache the result.
+        var fn = !/\W/.test(str) ?
+            cache[str] = cache[str] ||
+            tmpl(document.getElementById(str).innerHTML) :
+
+        // Generate a reusable function that will serve as a template
+        // generator (and which will be cached).
+        new Function("obj",
+                     "var p=[],print=function(){p.push.apply(p,arguments);};" +
+
+                     // Introduce the data as local variables using with(){}
+                     "with(obj){p.push('" +
+
+                     // Convert the template into pure JavaScript
+                     str
+                     .replace(/[\r\t\n]/g, " ")
+                     .split("<%").join("\t")
+                     .replace(/((^|%>)[^\t]*)'/g, "$1\r")
+                     .replace(/\t=(.*?)%>/g, "',$1,'")
+                     .split("\t").join("');")
+                     .split("%>").join("p.push('")
+                     .split("\r").join("\\'") + "');}return p.join('');");
+
+        // Provide some basic currying to the user
+        return data ? fn(data) : fn;
+    };
+})(jstorrent);

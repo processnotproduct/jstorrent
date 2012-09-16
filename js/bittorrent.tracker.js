@@ -138,9 +138,7 @@
     });
 
 
-    jstorrent.TrackerCollection = Backbone.Collection.extend({
-        getLength: function() { return this.models.length; },
-        getItem: function(i) { return this.models[i]; },
+    jstorrent.TrackerCollection = jstorrent.Collection.extend({
         model: jstorrent.TrackerConnection
     });
 

@@ -5,7 +5,10 @@
         //this.worker.postMessage();
 
         //this.torrents = {};
+        this.bytecounters = { sent: new jstorrent.ByteCounter({}),
+                              received: new jstorrent.ByteCounter({}) };
         this.torrents = new jstorrent.TorrentCollection();
+        this.torrents.client = this;
         this.torrents.fetch();
         /*
          */
@@ -125,13 +128,13 @@
 
             for (var i=0; i<this.torrents.models.length; i++) {
                 var torrent = this.torrents.models[i];
-                if (torrent.get('complete') == 1000 &&
+                if (torrent.get('state') == 'stopped' &&
                     torrent.get_storage_area() == 'temporary' &&
                     movebytes + torrent.get_size() < pfree) {
                     movetorrents.push(torrent)
                 }
             }
-
+            mylog(1,'torrents to move',movetorrents);
             if (movetorrents.length > 0) {
                 var fns = [];
 
@@ -178,7 +181,11 @@
                     // otherwise, make some requests for each connected peer.
                     for (var i=0; i<torrent.connections.models.length; i++) {
                         var conn = torrent.connections.models[i];
-                        if (conn.can_send_messages()) {
+                        if (conn.get('complete') == 1000 && conn.torrent.get('complete') == 1000) {
+                            // not interested in this peer anymore
+                            conn.peer.ban();
+                            conn.close('both seeding');
+                        } else if (conn.can_send_messages()) {
                             var numchunks = torrent.make_chunk_requests(conn, Math.min(this.requests_per_tick, conn._outbound_chunk_requests_limit));
                             if (! numchunks) {
                                 if (now - conn._last_message_in > constants.keepalive_interval ||

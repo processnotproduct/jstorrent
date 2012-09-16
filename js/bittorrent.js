@@ -18,6 +18,7 @@
         new_torrent_piece_size: Math.pow(2,14),
         chunk_size: Math.pow(2,14),
         metadata_request_piece_size: Math.pow(2,14),
+        max_packet_size: Math.pow(2,15),
         keepalive_interval: 60 * 1000,
         messages: [
             'CHOKE',
@@ -253,6 +254,7 @@
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
             var index = view.getUint32(0);
             var offset = view.getUint32(4);
+            this.set('last_message',data.msgtype + ' ' + index + ','+(offset/constants.chunk_size));
             var chunk = new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8);
             //mylog(LOGMASK.network,'got piece idx',index,'offset',offset,'len',chunk.byteLength);
             var handled = this.torrent.handle_piece_data(this, index, offset, chunk);
@@ -265,7 +267,7 @@
         },
         handle_keepalive: function() {
             this._keepalive_sent = null;
-            mylog(1,'got keepalive');
+            mylog(LOGMASK.network,'got keepalive');
             this.send_keepalive();
         },
         send_extension_handshake: function() {
@@ -278,6 +280,7 @@
                 resp['metadata_size'] = this.torrent.metadata_size;
             }
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
+            resp['m']['ut_pex'] = 3; // totally arbitrary number, but UT needs 2???
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
             mylog(LOGMASK.network_verbose, 'sending extension handshake with data',resp);
@@ -371,6 +374,7 @@
         request_metadata: function() {
             if (this.torrent._requesting_metadata) { return; }
 
+            this.set('state','request metadata');
             this.torrent._requesting_metadata = true;
             var hs = this._remote_extension_handshake;
             var total_size = hs['metadata_size'];
@@ -432,6 +436,9 @@
 
                 mylog(LOGMASK.network, 'handling', ext_msg_str, 'extension message');
                 if (ext_msg_str == 'ut_metadata') {
+
+                    // prioritize metadata more!!! (pause all other downloads)
+
                     var arr = new Uint8Array(data.payload.buffer, data.payload.byteOffset+1);
                     var str = arr2str(arr);
                     var info = bdecode(str);
@@ -440,6 +447,7 @@
                         if (this.torrent._metadata_requests) {
                             var reqdata = this.torrent._metadata_requests[info.piece];
                             mylog(1, 'received metadata piece', info.piece);
+                            this.set('state',info.piece + ' metadata');
                             reqdata.data = data;
                             var meta = this.check_have_all_metadata();
                             if (meta) {
@@ -474,7 +482,17 @@
                         }
                     }
                 } else {
-                    mylog(1, 'unimplemented extension message', ext_msg_str);
+                    var arr = new Uint8Array(data.payload.buffer, data.payload.byteOffset+1);
+                    var str = arr2str(arr);
+                    var info = bdecode(str);
+                    var decodedpeers = [];
+                    var itermax = info.added.length/6;
+                    for (var i=0; i<itermax; i++) {
+                        var peerdata = jstorrent.decode_peer( info.added.slice( i*6, (i+1)*6 ) );
+                        decodedpeers.push(peerdata);
+                        this.torrent.handle_new_peer(peerdata);
+                    }
+                    mylog(LOGMASK.network, 'receive ut_pex extension message',decodedpeers);
                 }
             } else {
                 this.shutdown('invalid extension message',data);
@@ -668,19 +686,20 @@
         },
         send_keepalive: function() {
             this._keepalive_sent = new Date();
-            mylog(1,'send keepalive');
+            mylog(LOGMASK.network,'send keepalive');
             var s = new Uint8Array(4);
             this.send( s.buffer );
         },
         send: function(msg) {
             this._last_message_out = new Date().getTime();
+            this.torrent.bytecounters.sent.sample(msg.byteLength);
             this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
             this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
             this.stream.send(msg);
         },
         close: function(reason) {
             if (reason) {
-                mylog(1,'close connection',reason);
+                mylog(LOGMASK.network,'close connection',reason);
             }
             this.stream.close()
         },
@@ -689,6 +708,7 @@
             var data = parse_message(msg);
             this._last_message_in = new Date().getTime();
             mylog(LOGMASK.network,'handle message',data.msgtype,data);
+            if (data.msgtype != 'PIECE') this.set('last_message',data.msgtype);
             var handler = this.handlers[data.msgtype];
             if (handler) {
                 handler(data);
@@ -770,31 +790,26 @@
             }
             return s;
         },
-        read_buffer_peek: function(bytes) {
-            // todo - fix
-            // return new Uint8Array( this.read_buffer[0], bytes );
-        },
         check_more_messages_in_buffer: function() {
             var bufsz = this.read_buffer_size();
-            //mylog(LOGMASK.network,'check for more messages in buf, bufsz', bufsz);
             if (bufsz >= 4) {
                 var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0);
-                assert( msg_len < Math.pow(2,15) ); // packets shouldn't be dat bigg
-                //mylog(LOGMASK.network,'read packet header of sz', msg_len);
-                if (bufsz >= msg_len + 4) {
-                    this.handle_message(msg_len + 4);
+                if (msg_len > constants.max_packet_size) {
+                    this.close('packet too large');
+                } else {
+                    if (bufsz >= msg_len + 4) {
+                        this.handle_message(msg_len + 4);
+                    }
                 }
-            } else {
-
             }
         },
         onmessage: function(evt) {
             var msg = evt.data;
+            this.torrent.bytecounters.received.sample(msg.byteLength);
             this.set('bytes_received', this.get('bytes_received') + msg.byteLength);
             this.torrent.set('bytes_received', this.torrent.get('bytes_received') + msg.byteLength);
             this.read_buffer.push(msg);
             //mylog(LOGMASK.network, 'receive new packet', msg.byteLength);
-
             if (this.handshaking) {
                 var bufsz = this.read_buffer_size();
                 var protocol_str_len = new Uint8Array(this.read_buffer_consume(1,true), 0, 1)[0];
@@ -881,6 +896,11 @@
             },torrent));
 
             conn.bind('onclose', torrent.on_connection_close);
+        },
+        dump_idle_peers: function() {
+            // if swarm is sufficiently large, and we are holding onto
+            // idle connections, dump them and try out some others.
+            
         }
 
     });

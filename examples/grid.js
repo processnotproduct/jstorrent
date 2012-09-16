@@ -72,6 +72,7 @@ var SuperTableView = Backbone.View.extend({
         for (var i=0; i<columns.length; i++) {
             this.columnByAttribute[columns[i].field] = i;
         }
+        this.dependentAttributes = this.dependentAttributes || {};
 
         // how to handle update dependent attributes???... (i.e. non-attribute rendered columns like percent complete that don't fire change events but depend on something else...
 
@@ -94,6 +95,14 @@ var SuperTableView = Backbone.View.extend({
         this.model.bind('change',_.bind(function(model,attributes) {
             var idx = this.model.indexOf(model);
             for (var key in attributes.changes) {
+
+                if (this.dependentAttributes[key]) {
+                    for (j=0; j<this.dependentAttributes[key].length; j++) {
+                        var i = this.columnByAttribute[this.dependentAttributes[key][j]];
+                        this.grid.updateCell(idx, i);
+                    }
+                }
+
                 var i = this.columnByAttribute[key];
                 this.grid.updateCell(idx, i);
             }
@@ -127,11 +136,16 @@ var TorrentTableView = SuperTableView.extend({
             {id: "state", name: "state", field: "state", sortable: true },
             {id: "%", name: "% Complete", field: "complete", sortable: true },
             {id: "bytes_sent", unit:'bytes',name: "bytes sent", field: "bytes_sent", sortable: true},
+            {id: "send_rate", unit:'bytes',name: "send_rate", field: "send_rate", sortable: true},
             {id: "bytes_received", unit:'bytes',name: "bytes received", field: "bytes_received", sortable: true},
+            {id: "receive_rate", unit:'bytes',name: "receive_rate", field: "receive_rate", sortable: true},
             {id: "numpeers", name: "numpeers", field: "numpeers", sortable: true},
             {id: "numswarm", name: "numswarm", field: "numswarm", sortable: true}
         ];
         var progress_template = jstorrent.tmpl("progress_template");
+        this.dependentAttributes = { 'bytes_sent': ['send_rate'],
+                                     'bytes_received': ['receive_rate']
+                                   };
         opts.makeformatter = {
             getFormatter: function(column) {
 /*
@@ -146,6 +160,20 @@ var TorrentTableView = SuperTableView.extend({
                 } else if (column.field == 'num') {
                     return function(row,cell,value,col,data) { 
                         return row;
+                    }
+                } else if (column.field == 'send_rate') {
+                    return function(row,cell,value,col,data) { 
+                        var val = data.bytecounters.sent.avg();
+                        if (val > 0) {
+                            return to_file_size(val) + '/s';
+                        }
+                    }
+                } else if (column.field == 'receive_rate') {
+                    return function(row,cell,value,col,data) { 
+                        var val = data.bytecounters.received.avg();
+                        if (val > 0) {
+                            return to_file_size(val) + '/s';
+                        }
                     }
                 } else if (column.unit == 'bytes') {
                     return function(row,cell,value,col,data) { 
@@ -247,8 +275,13 @@ var FileTableView = SuperTableView.extend({
     initialize: function(opts) {
         function renderLink(cellNode, row, data, colDef) {
             data.get_filesystem_entry( function() {
-                if (data.filesystem_entry) {
-                    $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' + ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'">download</a>' );
+                if (data.filesystem_entry && ! data.filesystem_entry.error) {
+                    $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' + 
+                                              ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'">download</a>' +
+                                         ' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '">play</a>'
+                                            );
+                } else if (data.filesystem_entry && data.filesystem_entry.error) {
+                    $(cellNode).text(data.filesystem_entry.error);
                 } else {
                     $(cellNode).empty();
                 }
@@ -263,6 +296,7 @@ var FileTableView = SuperTableView.extend({
             {id: "#", name: "num", field: "num", sortable:true, width:30 },
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
+            {id: "pieces", name: "pieces", field: "pieces", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
             {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderLink, formatter: waitingFormatter },
             {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false }
@@ -274,6 +308,15 @@ var FileTableView = SuperTableView.extend({
                     return function(row,cell,value,col,data) {
                         return '<a href="' + data.filesystem_entry + '">open</a>';
                     };
+                } else if (column.unit == 'bytes') {
+                    return function(row,cell,value,col,data) { 
+                        var val = data.get(col.field)
+                        if (val > 0) {
+                            return to_file_size(val);
+                        } else {
+                            return '';
+                        }
+                    }
                 } else if (column.field == 'complete') {
                     return function(row,cell,value,col,data) {
                         return progress_template({'percent':data.get_percent_complete()*100,
@@ -313,6 +356,7 @@ var PeerTableView = SuperTableView.extend({
             {id: "bytes_received", name: "bytes_received", field: "bytes_received", unit: 'bytes', sortable: true },
             {id: "outbound_chunks", name: "outbound_chunks", field: "outbound_chunks", sortable: true, width:80, src:'conn' },
             {id: "state", name: "state", field: "state", sortable: true, src:'conn', width:120 },
+            {id: "last_message", name: "last_message", field: "last_message", sortable: true, src:'conn', width:120 },
             {id: "%", name: "% Complete", field: "complete", src:'conn',sortable: true }
         ];
         opts.makeformatter = {
@@ -627,9 +671,12 @@ jQuery(function() {
         try_register_protocol();
     });
 
+    // 12E3AAA7F2F36137CCE9978824BCF156A339FF76
+
     //jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
 
     window.jsclientview = new JSTorrentClientView({el:$('#client')});
+
 
     var url_args = decode_url_arguments('hash');
     if (url_args.hash) {

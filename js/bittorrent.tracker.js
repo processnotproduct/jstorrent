@@ -1,5 +1,5 @@
 (function() {
-    function decode_peer(str) {
+    jstorrent.decode_peer = function(str) {
         assert(str.length == 6);
         var ip = str.charCodeAt(0) + '.' + str.charCodeAt(1) + '.' + str.charCodeAt(2) + '.' + str.charCodeAt(3)
         var port = 256 * str.charCodeAt(4) + str.charCodeAt(5);
@@ -28,7 +28,7 @@
             this.set('announces',0);
         },
         min_announce_interval: function() {
-            return 60 * 1000;
+            return 60 * 1000 * 30;
         },
         repr: function() {
             return '<Tracker ' + this.url + '>';
@@ -88,14 +88,14 @@
                         // pick a single peer, for debugging
                         for (j=0;j<numpeers;j++){
                             var i = Math.floor( Math.random() * itermax );
-                            var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                            var peerdata = jstorrent.decode_peer( peers.slice( i*6, (i+1)*6 ) );
                             decodedpeers.push(peerdata);
                             this.trigger('newpeer',peerdata);
                         }
                         
                     } else {
                         for (var i=0; i<itermax; i++) {
-                            var peerdata = decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                            var peerdata = jstorrent.decode_peer( peers.slice( i*6, (i+1)*6 ) );
                             decodedpeers.push(peerdata);
                             this.trigger('newpeer',peerdata);
                         }

@@ -13,9 +13,23 @@
 
 
 <script>
+    window.decode_url_arguments = function(place) {
+        place = place || 'search';
+        var query = window.location[place];
+        var parts = query.slice(1, query.length).split('&');
+        var d = {};
+        for (var i=0; i<parts.length; i++) {
+            var kv = parts[i].split('=');
+            if (kv[0].length > 0) {
+                d[kv[0]] = decodeURIComponent(kv[1]);
+            }
+        }
+        return d;
+    }
 
 
-var url = window.name;
+
+var url = decode_url_arguments().url;
 video = document.getElementById('video');
 console.log('got player url',url);
 video.src = url;

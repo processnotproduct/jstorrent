@@ -20,25 +20,31 @@
             this.set('name',this.get_name());
             this.set('size',this.get_size());
             this.set('path',this.get_path());
+            this.set('pieces',this.get_num_pieces());
+        },
+        get_num_pieces: function() {
+            var idx = Math.floor(this.start_byte / this.torrent.piece_size)
+            var idx2 = Math.ceil(this.end_byte / this.torrent.piece_size)
+            return idx2 - idx;
         },
         get_percent_complete: function() {
             // returns piece range that this file intersects
-            var idx = bisect_left( this.torrent._file_byte_accum, this.start_byte );
+            var idx = Math.floor(this.start_byte / this.torrent.piece_size);
+            //var idx = bisect_left( this.torrent._file_byte_accum, this.start_byte );
             var piece;
             var c = 0;
             var t = 0;
-            while (true) {
+            while (idx < this.torrent.num_pieces) {
                 piece = this.torrent.get_piece(idx);
                 if (intersect( [piece.start_byte, piece.end_byte], [this.start_byte, this.end_byte] )) {
                     if (piece.complete()) {
                         c++;
                     }
+                    t++;
                 } else {
                     break;
-
                 }
                 idx++;
-                t++;
             }
             var pct = c/t;
             return pct;
@@ -61,11 +67,6 @@
                     mylog(1,'removed from disk!')
                 });
             });
-        },
-        get_data: function(callback, byte_range) {
-            // check if it's in the cache...
-            this._read_queue.push({'callback':callback,'byte_range':byte_range});
-            this.process_read_data_queue();
         },
         open: function() {
             this.get_filesystem_entry( function(entry) {
@@ -91,7 +92,7 @@
             } else {
                 jsclient.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
                     if (file.error) {
-                        debugger;
+                        //debugger;
                     }
                     this.filesystem_entry = file;
                     callback(file);
@@ -109,6 +110,14 @@
         fs_error: function(evt) {
             debugger;
         },
+        get_data: function(callback, byte_range) {
+            // check if it's in the cache...
+            // assert byte range matches file!
+            assert( intersect( byte_range, [this.start_byte, this.end_byte] ) );
+
+            this._read_queue.push({'callback':callback,'byte_range':byte_range});
+            this.process_read_data_queue();
+        },
         process_read_data_queue: function() {
             var _this = this;
             if (this._processing_read_queue) {
@@ -121,22 +130,19 @@
                         // XXX -- maybe check file metadata make sure the file is large enough!
                         assert(dndfile);
                         var filereader = new FileReader(); // todo - re-use and seek!
-                        filereader.onload = _.bind(this.got_queue_data, this, item);
+                        
                         var byte_range = item.byte_range;
                         var offset = byte_range[0] - this.start_byte;
+                        assert(offset > 0);
                         var bytesRemaining = byte_range[1] - byte_range[0] + 1;
                         assert(bytesRemaining > 0);
 
                         function on_file(file) {
-                            //assert( file.size == _this.get_size() );
-                            // TODO -- ASSERT something similar -- (previous assert is wrong)
                             var blob = file.slice(offset, offset + bytesRemaining);
-
                             assert( offset + bytesRemaining <= _this.get_size() )
-
-                            //item.slice = [offset, bytesRemaining];
-
+                            assert( offset + bytesRemaining <= file.size )
                             mylog(LOGMASK.disk,'reading blob from',_this,_this.repr(),file,dndfile,'slice',[offset,offset+bytesRemaining]);
+                            filereader.onload = _.bind(_this.got_queue_data, _this, file, item);
                             filereader.readAsArrayBuffer(blob);
                         }
 
@@ -153,7 +159,7 @@
                 }
             }
         },
-        got_queue_data: function(item, evt) {
+        got_queue_data: function(fo, item, evt) {
             this._processing_read_queue = false;
             var binary = evt.target.result;
             mylog(LOGMASK.disk,'read bytes',binary.byteLength,'from range',item.byte_range);
@@ -302,7 +308,19 @@
                         oncomplete(false); // chunk responses needed for next file!
                     } else {
                         // XXX -- XXX !
-                        oncomplete(true); // piece was entirely consumed ( ????? perhaps not????)
+                        //; // piece was entirely consumed ( ????? perhaps not????)
+                        if (file.start_byte > piece.start_byte) {
+                            // cannot safely clear out the piece data because a previous file may need it...
+                            var prev = piece.num - 1;
+                            var canclean = true;
+                            if (prev >= 0) {
+                                var prevpiece = piece.torrent.get_piece(prev);
+                                if (! prevpiece.complete()) canclean = false;
+                            }
+                            oncomplete(canclean);
+                        } else {
+                            oncomplete(true)
+                        }
                     }
                     return;
                 }
@@ -334,9 +352,6 @@
 
                 */
 
-                // need to intersect...
-
-
                 var intersection = intersect([chunk_a,chunk_b],[file_a,file_b])
                 if (intersection) {
                     var numbytes = intersection[1] - intersection[0] + 1;
@@ -350,7 +365,7 @@
                     //mylog(1,'piece',piece.num,'write chunk',i);
                     writer.onwrite = write_next;
                     writer.write( new Blob([data]) );
-                    mylog(LOGMASK.disk,'write to',file.repr(), (seekto>=0)?('seeked at',seekto,'numbytes',numbytes):'');
+                    //mylog(LOGMASK.disk,'write to',file.repr(), (seekto>=0)?('seeked at',seekto,'numbytes',numbytes):'');
                     i++;
                 } else {
                     mylog(LOGMASK.disk,'piece',piece.num,'writing chunk',i,'does not intersect file',file.repr())

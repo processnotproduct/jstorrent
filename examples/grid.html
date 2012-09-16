@@ -30,6 +30,7 @@
     <script src="../js/bittorrent.piece.js"></script>  
     <script src="../js/bittorrent.peer.js"></script>  
     <script src="../js/bittorrent.swarm.js"></script>  
+    <script src="../js/bittorrent.bytecounter.js"></script>  
 
     <script src="../js/bittorrent.torrent.js"></script>  
     <script src="../js/bittorrent.js"></script>  
@@ -38,6 +39,10 @@
 
     <script type="text/javascript" src="grid.js"></script>
 
+    <style>
+      ul.action-tabs li { display: inline; }
+      ul.commands li { display: inline; }
+    </style>
 
     <script type="text/template" id="torrent_template">
 
@@ -88,11 +93,11 @@
 
 
     <script type="text/template" id="tabs_template">
-      <ul>
-        <li class="general">General</li>
-        <li class="trackers">Trackers</li>
-        <li class="peers">Peers</li>
-        <li class="files">Files</li>
+      <ul class="action-tabs">
+        <li class="general"><a href="#">General</a></li>
+        <li class="trackers"><a href="#">Trackers</a></li>
+        <li class="peers"><a href="#">Peers</a></li>
+        <li class="files"><a href="#">Files</a></li>
       </ul>
     </script>
 
@@ -150,9 +155,9 @@
       </div>
       <div class="addview"></div>
       <!--div id="myGrid" style="width:100%; height:800px;"></div-->
-      <div class="torrentGrid" style="border:1px solid black; position: absolute; height:320px; bottom:200px; left:0px; right:0px"></div>
+      <div class="torrentGrid" style="border:1px solid black; position: absolute; height:320px; bottom:300px; left:0px; right:0px"></div>
 
-      <div class="fileGrid" style="border:1px solid green; position: absolute; height:200px; bottom:0px; left:0px; right:0px">double click on a torrent to view files</div>
+      <div class="fileGrid" style="border:1px solid green; position: absolute; height:300px; bottom:0px; left:0px; right:0px">double click on a torrent to view files</div>
     </script>
 
 

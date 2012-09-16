@@ -5,10 +5,15 @@
         initialize: function(opts) {
             this._last_closed = null;
             this._unresponsive = null;
+            this._banned = false;
             this._ever_connected = null; // whether this peer ever did anything useful...
         },
         repr: function() {
             return this.id;
+        },
+        ban: function() {
+            this._banned = true;
+            // ban this peer.
         },
         notify_closed: function(data, conn) {
             if (! data._remote_handshake) {
@@ -29,7 +34,9 @@
             return false;
         },
         can_reconnect: function() {
-            if (! this._last_closed) {
+            if (this._banned) { 
+                return false;
+            } else if (! this._last_closed) {
                 return true;
             } else if (this._unresponsive && this.collection.length > 10) {
                 // never even handshook

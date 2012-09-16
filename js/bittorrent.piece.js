@@ -205,7 +205,7 @@
             for (var i=0; i<requests.length; i++) {
                 var offset = requests[i][1];
                 if (this._outbound_request_offsets[offset]) {
-                    mylog(1,'timing out piece w offset',this.num, offset);
+                    mylog(LOGMASK.queue,'timing out piece w offset',this.num, offset);
                     delete this._outbound_request_offsets[offset];
                     conn._outbound_chunk_requests--;
                 }

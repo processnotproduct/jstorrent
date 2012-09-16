@@ -4,6 +4,7 @@ jstorrent = {
 window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8031},
     //debug_torrent_client: {ip:'192.168.56.101', port:64399},
+    unit_tests: false, // run unit tests
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     bittorrent_proxy: '192.168.56.1:8030',
@@ -45,7 +46,8 @@ window.LOGMASK = {'general':1,
                   'ui':Math.pow(2,5), // user interface
                   'error': Math.pow(2,6),
                   'peer': Math.pow(2,7),
-                  'tracker': Math.pow(2,8)
+                  'tracker': Math.pow(2,8),
+                  'queue': Math.pow(2,9)
                  };
 LOGMASK_R = {}
 for (var name in LOGMASK) {
@@ -75,7 +77,7 @@ function to_file_size(size) {
 }
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
-var curlogmask = LOGMASK.general | LOGMASK.disk;
+var curlogmask = LOGMASK.general;
 //var curlogmask = LOGMASK.general | LOGMASK.ui;
 //var curlogmask = LOGMASK.all;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
@@ -294,7 +296,7 @@ function b642arr(inp) {
     window.log_file_error = log_file_error;
 
     window.decode_url_arguments = function(place) {
-        place = place || search
+        place = place || 'search';
         var query = window.location[place];
         var parts = query.slice(1, query.length).split('&');
         var d = {};

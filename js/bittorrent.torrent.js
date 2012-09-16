@@ -25,10 +25,12 @@
                 this.set('numswarm', this.get('numswarm')+1);
             },this));
             this.pieces = [];
+            this.bytecounters = { sent: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.sent}),
+                                  received: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.received}) };
             this.files = new jstorrent.TorrentFileCollection();
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
-            this.set('maxconns',20);
+            this.set('maxconns',5);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
             this.set('size',0);
@@ -298,6 +300,7 @@
                             // select piece i'm missing but they have
 
                             var piece = this.choose_incomplete_piece(conn._remote_bitmask);
+                            // XXX -- choose a piece that doesn't make us go to far into a file ( filling up zeros sucks...?)
                             if (piece) {
                                 var requests = piece.create_chunk_requests(conn, num_to_request);
                                 if (requests.length > 0) {
@@ -336,6 +339,11 @@
             for (var i=0; i<this.num_pieces; i++) {
                 if (! this.piece_complete(i) && remote_bitmask[i]) {
                     var piece = this.get_piece(i);
+
+                    // check if piece, when written, would cause the
+                    // file to have to be filled in with a bunch of
+                    // sparse zeros (sucks), and don't return the piece
+
                     if (! piece.all_chunks_requested() && ! piece.skipped()) {
                         return piece;
                     }
@@ -686,6 +694,8 @@
                     metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
                 }
                 //metadata['announce'] = this.magnet_info.tr;
+            } else {
+                metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
             }
             this.set_metadata(metadata);
             this.save();

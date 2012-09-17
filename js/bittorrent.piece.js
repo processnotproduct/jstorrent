@@ -212,14 +212,14 @@
             }
         },
         got_data_for_compute_hash: function(callback, piece, request, responses) {
-            var hasher = new Digest.SHA1();
-            for (var i=0; i<responses.length; i++) {
-                hasher.update( responses[i] );
-            }
-            this.hash = hasher.finalize();
-            this.hashed = true;
-            mylog(LOGMASK.hash, 'hashed a piece');
-            callback();
+            // todo -- make work on multiple threads better
+            jsclient.threadhasher.send({msg:'hashplease', chunks: responses}, _.bind(function(result) {
+                assert(result.hash);
+                this.hash = result.hash;
+                this.hashed = true;
+                //mylog(LOGMASK.hash, 'hashed a piece');
+                callback();
+            },this));
         },
         skipped: function() {
             var file_info = this.get_file_info(0, this.sz);

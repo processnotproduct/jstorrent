@@ -70,8 +70,8 @@
         },
         open: function() {
             this.get_filesystem_entry( function(entry) {
-                //window.open( entry.toURL() );
-            });
+                window.open( entry.toURL() );
+            }, {create:false});
         },
         get_path: function() {
             var path = [];
@@ -86,7 +86,7 @@
                 return this.get_info().path;
             }
         },
-        get_filesystem_entry: function(callback) {
+        get_filesystem_entry: function(callback, opts) {
             if (this.filesystem_entry) {
                 callback(this.filesystem_entry);
             } else {
@@ -96,7 +96,7 @@
                     }
                     this.filesystem_entry = file;
                     callback(file);
-                },this), this.torrent.get_storage_area());
+                },this), this.torrent.get_storage_area(), opts);
             }
         },
         skipped: function() {
@@ -133,7 +133,7 @@
                         
                         var byte_range = item.byte_range;
                         var offset = byte_range[0] - this.start_byte;
-                        assert(offset > 0);
+                        assert(offset >= 0);
                         var bytesRemaining = byte_range[1] - byte_range[0] + 1;
                         assert(bytesRemaining > 0);
 

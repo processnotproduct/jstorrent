@@ -88,26 +88,48 @@
             } else if (opts.container) {
                 this.container = opts.container;
                 this.set('container',undefined); // make sure doesn't store on model.save
-                this.althash = opts.althash;
-                this.althash_hex = ab2hex(this.althash);
+                //this.althash = opts.althash;
+                //this.althash_hex = ab2hex(this.althash);
                 this.piece_size = constants.new_torrent_piece_size;
                 this.fake_info = this.get_fake_infodict();
+                this.set('fake_info',this.fake_info);
                 mylog(1,'created fake infodict',this.fake_info);
                 this.real_info = {'pieces':[]};
                 this.process_post_metadata();
+            } else if (opts.fake_info) {
+                mylog(LOGMASK.error,'torrent didnt finish hashing!... (but have fake info---continue...)');
+                this.piece_size = constants.new_torrent_piece_size;
+                this.fake_info = this.get('fake_info');
+                this.unset('fake_info');
+                this.real_info = {'pieces':[]};
+                this.process_post_metadata();
+                this.hash_all_pieces( _.bind(function() {
+                    mylog(1,'torrent ready!');
+                    this.save();
+                    debugger;
+                    // woo hoo!
+                },this));
+                        
+
+            } else if (opts.state == 'hashing') {
+                mylog(LOGMASK.error,'torrent didnt finish hashing!... eeeeeee');
+                debugger;
             } else {
-                throw Error('unrecognized initialization options');
+                mylog(LOGMASK.error,'unrecognized initialization options',opts);
                 debugger;
             }
             this.set('name',this.get_name());
 
+        },
+        get_client: function() {
+            return this.collection.client;
         },
         get_storage: function(callback, area) {
             area = area || 'temporary';
             if (this.is_multifile()) {
                 this.get_directory( callback );
             } else {
-                jsclient.get_filesystem().fss[area].root.getFile( this.get_name(), null, callback, callback );
+                this.get_client().get_filesystem().fss[area].root.getFile( this.get_name(), null, callback, callback );
             }
         },
         move_storage_area: function(target_fs_type, callback) {
@@ -139,7 +161,7 @@
                             res.remove(onremove, onremove);
                         }
                     }
-                    var newroot = jsclient.get_filesystem().fss['persistent'].root;
+                    var newroot = this.get_client().get_filesystem().fss['persistent'].root;
                     mylog(LOGMASK.disk,'copy',res,'to',newroot);
                     res.copyTo( newroot,
                                 null,
@@ -152,7 +174,7 @@
         },
         get_directory: function(callback, area) {
             area = area || 'temporary';
-            jsclient.get_filesystem().fss[area].root.getDirectory( this.get_name(), null, callback, callback );
+            this.get_client().get_filesystem().fss[area].root.getDirectory( this.get_name(), null, callback, callback );
         },
         remove_files: function() {
             if (this.magnet_only()) {
@@ -193,6 +215,7 @@
                 this._file_byte_accum.push(0);
                 this.size = this.get_infodict().length;
             }
+            assert(this.size);
             this.num_pieces = this.get_num_pieces();
             this.num_files = this.get_num_files();
             if (this.get('bitmask')) {
@@ -232,7 +255,7 @@
             this.hash_hex = ab2hex(this.hash);
         },
         get_magnet_link: function() {
-            if (this.container) {
+            if (this.container && ! this.hash_hex) {
                 var s = 'magnet:?xt=urn:alth:' + this.althash_hex;
             } else {
                 var s = 'magnet:?xt=urn:btih:' + this.hash_hex;
@@ -626,9 +649,11 @@
             this.metadata['announce'] = config.public_trackers[0];
             this.metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
             this.set('metadata',this.metadata);
+            this.set('complete',1000);
             this.process_metadata();
             this.process_post_metadata();
             this.fake_info = null;
+            this.save();
             callback();
         },
         pieces_hashed: function(request) {
@@ -759,7 +784,7 @@
         get_by_path: function(spath, callback) {
             var path = _.clone(spath); // don't accidentally modify our argument
 
-            if (this.container) {
+            if (this.container && false ) { // it was already copied to the filesystem
                 var entries = this.container.items();
                 for (var i=0; i<entries.length; i++) {
                     if (entries[i].entry.isDirectory) {
@@ -788,9 +813,9 @@
                 if (this.is_multifile()) {
                     var path = [this.get_infodict().name];
                     var path = path.concat(spath);
-                    jsclient.get_filesystem().get_file_by_path( path, callback, this.get_storage_area() )
+                    this.get_client().get_filesystem().get_file_by_path( path, callback, this.get_storage_area() )
                 } else {
-                    jsclient.get_filesystem().get_file_by_path( path, callback, this.get_storage_area() )
+                    this.get_client().get_filesystem().get_file_by_path( path, callback, this.get_storage_area() )
                 }
             }
         },
@@ -889,19 +914,36 @@
             // creates a fake infodict with emptied out pieces that will
             // help us in determining piece boundaries on requests
             var info = {};
-            info['files'] = [];
-            //info['announce-list'] = [['http://127.0.0.1:6969']]
-            info['althash'] = arr2str(this.althash);
-            var entries = this.container.items();
-            for (var i=0; i<entries.length; i++) {
-                entries[i].serialize_meta(info['files']);
+            if (this.container instanceof jstorrent.DNDFileEntry) {
+                info['name'] = this.container.file.name;
+                info['length'] = this.container.file.size;
+                assert(info['length']);
+            } else {
+                info['files'] = [];
+                //info['althash'] = arr2str(this.althash);
+                var entries = this.container.items();
+                for (var i=0; i<entries.length; i++) {
+                    entries[i].serialize_meta(info['files']);
+                }
+                info['name'] = this.get_name_from_entries();
             }
             info['piece length'] = this.piece_size;
-            info['name'] = this.get_name_from_entries();
+            
             //info['pieces'] = this.get_fake_pieces().join('');
             return info;
         },
         get_name_from_entries: function() {
+            if (this.container.entry) {
+                return this.container.entry.name; // each folder gets its own torrent now
+            } else if (this.container.files.length == 1) {
+                debugger;
+                return this.container.files[0].get_name();
+            } else {
+                debugger;
+                return 'bundle ... etc files';
+            }
+            
+            
             var entries = this.container.items();
             if (entries.length > 1) {
                 var s = 'Bundle, ';

@@ -134,6 +134,7 @@ var TorrentTableView = SuperTableView.extend({
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
             {id: "state", name: "state", field: "state", sortable: true },
+            {id: "storage", name: "storage", field: "storage_area", sortable: true },
             {id: "%", name: "% Complete", field: "complete", sortable: true },
             {id: "bytes_sent", unit:'bytes',name: "bytes sent", field: "bytes_sent", sortable: true},
             {id: "send_rate", unit:'bytes',name: "send_rate", field: "send_rate", sortable: true},
@@ -285,10 +286,10 @@ var FileTableView = SuperTableView.extend({
                 } else {
                     $(cellNode).empty();
                 }
-            });
+            }, {create:false});
         }
         function waitingFormatter() {
-            return 'fetch...';
+            return 'loading...';
         }
 
         this.torrent = opts.torrent;
@@ -347,7 +348,6 @@ var PeerTableView = SuperTableView.extend({
     initialize: function(opts) {
         this.torrent = opts.torrent;
         opts.columns = [
-            {id: "#", name: "num", field: "num", sortable:true, width:30 },
             {id: "client", name: "client", field: "client", sortable: true, width:200 },
             {id: "host", name: "host", field: "host", sortable: true, width:200 },
             {id: "port", name: "port", field: "port", sortable: true, width:80 },
@@ -544,23 +544,35 @@ jQuery(function() {
         }
 
         function do_create() {
-            var container = new jstorrent.DNDDirectoryEntry({parent:null, entry:null});;
+            
             //var container = entry;
             if (entry.isFile) {
-                container.files.push( new jstorrent.DNDFileEntry({entry:entry, directory: container}) );
+                //var container = new jstorrent.DNDDirectoryEntry({parent:null, entry:null});;
+                //container.files.push( new jstorrent.DNDFileEntry({entry:entry, directory: container}) );
+                var container = new jstorrent.DNDFileEntry({entry:entry, directory: null});
             } else if (entry.isDirectory) {
-                container.directories.push( new jstorrent.DNDDirectoryEntry({entry:entry, parent: null}) );
+                var container = new jstorrent.DNDDirectoryEntry({entry:entry, parent: null})
             }
 
             var fired = false;
             function check_populated() {
-                mylog(1,'check populated...');
+                //mylog(1,'check populated...');
                 if (! fired && container.populated()) {
                     fired = true;
-                    var althash = jstorrent.get_althash(container);
-                    var torrent = new jstorrent.Torrent( {container: container, althash: althash} );
+                    //var althash = jstorrent.get_althash(container);
+                    var l = jsclient.torrents.models.length;
+                    var torrent = new jstorrent.Torrent( { container: container }, { collection: jsclient.torrents } );
+                    assert(!torrent.id);
+                    assert(jsclient.torrents.models.length == l);
                     jsclient.torrents.add(torrent);
+                    torrent.set('state','hashing');
+                    torrent.save();
+                    assert(torrent.id);
+                    assert( torrent.collection._byId[torrent.id] );
+                    assert(jsclient.torrents.models.length == l+1);
+
                     torrent.hash_all_pieces( function() {
+                        torrent.container = null;
                         mylog(1, 'torrent ready!');
                         torrent.start();
                     });
@@ -573,7 +585,6 @@ jQuery(function() {
         if (model instanceof jstorrent.DNDDirectoryEntry) {
             do_create();
         } else {
-
             var fe_compat = new jstorrent.FileEntry({entry:entry});
             
             fe_compat.check_is_torrent( function(result) {
@@ -628,6 +639,7 @@ jQuery(function() {
     $(document.body).on("dragleave", function(evt){mylog(1,'dragleave');});
     $(document.body).on("dragover", function(evt){mylog(1,'dragover');});
     $(document.body).on('drop', function(evt) {
+        mylog(1,'DROP!');
         evt.originalEvent.stopPropagation();
         evt.originalEvent.preventDefault();
 
@@ -646,13 +658,20 @@ jQuery(function() {
                         item.copyTo( fs.root, null, _.bind(copy_success, this, entry), _.bind(copy_success, this, entry) );
                     } else {
                         var _this = this;
+                        function copy_error(entry) {
+                            if (entry instanceof FileError) {
+                                log_file_error(entry);
+                            } else {
+                                mylog(LOGMASK.error,'copy error',entry);
+                            }
+                        }
+
                         function dir_ready() {
                             var entry = new jstorrent.DNDDirectoryEntry({entry:item});
                             entry.set('status','copying');
                             //jsclient.get_filesystem().entries.add(entry);
-                            item.copyTo( fs.root, null, _.bind(copy_success, _this, entry), _.bind(copy_success, _this, entry) );
+                            item.copyTo( fs.root, null, _.bind(copy_success, _this, entry), _.bind(copy_success, _this, entry), copy_error );
                         }
-
                         fs.root.getDirectory(item.name, null, _.bind(function(entry) {
                             if (entry instanceof FileError) {
                                 log_file_error(entry);
@@ -661,7 +680,7 @@ jQuery(function() {
                                     dir_ready();
                                 });
                             }
-                        },this));
+                        },this), dir_ready);
                     }
                 }
             }
@@ -677,7 +696,9 @@ jQuery(function() {
 
     //jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
 
-    window.jsclientview = new JSTorrentClientView({el:$('#client')});
+    jsclient.on('ready', function() {
+        window.jsclientview = new JSTorrentClientView({el:$('#client')});
+    });
 
 
     var url_args = decode_url_arguments('hash');

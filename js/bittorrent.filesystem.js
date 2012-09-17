@@ -109,7 +109,9 @@
             },this));
 
         },
-        get_file_by_path: function(path, callback, area) {
+        get_file_by_path: function(path, callback, area, opts) {
+            opts = opts || { create: true };
+            // XXX -- want create:false option (some consumers dont want to create...)
             assert(area);
             // returns file entry for given path, recursively creating directories as necessary
             var curpath = path.slice();
@@ -119,9 +121,9 @@
                 if (result && result.isDirectory) {
                     var cur = curpath.shift(1);
                     if (curpath.length == 0) { // no more paths, it's to be a file
-                        result.getFile(cur, {create:true}, next, next);
+                        result.getFile(cur, opts, next, next);
                     } else {
-                        result.getDirectory(cur, {create:true}, next, next);
+                        result.getDirectory(cur, opts, next, next);
                     }
                 } else if (result && result.isFile) {
                     callback(result)

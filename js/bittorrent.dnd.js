@@ -306,20 +306,20 @@
             // if all child directories are done and all files have
             // fetched their File objects
             if (this._reading) {
-                mylog(1,'_reading... not populated');
+                //mylog(1,'_reading... not populated');
                 return false;
             }
 
             for (var i=0; i<this.files.length; i++) {
                 if (! this.files[i].populated()) {
-                    mylog(1,this.files[i],'not populated');
+                    //mylog(1,this.files[i],'not populated');
                     return false;
                 }
             }
 
             for (var i=0; i<this.directories.length; i++) {
                 if (! this.directories[i].populated()) {
-                    mylog(1,this.directories[i],'not populated');
+                    //mylog(1,this.directories[i],'not populated');
                     return false;
                 }
             }

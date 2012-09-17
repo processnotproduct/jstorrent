@@ -1,49 +1,50 @@
 (function() {
-    jstorrent.JSTorrentClient = function() {
-        this.filesystem = new jstorrent.FileSystem();
-        this.threadhasher = new jstorrent.ThreadHasher();
-        //this.worker.postMessage();
+    jstorrent.JSTorrentClient = Backbone.Model.extend({
+        initialize: function() {
+            this.filesystem = new jstorrent.FileSystem();
+            this.threadhasher = new jstorrent.ThreadHasher();
+            //this.worker.postMessage();
 
-        //this.torrents = {};
-        this.bytecounters = { sent: new jstorrent.ByteCounter({}),
-                              received: new jstorrent.ByteCounter({}) };
-        this.torrents = new jstorrent.TorrentCollection();
-        this.torrents.client = this;
-        this.torrents.fetch();
-        /*
-         */
+            //this.torrents = {};
+            this.bytecounters = { sent: new jstorrent.ByteCounter({}),
+                                  received: new jstorrent.ByteCounter({}) };
+            this.torrents = new jstorrent.TorrentCollection();
+            this.torrents.client = this;
 
-        //mylog(1,'torrents synced', this.torrents.models);
+            /*
+             */
 
-        this.tick_interval = 200;
-        this.requests_per_tick = 5;
-        //this.filesystem.on('initialized', _.bind(this.tick,this));
+            //mylog(1,'torrents synced', this.torrents.models);
 
-        function ready(data) {
-            if (data && data.error) {
-                mylog(LOGMASK.error,'filesystem init error');
-            } else {
-                mylog(1,'filesystems ready!');
-                for (var i=0; i<this.torrents.models.length; i++) {
-                    var torrent = this.torrents.models[i];
-                    if (torrent.started()) {
-                        this.torrents.models[i].announce();
+            this.tick_interval = 200;
+            this.requests_per_tick = 5;
+            //this.filesystem.on('initialized', _.bind(this.tick,this));
+
+            function ready(data) {
+                if (data && data.error) {
+                    mylog(LOGMASK.error,'filesystem init error');
+                } else {
+                    mylog(1,'filesystems ready!');
+                    this.torrents.fetch();
+                    for (var i=0; i<this.torrents.models.length; i++) {
+                        var torrent = this.torrents.models[i];
+                        if (torrent.started()) {
+                            this.torrents.models[i].announce();
+                        }
                     }
+                    this.trigger('ready');
+                    this.tick();
                 }
-                this.tick();
+                
             }
-            
-        }
-/*
-        this.filesystem.on('initialized', _.bind(ready, this));
-        this.filesystem.on('unsupported', _.bind(ready, this));
-        this.filesystem.request_fs();
-*/
+            /*
+              this.filesystem.on('initialized', _.bind(ready, this));
+              this.filesystem.on('unsupported', _.bind(ready, this));
+              this.filesystem.request_fs();
+            */
 
-        this.filesystem.init_filesystems(_.bind(ready,this));
-    }
-
-    jstorrent.JSTorrentClient.prototype = {
+            this.filesystem.init_filesystems(_.bind(ready,this));
+        },
         get_filesystem: function() {
             return this.filesystem;
         },
@@ -51,12 +52,12 @@
             // check if already in models...
 
             if (args && args.metadata) {
-                var torrent = new jstorrent.Torrent( { metadata: args.metadata } );
+                var torrent = new jstorrent.Torrent( { metadata: args.metadata }, { collection: this.torrents } );
             } else if (args && args.infohash) {
                 assert( args.infohash.length == 40 );
-                var torrent = new jstorrent.Torrent( { infohash: args.infohash } );
+                var torrent = new jstorrent.Torrent( { infohash: args.infohash }, { collection: this.torrents } );
             } else if (args && args.magnet) {
-                var torrent = new jstorrent.Torrent( { magnet: args.magnet } );
+                var torrent = new jstorrent.Torrent( { magnet: args.magnet }, { collection: this.torrents } );
             }
             if (! this.torrents.contains(torrent)) {
                 this.torrents.add(torrent);
@@ -206,7 +207,7 @@
             this._next_tick = setTimeout( _.bind(this.tick, this), this.tick_interval );
             // called every once an a while
         },
-    };
+    });
 
 
 

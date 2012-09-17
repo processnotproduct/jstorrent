@@ -203,7 +203,7 @@
             }
 
             this._outbound_chunk_requests = 0;
-            this._outbound_chunk_requests_limit = 10;
+            this._outbound_chunk_requests_limit = 20;
 
             this._host = host;
             this._port = port;

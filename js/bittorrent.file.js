@@ -93,8 +93,9 @@
                 jsclient.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
                     if (file.error) {
                         //debugger;
+                    } else {
+                        this.filesystem_entry = file;
                     }
-                    this.filesystem_entry = file;
                     callback(file);
                 },this), this.torrent.get_storage_area(), opts);
             }

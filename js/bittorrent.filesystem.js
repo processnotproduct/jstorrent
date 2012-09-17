@@ -111,6 +111,7 @@
         },
         get_file_by_path: function(path, callback, area, opts) {
             opts = opts || { create: true };
+            //mylog(1,'get file by path',JSON.stringify(opts));
             // XXX -- want create:false option (some consumers dont want to create...)
             assert(area);
             // returns file entry for given path, recursively creating directories as necessary

@@ -80,11 +80,15 @@ var SuperTableView = Backbone.View.extend({
             enableCellNavigation: true,
             enableColumnReorder: false,
             formatterFactory: opts.makeformatter,
+            autoEdit: true,
+            editDontDeselect: true,
+            editable: true,
             enableAsyncPostRender: true
         };
 
         this.grid = new Slick.Grid(this.options.el, this.model, columns, options);
         this.grid.setSelectionModel(new Slick.RowSelectionModel());
+        //this.grid.setSelectionModel(new Slick.CellSelectionModel());
 
         this.model.on('add', _.bind(function(m) {
             this.grid.updateRowCount(); // do other stuff to make selection work correctly...
@@ -293,6 +297,9 @@ var FileTableView = SuperTableView.extend({
         }
 
         this.torrent = opts.torrent;
+        //var editor = Slick.Editors.YesNoSelectEditor;
+        var editor = Slick.Editors.SelectCellEditor;
+        //var editor = Slick.Editors.Checkbox;
         opts.columns = [
             {id: "#", name: "num", field: "num", sortable:true, width:30 },
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
@@ -300,7 +307,8 @@ var FileTableView = SuperTableView.extend({
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
             {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderLink, formatter: waitingFormatter },
-            {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false }
+            {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false },
+            {id: "priority", name: "priority", field: "priority", sortable: true, editor: editor, options:'Normal,Skip' }
         ];
         var progress_template = jstorrent.tmpl("progress_template");
         opts.makeformatter = {
@@ -338,7 +346,7 @@ var FileTableView = SuperTableView.extend({
         this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
             var file = this.grid.getDataItem(data.row);
             mylog(1,'click file!!!',file,evt,data,c);
-            file.open();
+            //file.open();
         },this));
     }
 });

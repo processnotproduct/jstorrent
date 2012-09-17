@@ -254,6 +254,15 @@
             this.hash = new Uint8Array(hasher.finalize());
             this.hash_hex = ab2hex(this.hash);
         },
+        set_file_priority: function(num, prio) {
+            var fp = this.get('file_priorities');
+            if (! fp) {
+                fp = {};
+            }
+            fp[num] = prio;
+            this.set('file_priorities',fp);
+            this.save();
+        },
         get_magnet_link: function() {
             if (this.container && ! this.hash_hex) {
                 var s = 'magnet:?xt=urn:alth:' + this.althash_hex;
@@ -261,7 +270,13 @@
                 var s = 'magnet:?xt=urn:btih:' + this.hash_hex;
             }
             //s += '&tr=' + encodeURIComponent(config.default_tracker);
-            s += '&tr=' + encodeURIComponent(config.public_trackers[0]);
+            if (this.trackers.models.length > 0) {
+                for (var i=0; i< Math.min(this.trackers.models.length,2); i++) {
+                    s += '&tr=' + encodeURIComponent(this.trackers.models[i].url);
+                }
+            } else {
+                s += '&tr=' + encodeURIComponent(config.public_trackers[0]);
+            }
             return s;
         },
         get_infohash: function(format) {
@@ -350,9 +365,9 @@
             return piece.handle_data(conn, offset, data);
         },
         is_file_skipped: function(filenum) {
-            var fp = this.get('file_priority');
+            var fp = this.get('file_priorities');
             if (fp) {
-                return fp[filenum] == 'skip';
+                return fp[filenum] && fp[filenum].toLowerCase() == 'skip';
             } else {
                 return false;
             }
@@ -518,20 +533,23 @@
             }
 
         },
-        notify_have_piece: function(piece) {
-            this.get('bitmask')[piece.num] = 1;
-            var complete = Math.floor(this.get_complete()*1000);
-            this.set('complete',complete);
-
-            //this.set('complete', 
-            this.save();
-            // sends have message to all connections
-            for (var i=0; i<this.connections.models.length; i++) {
-                var conn = this.connections.models[i];
-                if (conn.can_send_messages()) {
-                    conn.send_have(piece.num);
+        notify_have_piece: function(piece, opts) {
+            if (opts.skipped) {
+                var skip = this.get('bitmask_skip') || {};
+                skip[piece.num] = 1;
+                this.set('bitmask_skip',skip);
+            } else {
+                this.get('bitmask')[piece.num] = 1;
+                var complete = Math.floor(this.get_complete()*1000);
+                this.set('complete',complete);
+                for (var i=0; i<this.connections.models.length; i++) {
+                    var conn = this.connections.models[i];
+                    if (conn.can_send_messages()) {
+                        conn.send_have(piece.num);
+                    }
                 }
             }
+            this.save();
         },
         is_multifile: function() {
             return !! this.get_infodict().files;
@@ -543,6 +561,10 @@
                 return file
             } else {
                 var file = new jstorrent.TorrentFile({id:n, torrent:this, num:n});
+                var fp = this.get('file_priorities');
+                if (fp && fp[n]) {
+                    file.set('priority',fp[n]);
+                }
                 assert(file.num == n);
                 //this.files.add(file, {at:n}); // does not work!
                 this.files.add(file);

@@ -2410,8 +2410,10 @@ if (typeof Slick === "undefined") {
         activeRow = activeCell = null;
       }
 
-      if (activeCellChanged) {
+      if (activeCellChanged) { //XXX selection removed here
+          if (isCellPotentiallyEditable(activeRow, activeCell) && options.editDontDeselect && self.getSelectedRows().length > 1 && _.contains(self.getSelectedRows(), activeRow)){} else {
         trigger(self.onActiveCellChanged, getActiveCell());
+}
       }
     }
 

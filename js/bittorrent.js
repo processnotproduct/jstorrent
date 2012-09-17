@@ -11,6 +11,7 @@
     FLAGS[7] = LAST_BYTE;
 
     window.constants = {
+        client_version: 'jstorrent 0.0.2',
         protocol_name: 'BitTorrent protocol',
         handshake_length: 1 + 'BitTorrent protocol'.length + 8 + 20 + 20,
         std_piece_size: Math.pow(2,14),
@@ -281,7 +282,7 @@
         send_extension_handshake: function() {
             if (this._sent_extension_handshake) { debugger; return; }
             // woo!!
-            var resp = {'v': 'jstorrent 0.0.1',
+            var resp = {'v': constants.client_version,
                         'm': {},
                         'p': 0}; // we don't have a port to connect to :-(
             if (! this.torrent.magnet_only()) {

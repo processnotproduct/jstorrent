@@ -159,6 +159,13 @@
             this._chunk_responses = [];
             mylog(LOGMASK.disk,'piece cleanup',this.num,reason);
         },
+        wrote_but_not_stored: function() {
+            var skip = this.torrent.get('bitmask_skip');
+            if (skip && skip[this.num]) {
+                return true;
+            }
+            return false;
+        },
         complete: function() {
             return this.torrent.piece_complete(this.num);
         },

@@ -169,6 +169,8 @@
             this.torrents.remove(torrent);
             //this.torrents.save();
         },
+        run_tests: function() {
+        },
         tick: function() {
             var now = (new Date()).getTime();
             for (var j=0; j<this.torrents.models.length; j++) {

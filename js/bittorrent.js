@@ -193,6 +193,8 @@
 
             this.set('bytes_received',0);
             this.set('bytes_sent',0);
+            this.set('chunks_received',0);
+            this.set('timeouts',0);
             //var infohash = opts.hash; // array buffers and stuff no bueno... just want simple array
             assert(opts.hash.length == 20);
             var infohash = [];
@@ -201,7 +203,7 @@
             }
 
             this._outbound_chunk_requests = 0;
-            this._outbound_chunk_requests_limit = 1;
+            this._outbound_chunk_requests_limit = 10;
 
             this._host = host;
             this._port = port;
@@ -249,8 +251,12 @@
             };
             this.reconnect();
         },
+        adjust_chunk_queue_size: function() {
+            if (this.get('timeouts') > this.get('chunks_received')) {
+                this._outbound_chunk_requests_limit = 1;
+            }
+        },
         handle_piece: function(data) {
-            this.set('outbound_chunks',this._outbound_chunk_requests);
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
             var index = view.getUint32(0);
             var offset = view.getUint32(4);
@@ -259,7 +265,9 @@
             //mylog(LOGMASK.network,'got piece idx',index,'offset',offset,'len',chunk.byteLength);
             var handled = this.torrent.handle_piece_data(this, index, offset, chunk);
             if (handled) {
+                this.set('chunks_received',this.get('chunks_received')+1);
                 this._outbound_chunk_requests --;
+                this.set('outbound_chunks',this._outbound_chunk_requests);
             }
         },
         handle_piece_hashed: function(piece) {
@@ -419,6 +427,7 @@
         handle_extension_message: function(data) {
             var ext_msg_type = data.payload[0];
             if (ext_msg_type == constants.handshake_code) {
+                this.set('last_message',data.msgtype + ' ' + 'handshake');
                 var braw = new Uint8Array(data.payload.buffer.slice( data.payload.byteOffset + 1 ));
                 var info = bdecode( ab2str( braw ) )
                 mylog(LOGMASK.network, 'decoded extension message stuff',info);
@@ -431,6 +440,8 @@
             } else if (this._my_extension_handshake_codes[ext_msg_type]) {
                 var ext_msg_str = this._my_extension_handshake_codes[ext_msg_type];
                 var their_ext_msg_type = this._remote_extension_handshake['m'][ext_msg_str];
+
+                this.set('last_message',data.msgtype + ' ' + ext_msg_str);
 
                 assert(their_ext_msg_type !== undefined);
 
@@ -486,13 +497,15 @@
                     var str = arr2str(arr);
                     var info = bdecode(str);
                     var decodedpeers = [];
-                    var itermax = info.added.length/6;
-                    for (var i=0; i<itermax; i++) {
-                        var peerdata = jstorrent.decode_peer( info.added.slice( i*6, (i+1)*6 ) );
-                        decodedpeers.push(peerdata);
-                        this.torrent.handle_new_peer(peerdata);
+                    if (info.added) {
+                        var itermax = info.added.length/6;
+                        for (var i=0; i<itermax; i++) {
+                            var peerdata = jstorrent.decode_peer( info.added.slice( i*6, (i+1)*6 ) );
+                            decodedpeers.push(peerdata);
+                            this.torrent.handle_new_peer(peerdata);
+                        }
                     }
-                    mylog(LOGMASK.network, 'receive ut_pex extension message',decodedpeers);
+                    mylog(LOGMASK.network, 'receive ut_pex extension message',info);
                 }
             } else {
                 this.shutdown('invalid extension message',data);
@@ -512,8 +525,12 @@
             this.set('is_interested',false);
         },
         handle_choke: function(data) {
+            // if swarm is healthy and we don't need this peer... just drop this connection
             this._choked = true;
             this.set('am_choked',true);
+            if (this.torrent.swarm.healthy()) {
+                this.close('looking for another peer')
+            }
         },
         handle_unchoke: function(data) {
             this._choked = false;
@@ -564,6 +581,9 @@
 
             // update torrent piece availability...
             this.set('complete', this.fraction_complete(this._remote_bitmask));
+            if (this.get('complete') == 1000) {
+                this.peer.set('complete',true);
+            }
             if (this.seeding()) {
                 if (this.remote_complete()) {
                     this.trigger('completed');
@@ -617,10 +637,16 @@
             mylog(LOGMASK.network,'handle piece request for piece',index,'offset',offset,'of size',size);
 
             var piece = this.torrent.get_piece(index);
+            if (piece.complete()) {
 
             // read each of these file payloads and respond...
             // var request_info = {'index':index, 'offset':offset, 'size':size};
-            piece.get_data(offset, size, this.on_handle_request_data);
+                piece.get_data(offset, size, this.on_handle_request_data);
+            } else {
+                var payload = jspack.Pack(">III", [index, offset, size]);
+                this.send_message("REJECT_REQUEST", payload);
+                mylog(LOGMASK.error,'connection asked for incomplete piece',index,offset,size);
+            }
         },
         on_handle_request_data: function(piece, request, responses) {
             var payload = jspack.Pack('>II', [piece.num, request.original[0]]);
@@ -708,7 +734,7 @@
             var data = parse_message(msg);
             this._last_message_in = new Date().getTime();
             mylog(LOGMASK.network,'handle message',data.msgtype,data);
-            if (data.msgtype != 'PIECE') this.set('last_message',data.msgtype);
+            if (data.msgtype != 'PIECE' && data.msgtype != 'UTORRENT_MSG') this.set('last_message',data.msgtype);
             var handler = this.handlers[data.msgtype];
             if (handler) {
                 handler(data);

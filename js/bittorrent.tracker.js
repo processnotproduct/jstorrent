@@ -54,7 +54,7 @@
                            downloaded: 0,
                            uploaded: 0,
                            compact: 1,
-                           left: 0
+                           left: Math.floor( (1000 - this.torrent.get('complete')) * this.torrent.get_size() )
                          };
             jQuery.ajax( { url: this.get_url(params),
                            success: _.bind(this.on_success,this),

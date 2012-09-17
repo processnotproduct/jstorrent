@@ -132,13 +132,11 @@
                         
                         for (var i=0; i<hash.length; i++) {
                             if (hash[i] != metahash[i]) {
-                                mylog(1,'hash mismatch!')
-                                debugger;
+                                mylog(LOGMASK.error,'hash mismatch!',this)
                             }
                         }
 
                         //mylog(1,'downloaded piece hash match!')
-                        //this.torrent.notify_have_piece(this); // happens after the successful write
                         this.write_data_to_filesystem();
 
                     },this));
@@ -205,6 +203,8 @@
             for (var i=0; i<requests.length; i++) {
                 var offset = requests[i][1];
                 if (this._outbound_request_offsets[offset]) {
+                    conn.set('timeouts', conn.get('timeouts')+1);
+                    conn.adjust_chunk_queue_size();
                     mylog(LOGMASK.queue,'timing out piece w offset',this.num, offset);
                     delete this._outbound_request_offsets[offset];
                     conn._outbound_chunk_requests--;
@@ -306,5 +306,7 @@
             }
         }
     };
+
+
 
 })();

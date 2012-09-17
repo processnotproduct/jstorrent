@@ -3,6 +3,7 @@
     jstorrent.Peer = Backbone.Model.extend({
         className: 'Peer',
         initialize: function(opts) {
+            this.torrent = opts.torrent;
             this._last_closed = null;
             this._unresponsive = null;
             this._banned = false;
@@ -28,13 +29,14 @@
             } else if (data.reason == 'dpoint timeout') {
                 this._reconnect_in = new Date() + 5000;
             }
-
         },
         is_self: function() {
             return false;
         },
         can_reconnect: function() {
-            if (this._banned) { 
+            if (this.torrent.get('complete') == 1000 && this.get('complete')) {
+                return false;
+            } else if (this._banned) { 
                 return false;
             } else if (! this._last_closed) {
                 return true;

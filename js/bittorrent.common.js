@@ -61,19 +61,29 @@ for (var key in LOGMASK) {
 LOGMASK.all = b;
 
 function to_file_size(size) {
-  var precision = 2;
-  var sz = ['b', 'kb', 'Mb', 'Gb', 'Tb', 'Pb', 'Eb'];
+  var precision = 1;
+  var sz = ['B', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB'];
   var szmax = sz.length-1;
 
   // Force units to be at least kB                                              
+    var unit = 0;
+    
+/*
   var unit = 1;
   size /= 1024;
+*/
 
   while ((size >= 1024) && (unit < szmax)) {
     size /= 1024;
     unit++;
   }
-  return (size.toFixed(precision || 1) + " " + sz[unit]);
+    if (unit == 0) {
+        precision = 0;
+    } else if (unit > 1) {
+        precision = 2;
+    }
+        return (size.toFixed(precision) + " " + sz[unit]);
+
 }
 
 //var curlogmask = LOGMASK.network | LOGMASK.general

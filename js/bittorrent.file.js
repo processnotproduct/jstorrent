@@ -293,12 +293,14 @@
                     if (piecedone) {
                         mylog(LOGMASK.disk,'piece',piece.num,'wrote out all data',file.repr(),'CLEARING OUT RESPONSES');
                         piece._chunk_responses = [];
+                        file.torrent.notify_have_piece(piece);
                         // WARNING!!! -- 
                     } else {
                         file.on_download_complete();
                         mylog(LOGMASK.disk,'piece',piece.num,'done for',file.repr(),'piece continues to next file');
+                        // NOTIFY HERE???
                     }
-                    file.torrent.notify_have_piece(piece);
+                    
                 }
 
                 if (i == piece.numchunks) {

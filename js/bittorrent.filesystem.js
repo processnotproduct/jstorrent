@@ -110,7 +110,7 @@
 
         },
         get_file_by_path: function(path, callback, area) {
-            area = area || 'temporary'
+            assert(area);
             // returns file entry for given path, recursively creating directories as necessary
             var curpath = path.slice();
             var _this = this;

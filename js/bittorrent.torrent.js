@@ -30,7 +30,7 @@
             this.files = new jstorrent.TorrentFileCollection();
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
-            this.set('maxconns',5);
+            this.set('maxconns',10);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
             this.set('size',0);
@@ -135,7 +135,7 @@
                         } else {
                             _this.set('storage_area','persistent');
                             _this.save();
-                            mylog(LOGMASK.disk,'remove',res);
+                            mylog(1,'remove',res); // removerecursively?
                             res.remove(onremove, onremove);
                         }
                     }
@@ -514,12 +514,16 @@
             return !! this.get_infodict().files;
         },
         get_file: function(n) {
-            if (this.files.models[n]) {
-                return this.files.models[n]
+            var file = this.files.get(n);
+            if (file) {
+                assert (file.num == n)
+                return file
             } else {
-                var file = new jstorrent.TorrentFile({torrent:this, num:n});
-                this.files.add(file, {at:n});
-                //this.files.models[n] = file;
+                var file = new jstorrent.TorrentFile({id:n, torrent:this, num:n});
+                assert(file.num == n);
+                //this.files.add(file, {at:n}); // does not work!
+                this.files.add(file);
+                assert(this.files.get(n) == file);
                 return file;
             }
         },
@@ -784,9 +788,9 @@
                 if (this.is_multifile()) {
                     var path = [this.get_infodict().name];
                     var path = path.concat(spath);
-                    jsclient.get_filesystem().get_file_by_path( path, callback )
+                    jsclient.get_filesystem().get_file_by_path( path, callback, this.get_storage_area() )
                 } else {
-                    jsclient.get_filesystem().get_file_by_path( path, callback )
+                    jsclient.get_filesystem().get_file_by_path( path, callback, this.get_storage_area() )
                 }
             }
         },

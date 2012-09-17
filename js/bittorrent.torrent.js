@@ -382,7 +382,7 @@
                     // file to have to be filled in with a bunch of
                     // sparse zeros (sucks), and don't return the piece
 
-                    if (! piece.all_chunks_requested() && ! piece.skipped()) {
+                    if (! piece.all_chunks_requested() && ! piece.skipped() && ! piece.wrote_but_not_stored()) {
                         return piece;
                     }
                 }
@@ -534,7 +534,7 @@
 
         },
         notify_have_piece: function(piece, opts) {
-            if (opts.skipped) {
+            if (opts && opts.skipped) {
                 var skip = this.get('bitmask_skip') || {};
                 skip[piece.num] = 1;
                 this.set('bitmask_skip',skip);

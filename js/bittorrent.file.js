@@ -21,6 +21,7 @@
             this.set('size',this.get_size());
             this.set('path',this.get_path());
             this.set('pieces',this.get_num_pieces());
+            this.set('first_piece',Math.floor(this.start_byte / this.torrent.piece_size));
             this.on('change:priority', function(m,v) {
                 this.torrent.set_file_priority(m.num, v);
             });
@@ -298,27 +299,24 @@
 
             function write_next(evt) {
 
-                function oncomplete(piecedone) {
-                    TorrentFile._write_queue_active = false;
-                    TorrentFile.process_write_queue();
-                    if (piecedone) {
+                function oncomplete(canclean) {
+                    if (piece._file_was_skipped) {
+                        // doesn't send the HAVE messages
+                        file.torrent.notify_have_piece(piece, {skipped:true});
+                    } else {
+                        file.torrent.notify_have_piece(piece);
+                    }
+
+                    if (canclean) {
                         mylog(LOGMASK.disk,'piece',piece.num,'wrote out all data',file.repr(),'CLEARING OUT RESPONSES');
                         piece._chunk_responses = [];
-                        if (! piece._file_was_skipped) {
-                            // we didn't save the entire piece to disk
-                            file.torrent.notify_have_piece(piece);
-                        } else {
-                            file.torrent.notify_have_piece(piece, {skipped:true});
-                        }
-                        // WARNING!!! -- 
                     } else {
-                        if (! file.skipped()) {
-                            file.on_download_complete();
-                        }
+                        // file.on_download_complete(); // this simply checks that it got written with the right size
                         mylog(LOGMASK.disk,'piece',piece.num,'done for',file.repr(),'piece continues to next file');
-                        // NOTIFY HERE???
                     }
-                    
+
+                    TorrentFile._write_queue_active = false;
+                    TorrentFile.process_write_queue();
                 }
 
                 if (i == piece.numchunks) {

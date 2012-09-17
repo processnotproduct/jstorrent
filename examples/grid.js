@@ -305,6 +305,7 @@ var FileTableView = SuperTableView.extend({
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
+            {id: "first_piece", name: "first_piece", field: "first_piece", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
             {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderLink, formatter: waitingFormatter },
             {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false },

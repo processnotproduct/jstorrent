@@ -320,7 +320,6 @@ function b642arr(inp) {
         return d;
     }
 
-
     window.bisect_left = function(arr, v, lo, hi) {
         var mid;
         lo = lo || 0;
@@ -331,6 +330,18 @@ function b642arr(inp) {
             else { hi = mid; }
         }
         return lo
+    }
+    
+    window.geolocate = function(ip) {
+        var nums = ip.split('.');
+        var s = 0;
+        for (var i=0; i<nums.length; i++) {
+            s += Math.pow(256,nums.length-1 - i) * parseInt(nums[i],10)
+        }
+        var idx = bisect_left(geoip_ip, s);
+        assert(s >= geoip_ip[idx-1] && s < geoip_ip[idx]);
+        var country = geoip_country[idx-1];
+        return country;
     }
         
     jstorrent.Collection = Backbone.Collection.extend({

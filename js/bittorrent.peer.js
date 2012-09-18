@@ -4,6 +4,10 @@
         className: 'Peer',
         initialize: function(opts) {
             this.torrent = opts.torrent;
+            var parts = this.id.split(':');
+            this.ip = parts[0];
+            this.port = parseInt(parts[1],10);
+            this.set('country',geoip_country_name[geolocate(this.ip)]);
             this._last_closed = null;
             this._unresponsive = null;
             this._banned = false;

@@ -358,7 +358,8 @@ var PeerTableView = SuperTableView.extend({
         this.torrent = opts.torrent;
         opts.columns = [
             {id: "client", name: "client", field: "client", sortable: true, width:200 },
-            {id: "host", name: "host", field: "host", sortable: true, width:200 },
+            {id: "country", name: "country", field: "country", sortable: true, width:140 },
+            {id: "host", name: "host", field: "host", sortable: true, width:130 },
             {id: "port", name: "port", field: "port", sortable: true, width:80 },
 //            {id: "dht_port", name: "dht_port", field: "dht_port", sortable: true, src:'conn',width:80 },
             {id: "bytes_sent", name: "bytes_sent", field: "bytes_sent", unit: 'bytes', sortable: true },

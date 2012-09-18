@@ -204,7 +204,7 @@
             }
 
             this._outbound_chunk_requests = 0;
-            this._outbound_chunk_requests_limit = 20;
+            this._outbound_chunk_requests_limit = 10;
 
             this._host = host;
             this._port = port;
@@ -289,7 +289,7 @@
                 resp['metadata_size'] = this.torrent.metadata_size;
             }
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
-            resp['m']['ut_pex'] = 3; // totally arbitrary number, but UT needs 2???
+            //resp['m']['ut_pex'] = 3; // clients snub us if we advertise but dont respond
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
             mylog(LOGMASK.network_verbose, 'sending extension handshake with data',resp);

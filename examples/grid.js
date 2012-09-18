@@ -357,16 +357,18 @@ var PeerTableView = SuperTableView.extend({
     initialize: function(opts) {
         this.torrent = opts.torrent;
         opts.columns = [
-            {id: "client", name: "client", field: "client", sortable: true, width:200 },
+            {id: "client", name: "client", field: "client", sortable: true, width:140 },
             {id: "country", name: "country", field: "country", sortable: true, width:140 },
             {id: "host", name: "host", field: "host", sortable: true, width:130 },
-            {id: "port", name: "port", field: "port", sortable: true, width:80 },
+            {id: "port", name: "port", field: "port", sortable: true, width:60 },
 //            {id: "dht_port", name: "dht_port", field: "dht_port", sortable: true, src:'conn',width:80 },
             {id: "bytes_sent", name: "bytes_sent", field: "bytes_sent", unit: 'bytes', sortable: true },
             {id: "bytes_received", name: "bytes_received", field: "bytes_received", unit: 'bytes', sortable: true },
-            {id: "outbound_chunks", name: "outbound_chunks", field: "outbound_chunks", sortable: true, width:80, src:'conn' },
-            {id: "chunks_received", name: "chunks_received", field: "chunks_received", sortable: true, width:80, src:'conn' },
+            {id: "outbound_chunks", name: "outbound_chunks", field: "outbound_chunks", sortable: true, width:40, src:'conn' },
+            {id: "chunks_received", name: "chunks_received", field: "chunks_received", sortable: true, width:40, src:'conn' },
             {id: "timeouts", name: "timeouts", field: "timeouts", sortable: true, src:'conn' },
+            {id: "max_down", name: "max_down", field: "max_down", sortable: true, src:'conn' },
+            {id: "max_up", name: "max_up", field: "max_up", sortable: true, src:'conn' },
             {id: "state", name: "state", field: "state", sortable: true, src:'conn' },
             {id: "last_message", name: "last_message", field: "last_message", sortable: true, src:'conn', width:190 },
             {id: "%", name: "% Complete", field: "complete", src:'conn',sortable: true }

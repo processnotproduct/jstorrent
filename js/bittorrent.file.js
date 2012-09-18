@@ -287,8 +287,11 @@
             }
             sz = infile - file_metadata.size;
             if (sz > Math.pow(2,25)) {
+                mylog(LOGMASK.error,'WARNING -- filling with',sz,'zeros',file);
                 // filling too many zeroes!
-                debugger;
+                if (config.debug_asserts) {
+                    debugger;
+                }
             }
             var zeroes = new Uint8Array( sz );
             mylog(LOGMASK.disk,'writing',sz,'zeros to',file.repr());

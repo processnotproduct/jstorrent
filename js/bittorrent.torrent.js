@@ -30,7 +30,7 @@
             this.files = new jstorrent.TorrentFileCollection();
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
-            this.set('maxconns',20);
+            this.set('maxconns',10);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
             this.set('size',0);
@@ -373,20 +373,41 @@
             }
         },
         choose_incomplete_piece: function(remote_bitmask) {
+            // TODO -- have my own pieces sorted by completed or not
+            var startindex = 0;
+            var toreturn;
+            if (this.get('first_incomplete')) {
+                startindex = this.get('first_incomplete');
+            }
+
+
             // selects a piece... (what is a more efficient way to do this?)
-            for (var i=0; i<this.num_pieces; i++) {
-                if (! this.piece_complete(i) && remote_bitmask[i]) {
-                    var piece = this.get_piece(i);
+            var first_incomplete = null;
+            for (var i=startindex; i<this.num_pieces; i++) {
+                //console.log('startindex',startindex);
+                if (! this.piece_complete(i)) {
+                    if (first_incomplete == null) {
+                        first_incomplete = i;
+                    }
+                    if (remote_bitmask[i]) {
+                        var piece = this.get_piece(i);
 
-                    // check if piece, when written, would cause the
-                    // file to have to be filled in with a bunch of
-                    // sparse zeros (sucks), and don't return the piece
+                        // check if piece, when written, would cause the
+                        // file to have to be filled in with a bunch of
+                        // sparse zeros (sucks), and don't return the piece
 
-                    if (! piece.all_chunks_requested() && ! piece.skipped() && ! piece.wrote_but_not_stored()) {
-                        return piece;
+                        if (! piece.all_chunks_requested() && ! piece.skipped() && ! piece.wrote_but_not_stored()) {
+                            toreturn = piece;
+                            break;
+                        }
                     }
                 }
             }
+
+            if (first_incomplete != null && startindex != first_incomplete) {
+                this.set('first_incomplete', first_incomplete);
+            }
+            return toreturn;
         },
         magnet_only: function() {
             return ! (this.fake_info || this.metadata);

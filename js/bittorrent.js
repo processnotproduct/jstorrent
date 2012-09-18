@@ -195,6 +195,8 @@
             this.set('bytes_received',0);
             this.set('bytes_sent',0);
             this.set('chunks_received',0);
+            this.set('max_down',0);
+            this.set('max_up',0);
             this.set('timeouts',0);
             //var infohash = opts.hash; // array buffers and stuff no bueno... just want simple array
             assert(opts.hash.length == 20);
@@ -250,7 +252,13 @@
                 'CANCEL': this.handle_cancel,
                 'keepalive': this.handle_keepalive
             };
+            this.bytecounters = { sent: new jstorrent.ByteCounter({parent:this.torrent.bytecounters.sent}),
+                                  received: new jstorrent.ByteCounter({parent:this.torrent.bytecounters.received}) };
             this.reconnect();
+        },
+        compute_max_rates: function() {
+            this.set('max_up', Math.max(this.bytecounters.sent.avg({noparent:true}), this.get('max_up')));
+            this.set('max_down', Math.max(this.bytecounters.received.avg({noparent:true}), this.get('max_down')));
         },
         adjust_chunk_queue_size: function() {
             if (this.get('timeouts') > this.get('chunks_received')) {
@@ -719,14 +727,14 @@
         },
         send: function(msg) {
             this._last_message_out = new Date().getTime();
-            this.torrent.bytecounters.sent.sample(msg.byteLength);
+            this.bytecounters.sent.sample(msg.byteLength);
             this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
             this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
             this.stream.send(msg);
         },
         close: function(reason) {
             if (reason) {
-                mylog(LOGMASK.network,'close connection',reason);
+                mylog(LOGMASK.general,'close connection',reason);
             }
             this.stream.close()
         },
@@ -832,7 +840,7 @@
         },
         onmessage: function(evt) {
             var msg = evt.data;
-            this.torrent.bytecounters.received.sample(msg.byteLength);
+            this.bytecounters.received.sample(msg.byteLength);
             this.set('bytes_received', this.get('bytes_received') + msg.byteLength);
             this.torrent.set('bytes_received', this.torrent.get('bytes_received') + msg.byteLength);
             this.read_buffer.push(msg);

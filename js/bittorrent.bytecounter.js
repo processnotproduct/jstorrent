@@ -25,7 +25,7 @@
         
     }
     jstorrent.ByteCounter.prototype = {
-        sample: function(bytes, t, s) {
+        sample: function(bytes, t, s, opts) {
             // takes a sample at time t of some bytes
             t = t || new Date();
             var s = s || Math.floor(t/1000);
@@ -50,19 +50,22 @@
 
             this.last_sample = s;
             if (this.parent) {
-                this.parent.sample(bytes, t, s);
+                if (opts && opts.noparent) {
+                } else {
+                    this.parent.sample(bytes, t, s);
+                }
             }
         },
-        recent: function(t, s) {
-            this.sample(0, t, s);
+        recent: function(t, s, opts) {
+            this.sample(0, t, s, opts);
             var sum = 0;
             for (var i=0; i<this.numsamples; i++) {
                 sum += this.cbuf[(this.cpos + 1 + i)%this.numsamples];
             }
             return sum;
         },
-        avg: function() {
-            var sum = this.recent();
+        avg: function(opts) {
+            var sum = this.recent(null, null, opts);
             return sum/(this.numsamples * this.sampsize);
         }
 

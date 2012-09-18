@@ -17,6 +17,8 @@
             //mylog(1,'torrents synced', this.torrents.models);
 
             this.tick_interval = 200;
+            this.long_tick_interval = 10000;
+
             this.requests_per_tick = 10;
             //this.filesystem.on('initialized', _.bind(this.tick,this));
 
@@ -34,6 +36,7 @@
                     }
                     this.trigger('ready');
                     this.tick();
+                    this.long_tick();
                 }
                 
             }
@@ -207,6 +210,31 @@
             this._next_tick = setTimeout( _.bind(this.tick, this), this.tick_interval );
             // called every once an a while
         },
+        long_tick: function() {
+            var torrent;
+            var conn;
+            var lowest;
+            for (var i=0; i<this.torrents.models.length; i++) {
+                torrent = this.torrents.models[i];
+                lowest = null;
+                for (var j=0; j<torrent.connections.models.length; j++) {
+                    conn = torrent.connections.models[j];
+                    conn.compute_max_rates();
+                    if (! lowest) {
+                        lowest = conn;
+                    } else if (conn.get('max_down') < lowest.get('max_down')) {
+                        lowest = conn;
+                    }
+                }
+
+                // got conn with lowest rate, drop that fucker!
+                if (torrent.swarm.healthy() && conn && torrent.connections.models.length == torrent.get('maxconns')) {
+                    conn.close('slowest');
+                }
+            }
+
+            this._next_long_tick = setTimeout( _.bind(this.long_tick, this), this.long_tick_interval );
+        }
     });
 
 

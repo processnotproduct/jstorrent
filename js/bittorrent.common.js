@@ -5,6 +5,7 @@ window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8031},
     //debug_torrent_client: {ip:'192.168.56.101', port:64399},
     unit_tests: false, // run unit tests
+    debug_asserts: false,
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     bittorrent_proxy: '192.168.56.1:8030',

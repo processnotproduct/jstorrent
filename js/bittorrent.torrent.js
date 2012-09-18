@@ -528,12 +528,17 @@
         get_num_pieces: function() {
             return Math.ceil( this.size / this.piece_size );
         },
-        register_meta_piece_requested: function(num, callback) {
+        register_meta_piece_requested: function(num, conn, callback) {
             if (this._hashing_all_pieces) {
                 debugger; // already hashing all pieces... simply return data when done
                 return;
             }
-
+            if (! this.get_infodict()) {
+                // someone requested metadata even though we don't have it
+                mylog(LOGMASK.error,'they requested metadata even though we dont got it!',this.repr(), conn.repr())
+                return;
+                // TODO -- send reject
+            }
             // other end has requested a metadata piece. determine which
             // pieces this corresponds to and read them and hash them.
             var data = {'time':new Date(), 'metapiece':num, 'callback': callback};

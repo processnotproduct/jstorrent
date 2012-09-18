@@ -65,6 +65,7 @@
             return sum;
         },
         avg: function(opts) {
+            // TODO -- take into account first sample (cant average unless connection is at least numsamples*sampsize old)
             var sum = this.recent(null, null, opts);
             return sum/(this.numsamples * this.sampsize);
         }

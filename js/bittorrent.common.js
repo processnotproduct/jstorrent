@@ -29,6 +29,7 @@ if (window.location.host.match('jstorrent.com')) {
 }
 window.assert = function(v) {
     if (!v) { 
+        mylog(LOGMASK.error,'assertion failed');
         var l = [];
         for (var i=0; i<arguments.length; i++) {
             l.push(arguments[i]);

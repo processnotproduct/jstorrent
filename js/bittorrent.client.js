@@ -16,7 +16,7 @@
 
             //mylog(1,'torrents synced', this.torrents.models);
 
-            this.tick_interval = 200;
+            this.tick_interval = 100;
             this.long_tick_interval = 10000;
 
             this.requests_per_tick = 10;

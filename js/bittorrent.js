@@ -189,6 +189,7 @@
             var host = opts.host;
             var port = opts.port;
             this.peer = opts.peer;
+            this.peer.set('conn',this);
             assert( typeof opts.port == 'number' );
             var torrent = opts.torrent;
 
@@ -297,7 +298,7 @@
                 resp['metadata_size'] = this.torrent.metadata_size;
             }
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
-            //resp['m']['ut_pex'] = 3; // clients snub us if we advertise but dont respond
+            resp['m']['ut_pex'] = 3; // clients snub us if we advertise but dont respond
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
             mylog(LOGMASK.network_verbose, 'sending extension handshake with data',resp);
@@ -486,7 +487,7 @@
                             if (! this.torrent.has_infodict()) { // remove check for container, move into torrent
                                 // this is javascript creating the torrent from a file selection or drag n' drop.
                                 mylog(1, 'they are asking for metadata pieces!',metapiece);
-                                this.torrent.register_meta_piece_requested(metapiece, _.bind(this.serve_metadata_piece, this, metapiece) );
+                                this.torrent.register_meta_piece_requested(metapiece, this, _.bind(this.serve_metadata_piece, this, metapiece) );
                                 // figure out which pieces this corresponds to...
                                 // this.bind('close', function() { this.torrent.register_disconnect(metapiece) } );
                             } else {
@@ -734,7 +735,7 @@
         },
         close: function(reason) {
             if (reason) {
-                mylog(LOGMASK.general,'close connection',reason);
+                mylog(LOGMASK.general,'close connection',this.repr(),reason);
             }
             this.stream.close()
         },
@@ -760,6 +761,7 @@
             if (data.protocol == constants.protocol_name) {
                 mylog(LOGMASK.network,'parsed handshake',data)
                 this.set('state','active');
+                this.peer.set('ever_connected',true);
                 if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                     this.send_bitmask();
                 }
@@ -860,7 +862,8 @@
             }
         },
         repr: function() {
-            return this.strurl;
+            var client = this._remote_extension_handshake ? this._remote_extension_handshake['v'] : '';
+            return '<Conn:' + this.strurl +', '+client+', '+ this.peer.repr() + '>';
         },
         onclose: function(evt) {
             // websocket is closed.
@@ -896,7 +899,7 @@
         },
         handle_close: function(data) {
             // gets called 
-            this.peer.notify_closed(data);
+            this.peer.notify_closed(data, this);
         }
     });
 

@@ -417,6 +417,48 @@ var PeerTableView = SuperTableView.extend({
     }
 });
 
+
+var SwarmTableView = SuperTableView.extend({
+    initialize: function(opts) {
+        this.torrent = opts.torrent;
+        opts.columns = [
+            {id: "country", name: "country", field: "country", sortable: true, width:140 },
+//            {id: "id", name: "id", field: "id" },
+            {id: "host", name: "host", field: "host", sortable: true, width:130 },
+            {id: "port", name: "port", field: "port", sortable: true, width:60 },
+            {id: "conn", name: "conn", field: "conn" },
+            {id: "last_closed", name: "last_closed", field: "last_closed", width:140 },
+            {id: "unresponsive", name: "unresponsive", field: "unresponsive" },
+            {id: "banned", name: "banned", field: "banned" },
+            {id: "ever_connected", name: "ever_connected", field: "ever_connected" },
+        ];
+        opts.makeformatter = {
+            getFormatter: function(column) {
+                if (column.field == 'pathaoeuaoue') {
+                    return function(row,cell,value,col,data) {
+                        return '<a href="' + data.filesystem_entry + '">open</a>';
+                    };
+                } else if (column.field == 'conn') {
+                    return function(row,cell,value,col,data) {
+                        if (data.get('conn')) {
+                            return 'yes'
+                        } else {
+                            return '';
+                        }
+                    };
+                } else {
+                    return function(row,cell,value,col,data) {
+                        return data.get(col.field);
+                    };
+                }
+            }
+        };
+        SuperTableView.prototype.initialize.apply(this,[opts]);
+    }
+});
+
+
+
 var TrackerTableView = SuperTableView.extend({
     initialize: function(opts) {
         this.torrent = opts.torrent;
@@ -457,7 +499,7 @@ var TabsView = BaseView.extend({
         this.bind_actions();
     },
     bind_actions: function() {
-        _.each(['peers','general','files','trackers'], _.bind(function(tabname) {
+        _.each(['peers','general','files','trackers','swarm'], _.bind(function(tabname) {
             this.$('.' + tabname).click( function() {
                 jsclientview.set_tab(tabname);
             });
@@ -513,6 +555,8 @@ var JSTorrentClientView = BaseView.extend({
             }
         } else if (curtab == 'peers') {
             jsclientview.detailview = new PeerTableView({ model: torrent.connections, torrent: torrent, el: this.$('.fileGrid')});
+        } else if (curtab == 'swarm') {
+            jsclientview.detailview = new SwarmTableView({ model: torrent.swarm, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'trackers') {
             jsclientview.detailview = new TrackerTableView({ model: torrent.trackers, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'general') {

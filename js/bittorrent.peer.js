@@ -8,25 +8,26 @@
             this.ip = parts[0];
             this.port = parseInt(parts[1],10);
             this.set('country',geoip_country_name[geolocate(this.ip)]);
-            this._last_closed = null;
-            this._unresponsive = null;
-            this._banned = false;
-            this._ever_connected = null; // whether this peer ever did anything useful...
+            this.set('last_closed', null);
+            this.set('unresponsive',null);
+            this.set('banned', false);
+            this.set('ever_connected', null); // whether this peer ever did anything useful...
         },
         repr: function() {
             return this.id;
         },
         ban: function() {
-            this._banned = true;
+            this.set('banned', true);
             // ban this peer.
         },
         notify_closed: function(data, conn) {
-            if (! data._remote_handshake) {
+            this.set('conn',undefined);
+            if (! conn._remote_handshake) {
                 // never even gave me a handshake!
-                this._unresponsive = true;
+                this.set('unresponsive', true);
             }
             mylog(LOGMASK.peer, this.repr(),'peer closed',data, data.reason);
-            this._last_closed = new Date();
+            this.set('last_closed', new Date());
 
             if (data.reason == 'dpoint closed') {
                 this._reconnect_in = new Date() + 1000;
@@ -40,11 +41,11 @@
         can_reconnect: function() {
             if (this.torrent.get('complete') == 1000 && this.get('complete')) {
                 return false;
-            } else if (this._banned) { 
+            } else if (this.get('banned')) { 
                 return false;
-            } else if (! this._last_closed) {
+            } else if (! this.get('last_closed')) {
                 return true;
-            } else if (this._unresponsive && this.collection.length > 10) {
+            } else if (this.get('unresponsive') && this.collection.length > 10) {
                 // never even handshook
                 return false;
             } else if (this._reconnect_in && new Date() > this._reconnect_in) {

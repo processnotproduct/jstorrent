@@ -467,6 +467,7 @@ var TrackerTableView = SuperTableView.extend({
             {id: "url", name: "url", field: "url", sortable: true, width:400 },
             {id: "state", name: "state", field: "state", sortable: true, width:200 },
             {id: "announces", name: "announces", field: "announces", sortable: true, width:100 },
+            {id: "peers", name: "peers", field: "peers", sortable: true, width:100 },
         ];
         opts.makeformatter = {
             getFormatter: function(column) {

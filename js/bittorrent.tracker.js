@@ -26,6 +26,7 @@
             this.url = opts.url;
             this.torrent = opts.torrent;
             this.set('announces',0);
+            this.set('peers',0);
         },
         min_announce_interval: function() {
             return 60 * 1000 * 30;
@@ -54,7 +55,7 @@
                            downloaded: 0,
                            uploaded: 0,
                            compact: 1,
-                           left: Math.floor( (1000 - this.torrent.get('complete')) * this.torrent.get_size() )
+                           left: Math.floor( (1000 - this.torrent.get('complete')) * this.torrent.get_size() ) | 0
                          };
             jQuery.ajax( { url: this.get_url(params),
                            success: _.bind(this.on_success,this),
@@ -110,6 +111,7 @@
                 }
                 this.set('state','active');
                 mylog(LOGMASK.tracker, 'decoded peers',decodedpeers);
+                this.set('peers', this.get('peers') + decodedpeers.length);
 
             } else if (decoded.error) {
                 this.set('active','error');

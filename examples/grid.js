@@ -96,6 +96,13 @@ var SuperTableView = Backbone.View.extend({
             this.grid.render();
         },this));
 
+        this.model.on('remove', _.bind(function(m) {
+            this.grid.updateRowCount(); // do other stuff to make selection work correctly...
+            this.grid.invalidateAllRows();
+            this.grid.render();
+        },this));
+
+
         this.model.bind('change',_.bind(function(model,attributes) {
             var idx = this.model.indexOf(model);
             for (var key in attributes.changes) {

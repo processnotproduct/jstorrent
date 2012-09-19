@@ -3,7 +3,7 @@ function try_register_protocol() {
         mylog(1,'registering prot handler');
         //var hostpart = config.jstorrent_host;
         var hostpart = '';
-        var result = navigator.registerProtocolHandler('web+magnet', hostpart + '/static/kzahel/jstorrent/examples/client.html?q=%s', 'JSTorrent');
+        var result = navigator.registerProtocolHandler('web+magnet', hostpart + window.location.pathname + '?q=%s', 'JSTorrent');
     } catch(e) {
         var errmsg = e.message;
         mylog(1,'error registering prot handler', errmsg, e);
@@ -147,6 +147,8 @@ var TorrentTableView = SuperTableView.extend({
             {id: "numpeers", name: "numpeers", field: "numpeers", sortable: true},
             {id: "numswarm", name: "numswarm", field: "numswarm", sortable: true}
         ];
+        this.default_height = 200;
+        this.options.el.height(this.default_height);
         var progress_template = jstorrent.tmpl("progress_template");
         this.dependentAttributes = { 'bytes_sent': ['send_rate'],
                                      'bytes_received': ['receive_rate']
@@ -507,9 +509,9 @@ var TabsView = BaseView.extend({
     },
     bind_actions: function() {
         _.each(['peers','general','files','trackers','swarm'], _.bind(function(tabname) {
-            this.$('.' + tabname).click( function() {
+            this.$('.' + tabname).click( _.bind(function() {
                 jsclientview.set_tab(tabname);
-            });
+            },this));
         },this));
     }
 });
@@ -533,7 +535,7 @@ var GeneralDetailView = BaseView.extend({
 var JSTorrentClientViewSettings = Backbone.Model.extend({
     localStorage: new Store('JSTorrentClientViewSettings'),
     initialize: function() {
-    },
+    }
     
 });
 
@@ -549,6 +551,59 @@ var JSTorrentClientView = BaseView.extend({
         this.detailview = null;
         this.commands = new CommandsView({el:this.$('.commands'), table:this.torrenttable});
         this.tabs = new TabsView({el:this.$('.tabs')});
+
+        
+
+
+        this.$('.dragbar').mousedown(_.bind(function(e){
+            e.preventDefault();
+            //console.log('mousedown',e.pageY, e.screenY, e.offsetY);
+
+            var click_start = e;
+            var offset_top = this.$('.pane-top').offset();
+            var offset_bottom = this.$('.pane-bottom').offset();
+
+            $(document).mousemove(_.bind(function(e){
+
+                //console.log(e.pageY, e.screenY);
+
+
+                //var newht = Math.max(0,e.screenY - this.torrenttable.default_height);
+                //$('#position').html(e.pageX +', '+ e.pageY);
+                //$('#sidebar').css("width",e.pageX+2);
+
+                //this.torrenttable.$el.height(newht);
+/*
+                this.torrenttable.grid.resizeCanvas();
+
+                if (this.detailview && this.detailview.grid) {
+                    this.detailview.grid.resizeCanvas();
+                }
+*/
+
+                //this.torrenttable.resize(e.pageY);
+                //$('#main').css("left",e.pageX+2);
+            },this))
+        },this));
+        $(document).mouseup(function(e){
+            $('#clickevent').html('in another mouseUp event' + i++);
+            $(document).unbind('mousemove');
+        });
+
+
+
+        $('#magnet').click( function() {
+            try_register_protocol();
+        });
+
+    },
+    get_dim: function(elt) {
+        if (elt == 'header') {
+            return 140;
+        } else {
+            var el = this.$('.' + elt);
+            debugger;
+        }
     },
     init_detailview: function() {
         if (this.detailview) { this.detailview.destroy(); }
@@ -579,10 +634,11 @@ var JSTorrentClientView = BaseView.extend({
         }
     },
     set_tab: function(tabtype) {
+        this.tabs.$('li').removeClass('active')
+        this.tabs.$('.' + tabtype).addClass('active');
         this.settings.set('tab',tabtype);
         this.settings.save();
         this.init_detailview();
-        
         //this.detailview.set_type( tabtype );
     },
     select_torrent: function(torrent) {
@@ -668,7 +724,7 @@ jQuery(function() {
         var data = evt.originalEvent.clipboardData;
         
         var a = [];
-        console.log(JSON.stringify(data.items))
+        //console.log(JSON.stringify(data.items))
         // doesn't really work... paste only pastes a single file!
         for (var i=0; i<data.items.length; i++) {
             var d = { type:data.items[i].type, 
@@ -751,9 +807,6 @@ jQuery(function() {
 
     });
 
-    $('#magnet').click( function() {
-        try_register_protocol();
-    });
 
     // 12E3AAA7F2F36137CCE9978824BCF156A339FF76
 
@@ -768,5 +821,7 @@ jQuery(function() {
     if (url_args.hash) {
         jsclient.add_unknown(url_args.hash);
     }
+
+
     //jsclient.add_random_torrent();
 });

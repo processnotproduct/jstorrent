@@ -856,11 +856,13 @@ function hmac_sha1_stream_tail(opad, naked_hash) {
         encode_func[gettype(x)](x ,r, stack, stack_callback, opts);
         return r;
     }
+/*
     var r = bdecode( utf8.parse(bencode( { 'hello':23} )) );
     assert( r['hello'] = 23 );
+*/
 
     window.ab2str = function(buf) {
-        return String.fromCharCode.apply(null, new Uint16Array(buf));
+        return String.fromCharCode.apply(String, new Uint16Array(buf));
     }
 
     window.arr2str = function(buf) {

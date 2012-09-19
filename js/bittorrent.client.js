@@ -25,6 +25,10 @@
             function ready(data) {
                 if (data && data.error) {
                     mylog(LOGMASK.error,'filesystem init error');
+                    this.torrents.fetch();
+                    _.defer(_.bind(function(){this.trigger('ready');},this));
+                    this.tick();
+                    this.long_tick();
                 } else {
                     mylog(1,'filesystems ready!');
                     this.torrents.fetch();
@@ -144,7 +148,7 @@
 
                 for (var i=0; i<movetorrents.length; i++) {
                     var torrent = movetorrents[i];
-                    fns.push( { fn: torrent.move_storage_area, this: torrent, arguments: ['persistent'], callbacks: [1] } );
+                    fns.push( { fn: torrent.move_storage_area, fnthis: torrent, arguments: ['persistent'], callbacks: [1] } );
                 }
                 new Multi(fns).sequential( function(result) {
                     mylog(1,'freed temporary!',result);

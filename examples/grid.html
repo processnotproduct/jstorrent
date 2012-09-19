@@ -8,9 +8,12 @@
     <title>JSTorrent</title>
     <script src="../js/deps/jquery-1.7.2.min.js"></script>
 
-
     <script src="../js/deps/underscore.js"></script> 
     <script src="../js/deps/backbone.js"></script>  
+
+    <script src="../js/deps/polyfill/typedarray.js"></script>  
+    <script src="../js/deps/polyfill/base64.js"></script>  
+
     <script src="../js/deps/backbone.localStorage.js"></script>  
     <!--script src="../js/deps/jstorage.js"></script-->
     <script src="SlickGrid/lib/jquery.event.drag-2.0.min.js"></script>
@@ -24,7 +27,7 @@
     <script src="../js/deps/digest.js"></script>
     <script src="../js/deps/smoothie.js"></script>
 
-    <script src="../js/deps/geoip/geoip.js"></script>
+
 
     <!--script src="../js/deps/FileSaver.js"></script-->
     <script src="../js/bittorrent.common.js"></script>  
@@ -43,33 +46,17 @@
     <script src="../js/bittorrent.torrent.js"></script>  
     <script src="../js/bittorrent.js"></script>  
 
-    <script type="text/javascript" src="../js/deps/dht.js"></script>
+    <!--script type="text/javascript" src="../js/deps/dht.js"></script-->
 
     <script type="text/javascript" src="grid.js"></script>
 
     <style>
+      html { height:100% }
+      body { height:100% }
+
       ul.action-tabs li { display: inline; }
       ul.commands li { display: inline; }
     </style>
-
-    <script type="text/template" id="torrent_template">
-
-          <span style="background:#888" class="name"></span>
-          <span class="size"></span>
-          <span class="status"></span>
-          <span class="complete"></span>
-          <span class="peers"></span>
-          (<span class="bytes_sent"></span> up,
-          <span class="bytes_received"></span> down)
-          <span class="commands">
-            <a href="#"><i class="start-stop icon-start"></i></a>
-            <a href="#"><i class="icon-remove"></i></a>
-            <a href="#"><i class="icon-upload"></i></a>
-            <a href="#"><i class="icon-refresh"></i></a>
-            <a href="#"><i class="icon-bell"></i></a>
-          </span>
-
-    </script>
 
 <script type="text/template" id="progress_template">
   <div class="progress progress-striped <%=isactive%>">
@@ -77,55 +64,25 @@
   </div>
 </script>
 
-    <script type="text/template" id="peer_template">
-      <span class="host"></span>
-      (v <span class="client"></span>)
-      (<span class="complete"></span>)
-      (reqs <span class="outbound-chunks"></span>)
-      <span class="state"></span>
-      (<span class="bytes_sent"></span> up,
-      <span class="bytes_received"></span> down)
-    </script>
-
-    <script type="text/template" id="detailed_peer_template">
-      <span class="host"></span>
-      (v <span class="client"></span>)
-      (<span class="complete"></span>)
-      (reqs <span class="outbound-chunks"></span>)
-      <span class="state"></span>
-      (<span class="bytes_sent"></span> up,
-      <span class="bytes_received"></span> down)
-
-      <span class="handshake"></span>
-    </script>
-
-
     <script type="text/template" id="tabs_template">
-      <ul class="action-tabs">
-        <li class="general"><a href="#">General</a></li>
-        <li class="trackers"><a href="#">Trackers</a></li>
-        <li class="peers"><a href="#">Peers</a></li>
-        <li class="swarm"><a href="#">Swarm</a></li>
-        <li class="files"><a href="#">Files</a></li>
+      <ul class="action-tabs nav nav-tabs">
+        <li class="general"><a href="#"><i class="icon-book"></i>General</a></li>
+        <li class="trackers"><a href="#"><i class="icon-screenshot"></i>Trackers</a></li>
+        <li class="peers"><a href="#"><i class="icon-user"></i>Peers</a></li>
+        <li class="swarm"><a href="#"><i class="icon-asterisk"></i>Swarm</a></li>
+        <li class="files"><a href="#"><i class="icon-file"></i>Files</a></li>
       </ul>
     </script>
 
-
     <script type="text/template" id="add_template">
-      <fieldset>
-      <label>add torrent</label>
       <input type="text" class="url" />
       <input type="button" value="add" class="add" />
-      </fieldset>
     </script>
 
     <script type="text/template" id="commands_template">
-      <ul class="commands">
-        <li><a class="play" href="#"><i class="icon-play"></i></a></li>
-        <li><a class="remove" href="#"><i class="icon-remove"></i></a></li>
-        <li><a class="upload" href="#"><i class="icon-upload"></i></a></li>
-        <li><a class="refresh" href="#"><i class="icon-refresh"></i></a></li>
-        <li><a class="bell" href="#"><i class="icon-bell"></i></a></li>
+      <ul class="commands nav nav-pills">
+        <li><a class="play btn btn-small" href="#"><i alt="remove" class="icon-play"></i></a></li>
+        <li><a class="remove btn btn-small" href="#"><i alt="remove" class="icon-remove"></i></a></li>
       </ul>
     </script>
     
@@ -159,14 +116,35 @@
 
     <script type="text/template" id="client_template">
 
-      <div class="commands"></div>
-      <div class="tabs" style="float:right">
-      </div>
-      <div class="addview"></div>
-      <!--div id="myGrid" style="width:100%; height:800px;"></div-->
-      <div class="torrentGrid" style="position: absolute; height:25%; bottom:45%; left:0px; right:0px"></div>
 
-      <div class="fileGrid" style="position: absolute; height:45%; bottom:0px; left:0px; right:0px">double click on a torrent to view files</div>
+
+
+      <div style="margin-left:20px;">
+        <h1>jstorrent</h1>
+        <span style="float:right; margin-right:2em;">Welcome to jstorrent! Drag in files to create torrents. Drag in a torrent to start downloading!</span>
+      </div>
+
+      <div class="pane-top">
+        <div style="position:relative; height:50px;">
+          <div style="margin-left: 10px" class="commands"></div>
+          <div style="position:absolute; left: 200px;" class="addview"></div>
+        </div>
+        <div class="torrentGrid" style="background:#eef;"></div>
+      </div>
+
+      <div class="dragbar" style="background:#eee; border-color: black; border-top:1px; border-bottom:1px; height:20px; cursor: row-resize; width:100%"></div>
+
+      <!-- bottom resizey area -->
+      <div class="pane-bottom" style="position:absolute: bottom:0px; left:0px; right:0px;">
+        <div class="tabs" style=""></div>
+        <div class="fileGrid" style="background:#ffe;height:350px;">Select a torrent (<a href="web+magnet:?xt=urn:btih:2be808c54b33c17ed6a2f8396404a52152bf3047">add one</a>? - (<a href="javascript:jsclient.add_unknown('2be808c54b33c17ed6a2f8396404a52152bf3047')">simple add</a>)
+          <a id="magnet" href="#">register protocol handler!</a>
+        </div>
+      </div>
+      <!-- end -->
+
+
+
     </script>
 
 
@@ -180,17 +158,13 @@
 
 
 
-
-      <h1>jstorrent</h1>
-      Welcome to jstorrent! Drag in files to create torrents. Drag in a torrent to start downloading!
-
-      <!--div id="client">
-      </div-->
+    <!--div id="client">
+        </div-->
 
 
-<div id="client"></div>
+    <div id="client" style="height:100%"></div>
 
-      <a id="magnet" href="#">register protocol!</a>
+      <!--a id="magnet" href="#">register protocol!</a-->
 <!--br />
 <a href="magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80">big buck bunny magnet</a>
 <br />
@@ -198,6 +172,6 @@
 <br />
 <a href="unregisteredthing:foobar@bar.com">unregistered</a-->
 
-
+    <!--script src="../js/deps/geoip/geoip.js"></script-->
   </body>
 </html>

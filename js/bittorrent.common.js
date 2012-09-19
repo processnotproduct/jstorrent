@@ -1,4 +1,4 @@
-jstorrent = {
+window.jstorrent = {
 };
 
 window.config = {
@@ -96,18 +96,32 @@ var curlogmask = LOGMASK.general;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;
 
+
+var _log_fixed = false;
 window.mylog = function(level) {
+    if (! window.console) {
+        return;
+    }
+
     var l = [];
     for (var i=0; i<arguments.length; i++) {
         l.push(arguments[i]);
     }
 
     if (LOGMASK_R[level] == 'error') {
-        console.error.apply(console, l);
+        if (typeof console.error == 'object') {
+            console.error(l[0], l[1], l[2], l[3], l[4], l[5]);
+        } else {
+            console.error.apply(console, l);
+        }
     } else if (level & curlogmask) {
         l[0] = LOGMASK_R[level] + '>  ';
         //console.log.apply(console, l.slice(1, l.length));
-        console.log.apply(console, l);
+        if (typeof console.log == 'object') {
+            console.log(l[0], l[1], l[2], l[3], l[4], l[5]);
+        } else {
+            console.log.apply(console, l);
+        }
     }
 
 /*
@@ -286,7 +300,7 @@ function b642arr(inp) {
             function call_fn(n) {
                 var fndata = _.clone(fns[n]);
                 var fn = fndata.fn;
-                var fthis = fndata.this;
+                var fthis = fndata.fnthis;
                 for (i=0; i<fndata.callbacks.length; i++) {
                     var idx = fndata.callbacks[i];
                     var iserr = fndata.error && fndata.error == idx;
@@ -300,8 +314,10 @@ function b642arr(inp) {
     window.Multi = Multi
 
     var FileErrors = {};
-    for (var key in FileError) {
-        FileErrors[ FileError[key] ] = key;
+    if (window.FileError) {
+        for (var key in FileError) {
+            FileErrors[ FileError[key] ] = key;
+        }
     }
     function log_file_error(err) {
         mylog(LOGMASK.error, err, err.code, FileErrors[err.code]);
@@ -335,6 +351,9 @@ function b642arr(inp) {
     }
     
     window.geolocate = function(ip) {
+        if (!window.geoip_ip) {
+            return;
+        }
         var nums = ip.split('.');
         var s = 0;
         for (var i=0; i<nums.length; i++) {
@@ -351,7 +370,7 @@ function b642arr(inp) {
             mylog(LOGMASK.ui,'set sort',params);
         },
         getLength: function() { return this.models.length; },
-        getItem: function(i) { return this.models[i]; },
+        getItem: function(i) { return this.models[i]; }
 
     });
 

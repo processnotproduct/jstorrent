@@ -8,13 +8,15 @@
     jstorrent.ThreadHasher = function() {
         //this.worker = new Worker('../js/bittorrent.hasher.worker.js');
         this.workers = [];
-        this.numthreads = 4;
-        for (var i=0; i<this.numthreads; i++) {
-            var worker = new Worker('../js/bittorrent.hasher.worker.js');
-            worker.id = i;
-            this.workers.push( worker );
-            worker.addEventListener('message', _.bind(this.onmessage,this,worker));
-            worker.addEventListener('error', _.bind(this.onerror,this,worker));
+        this.numthreads = 2;
+        if (window.Worker) {
+            for (var i=0; i<this.numthreads; i++) {
+                var worker = new Worker('../js/bittorrent.hasher.worker.js');
+                worker.id = i;
+                this.workers.push( worker );
+                worker.addEventListener('message', _.bind(this.onmessage,this,worker));
+                worker.addEventListener('error', _.bind(this.onerror,this,worker));
+            }
         }
         this.requests = {};
         this.msgid = 0;

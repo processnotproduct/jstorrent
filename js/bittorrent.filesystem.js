@@ -43,7 +43,7 @@
             }
 
 
-        },
+        }
 
     });
 
@@ -91,11 +91,12 @@
             } else {
                 this.trigger('unsupported');
                 mylog(LOGMASK.error,'no fs support');
+                callback({error:true});
             }
         },
         get_quotas: function(callback) {
-            var fns = [ { fn: webkitStorageInfo.queryUsageAndQuota, this:webkitStorageInfo, arguments: [webkitStorageInfo.PERSISTENT], callbacks: [1,2], error:2 },
-                        { fn: webkitStorageInfo.queryUsageAndQuota, this:webkitStorageInfo,arguments: [webkitStorageInfo.TEMPORARY], callbacks: [1,2], error:2 } ];
+            var fns = [ { fn: webkitStorageInfo.queryUsageAndQuota, fnthis:webkitStorageInfo, arguments: [webkitStorageInfo.PERSISTENT], callbacks: [1,2], error:2 },
+                        { fn: webkitStorageInfo.queryUsageAndQuota, fnthis:webkitStorageInfo,arguments: [webkitStorageInfo.TEMPORARY], callbacks: [1,2], error:2 } ];
             new Multi(fns).sequential( _.bind(function(result) {
                 if (result.error) {
                     callback({error:true})

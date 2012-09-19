@@ -862,7 +862,8 @@ function hmac_sha1_stream_tail(opad, naked_hash) {
 */
 
     window.ab2str = function(buf) {
-        return String.fromCharCode.apply(String, new Uint16Array(buf));
+        assert(false) // this function sucks (chromium os dont work)
+        return String.fromCharCode.apply(null, new Uint16Array(buf));
     }
 
     window.arr2str = function(buf) {

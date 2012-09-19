@@ -50,7 +50,7 @@
             this.set('announces',this.get('announces')+1);
             var _this = this;
             var params = { info_hash: hex2str(this.torrent.get_infohash('hex')), event: 'started',
-                           peer_id: ab2str(my_peer_id),
+                           peer_id: arr2str(my_peer_id),
                            port: 0,
                            downloaded: 0,
                            uploaded: 0,

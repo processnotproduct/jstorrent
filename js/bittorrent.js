@@ -80,7 +80,7 @@
 
     function parse_handshake(bytearray) {
         var protocol_str_len = new Uint8Array(bytearray, 0, 1)[0];
-        var protocol_str = ab2str(new Uint8Array(bytearray, 1, protocol_str_len));
+        var protocol_str = arr2str(new Uint8Array(bytearray, 1, protocol_str_len));
         var i = 1 + protocol_str_len;
 
         var reserved = new Uint8Array(bytearray, i, 8);
@@ -439,7 +439,7 @@
             if (ext_msg_type == constants.handshake_code) {
                 this.set('last_message',data.msgtype + ' ' + 'handshake');
                 var braw = new Uint8Array(data.payload.buffer.slice( data.payload.byteOffset + 1 ));
-                var info = bdecode( ab2str( braw ) )
+                var info = bdecode( arr2str( braw ) )
                 mylog(LOGMASK.network, 'decoded extension message stuff',info);
 
                 this._remote_extension_handshake = info;

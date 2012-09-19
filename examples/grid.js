@@ -394,6 +394,12 @@ var PeerTableView = SuperTableView.extend({
                             return data._remote_extension_handshake['v'];
                         }
                     };
+                } else if (column.field == 'country') {
+                    return function(row,cell,value,col,data) {
+                        var code = data.peer.get('country');
+                        var name = geoip_country_name[code];
+                        return '<img src="flags/blank.gif" class="flag flag-'+code.toLowerCase()+'" alt="'+name+'" />' + name;
+                    };
                 } else if (column.src == 'conn') {
                     return function(row,cell,value,col,data) {
                         return data.get(col.field);

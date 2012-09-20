@@ -172,11 +172,7 @@
             mylog(LOGMASK.disk,'piece cleanup',this.num,reason);
         },
         wrote_but_not_stored: function() {
-            var skip = this.torrent.get('bitmask_skip');
-            if (skip && skip[this.num]) {
-                return true;
-            }
-            return false;
+            return this.torrent.piece_wrote_but_not_stored(this.num);
         },
         complete: function() {
             return this.torrent.piece_complete(this.num);

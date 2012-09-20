@@ -376,6 +376,19 @@
                 return false;
             }
         },
+        get_piece_dims: function(num) {
+            var sz = this.get_piece_len(num)
+            var start_byte = sz * num
+            var end_byte = start_byte + sz - 1
+            return [start_byte, end_byte];
+        },
+        piece_wrote_but_not_stored: function(num) {
+            var skip = this.get('bitmask_skip');
+            if (skip && skip[num]) {
+                return true;
+            }
+            return false;
+        },
         choose_incomplete_piece: function(remote_bitmask) {
             // TODO -- have my own pieces sorted by completed or not
             var startindex = 0;
@@ -383,7 +396,6 @@
             if (this.get('first_incomplete')) {
                 startindex = this.get('first_incomplete');
             }
-
 
             // selects a piece... (what is a more efficient way to do this?)
             var first_incomplete = null;

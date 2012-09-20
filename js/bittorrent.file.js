@@ -38,13 +38,13 @@
             // returns piece range that this file intersects
             var idx = Math.floor(this.start_byte / this.torrent.piece_size);
             //var idx = bisect_left( this.torrent._file_byte_accum, this.start_byte );
-            var piece;
             var c = 0;
             var t = 0;
             while (idx < this.torrent.num_pieces) {
-                piece = this.torrent.get_piece(idx);
-                if (intersect( [piece.start_byte, piece.end_byte], [this.start_byte, this.end_byte] )) {
-                    if (piece.complete() || (! this.skipped() && piece.wrote_but_not_stored())) {
+                var piecedims = this.torrent.get_piece_dims(idx);
+
+                if (intersect( piecedims, [this.start_byte, this.end_byte] )) {
+                    if (this.torrent.piece_complete(idx) || (! this.skipped() && this.torrent.piece_wrote_but_not_stored(idx))) {
                         c++;
                     }
                     t++;

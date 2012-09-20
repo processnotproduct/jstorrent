@@ -199,6 +199,7 @@
                      );
             //mylog(LOGMASK.network,'initialize wspeerconn');
             this.set('state','connecting');
+            this.message_history = new jstorrent.RingBuffer(30); // for debugging messages
             var host = opts.host;
             var port = opts.port;
             this.peer = opts.peer;
@@ -281,11 +282,15 @@
                 this._outbound_chunk_requests_limit = 1;
             }
         },
+        record_message: function(msg) {
+            this.set('last_message',msg);
+            this.message_history.push(msg);
+        },
         handle_piece: function(data) {
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
             var index = view.getUint32(0);
             var offset = view.getUint32(4);
-            this.set('last_message',data.msgtype + ' ' + index + ','+(offset/constants.chunk_size));
+            this.record_message(data.msgtype + ' ' + index + ','+(offset/constants.chunk_size));
             var chunk = new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8);
             //mylog(LOGMASK.network,'got piece idx',index,'offset',offset,'len',chunk.byteLength);
             var handled = this.torrent.handle_piece_data(this, index, offset, chunk);
@@ -461,7 +466,7 @@
         handle_extension_message: function(data) {
             var ext_msg_type = data.payload[0];
             if (ext_msg_type == constants.handshake_code) {
-                this.set('last_message',data.msgtype + ' ' + 'handshake');
+                this.record_message(data.msgtype + ' ' + 'handshake');
                 //var braw = new Uint8Array(data.payload.buffer.slice( data.payload.byteOffset + 1 ));
                 var info = bdecode( arr2str( new Uint8Array(data.payload), 1 ) )
                 mylog(LOGMASK.network, 'decoded extension message stuff',info);
@@ -475,7 +480,7 @@
                 var ext_msg_str = this._my_extension_handshake_codes[ext_msg_type];
                 var their_ext_msg_type = this._remote_extension_handshake['m'][ext_msg_str];
 
-                this.set('last_message',data.msgtype + ' ' + ext_msg_str);
+                this.record_message(data.msgtype + ' ' + ext_msg_str);
 
                 assert(their_ext_msg_type !== undefined);
 
@@ -496,11 +501,9 @@
                             reqdata.data = data;
                             var meta = this.check_have_all_metadata();
                             if (meta) {
-                                mylog(1, 'have all metadata', meta);
+                                mylog(1, 'have all metadata', meta, this.repr());
                                 var decoded = bdecode(arr2str(meta));
                                 this.torrent.metadata_download_complete(decoded);
-                                this.metadata_download_complete()
-                                //this.torrent.set_metadata({'info':decoded});
                             } else {
                                 mylog(1,'dont have all metadata yet');
                             }
@@ -613,9 +616,7 @@
             var index = jspack.Unpack('>i', data.payload);
             //mylog(3, 'handle have index', index);
             if (! this._remote_bitmask) {
-                var err = 'client sent HAVE without sending bitmask';
-                mylog(1,err);
-                this.close(err);
+                this._handle_after_metadata.push( _.bind(this.handle_have, this, data) );
                 return;
             }
             this._remote_bitmask[index] = 1;
@@ -795,7 +796,7 @@
             var data = parse_message(msg);
             this._last_message_in = new Date().getTime();
             mylog(LOGMASK.network,'handle message',data.msgtype,data);
-            if (data.msgtype != 'PIECE' && data.msgtype != 'UTORRENT_MSG') this.set('last_message',data.msgtype);
+            if (data.msgtype != 'PIECE' && data.msgtype != 'UTORRENT_MSG') this.record_message(data.msgtype);
             var handler = this.handlers[data.msgtype];
             if (handler) {
                 handler(data);
@@ -880,14 +881,16 @@
             return s;
         },
         check_more_messages_in_buffer: function() {
-            var bufsz = this.read_buffer_size();
-            if (bufsz >= 4) {
-                var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0);
-                if (msg_len > constants.max_packet_size) {
-                    this.close('packet too large');
-                } else {
-                    if (bufsz >= msg_len + 4) {
-                        this.handle_message(msg_len + 4);
+            if (this._connected) {
+                var bufsz = this.read_buffer_size();
+                if (bufsz >= 4) {
+                    var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0);
+                    if (msg_len > constants.max_packet_size) {
+                        this.close('packet too large');
+                    } else {
+                        if (bufsz >= msg_len + 4) {
+                            this.handle_message(msg_len + 4);
+                        }
                     }
                 }
             }
@@ -929,8 +932,8 @@
                 //mylog(1,this.repr(),'onclose, already triggered error',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
             } else {
                 this._closed = true;
-                this.handle_close(evt, this);
                 this.trigger('onclose', this);
+                this.handle_close(evt, this);
                 //mylog(1,this.repr(),'onclose',evt.code, evt, 'clean:',evt.wasClean, evt.reason?('reason:'+evt.reason):'','delta',(new Date() - this.inittime)/1000);
                 //_.delay( _.bind(this.reconnect, this), 2000 );
             }
@@ -949,14 +952,18 @@
                 //mylog(1,this.repr(),'onerror', evt);
 
                 if (! this._closed) {
-                    this.handle_close(evt, this);
                     this.trigger('onclose', this);
+                    this.handle_close(evt, this);
                 }
             }
         },
         handle_close: function(data) {
             // gets called 
+            // clean up variables...
             this.peer.notify_closed(data, this);
+            for (var k in this) {
+                delete this[k];
+            }
         }
     });
 

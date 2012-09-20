@@ -26,6 +26,8 @@
             this.url = opts.url;
             this.torrent = opts.torrent;
             this.set('announces',0);
+            this.set('responses',0);
+            this.set('errors',0);
             this.set('peers',0);
         },
         min_announce_interval: function() {
@@ -61,6 +63,7 @@
                            success: _.bind(this.on_success,this),
                            dataType: 'jsonp', // TODO -- insecure - force trackers to support websockets instead
                            error: _.bind(function(xhr, status, text) {
+                               this.set('errors',this.get('errors')+1);
                                this.set('state','xhr error');
                            },this)
                          });
@@ -72,6 +75,7 @@
             return this.is_udp() || typeof decoded.peers == 'string';
         },
         on_success: function(b64data, status, xhr) {
+            this.set('responses',this.get('responses')+1);
             // need to base64 decode
             var data = atob(b64data);
             //var data = base64.toBits(b64data)

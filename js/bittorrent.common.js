@@ -380,6 +380,46 @@ function b642arr(inp) {
 
     });
 
+
+    jstorrent.RingBuffer = function(num) {
+        this.num = num;
+        this.buf = [];
+        this.idx = 0;
+        this.recorded = 0;
+    }
+    jstorrent.RingBuffer.prototype = {
+        push: function(data) {
+            this.buf[this.idx] = data;
+            this.idx = (this.idx + 1)%this.num;
+            this.recorded++;
+        },
+        show: function() {
+            var toshow = [];
+            for (var i=0; i<Math.min(this.num, this.recorded); i++) {
+                var w = this.idx - i;
+                if (w<0) {
+                    w = w+this.num;
+                }
+                toshow.push( this.buf[w] );
+            }
+            return toshow;
+        }
+    }
+
+    if (config.unit_tests) {
+        var rb = new RingBuffer(3);
+        rb.push(2)
+        rb.push(4)
+        assert( rb.buf.toString() == '[2,4]' );
+        assert( rb.show().toString() == '[4,2]');
+        rb.push(9)
+        rb.push(8)
+        assert( rb.buf.toString() == '[8,4,9]' );
+        assert( rb.show().toString() == '[8,9,4]');
+        rb.push(33)
+        assert( rb.show().toString() == '[9,4,33]');
+    }
+
 })();
 
 

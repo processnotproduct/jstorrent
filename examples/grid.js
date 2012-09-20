@@ -127,10 +127,11 @@ var SuperTableView = Backbone.View.extend({
             this.grid.updateRowCount(); // do other stuff to make selection work correctly...
             this.grid.invalidateAllRows();
             this.grid.render();
-            
-            var idx = this.model.indexOf(m); // XXX - slow??
-            this.grid.scrollRowIntoView(idx);
-            this.grid.flashCell(idx, this.grid.getColumnIndex("name"), 400);
+            if (this instanceof TorrentTableView) {
+                var idx = this.model.indexOf(m); // XXX - slow??
+                this.grid.scrollRowIntoView(idx);
+                this.grid.flashCell(idx, this.grid.getColumnIndex("name"), 400);
+            }
         },this));
 
         this.model.on('remove', _.bind(function(m) {
@@ -223,6 +224,7 @@ var TorrentTableView = SuperTableView.extend({
                         if (val > 0) {
                             return val;
                         }
+                        return '';
                     }
                 } else if (column.field == 'numswarm') {
                     return function(row,cell,value,col,data) { 
@@ -230,6 +232,7 @@ var TorrentTableView = SuperTableView.extend({
                         if (val > 0) {
                             return val;
                         }
+                        return '';
                     }
                 } else if (column.field == 'send_rate') {
                     return function(row,cell,value,col,data) { 
@@ -573,6 +576,8 @@ var TrackerTableView = SuperTableView.extend({
             {id: "url", name: "url", field: "url", sortable: true, width:400 },
             {id: "state", name: "state", field: "state", sortable: true, width:200 },
             {id: "announces", name: "announces", field: "announces", sortable: true, width:100 },
+            {id: "responses", name: "responses", field: "responses", sortable: true },
+            {id: "errors", name: "errors", field: "errors", sortable: true },
             {id: "peers", name: "peers", field: "peers", sortable: true, width:100 },
         ];
         opts.makeformatter = {
@@ -912,21 +917,21 @@ jQuery(function() {
 
     jsclient.on('ready', function() {
         window.jsclientview = new JSTorrentClientView({el:$('#client')});
-
         var url_args = decode_url_arguments('hash');
         if (url_args.hash) {
             jsclient.add_unknown(url_args.hash);
         }
-
         var url_args = decode_url_arguments('search');
         if (url_args.q) {
             // via protocol handler!
             jsclient.add_unknown(url_args.q);
         }
-
     });
 
-
+    jsclient.on('unsupported', function() {
+        alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays). Please try again after installing one.')
+        window.location = 'http://www.google.com/chrome';
+    });
 
 
     //jsclient.add_random_torrent();

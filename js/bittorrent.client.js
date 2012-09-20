@@ -24,6 +24,10 @@
 
             function ready(data) {
                 if (data && data.error) {
+                    if (! window.WebSocket && ! window.ArrayBuffer) {
+                        this.trigger('unsupported');
+                        return;
+                    }
                     mylog(LOGMASK.error,'filesystem init error');
                 }
 

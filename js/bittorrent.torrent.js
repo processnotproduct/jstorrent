@@ -330,6 +330,10 @@
                         }
                     } else {
                         if (! conn._choked) {
+                            if (! conn._remote_bitmask) {
+                                mylog(LOGMASK.error,'not magnet only, but no remote bitmask')
+                                return;
+                            }
 
                             if (conn._outbound_chunk_requests >= conn._outbound_chunk_requests_limit) {
                                 //mylog(1,'cannot make chunk requests, outbound',conn._outbound_chunk_requests);
@@ -778,6 +782,10 @@
             }
             this.set_metadata(metadata);
             this.save();
+
+            for (var i=0; i<this.connections.models.length; i++) {
+                this.connections.models[i].metadata_download_complete()
+            }
         },
         create_bitmask_payload: function(opts) {
             var bitfield = [];

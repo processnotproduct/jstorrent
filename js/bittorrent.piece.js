@@ -203,11 +203,13 @@
             for (var i=0; i<requests.length; i++) {
                 var offset = requests[i][1];
                 if (this._outbound_request_offsets[offset]) {
-                    conn.set('timeouts', conn.get('timeouts')+1);
-                    conn.adjust_chunk_queue_size();
+                    if (conn._connected) {
+                        conn.set('timeouts', conn.get('timeouts')+1);
+                        conn.adjust_chunk_queue_size();
+                        conn._outbound_chunk_requests--;
+                    }
                     mylog(LOGMASK.queue,'timing out piece w offset',this.num, offset);
                     delete this._outbound_request_offsets[offset];
-                    conn._outbound_chunk_requests--;
                 }
             }
         },

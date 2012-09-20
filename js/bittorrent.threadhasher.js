@@ -8,7 +8,7 @@
     jstorrent.ThreadHasher = function() {
         //this.worker = new Worker('../js/bittorrent.hasher.worker.js');
         this.workers = [];
-        this.numthreads = 2;
+        this.numthreads = 4;
         if (window.Worker) {
             for (var i=0; i<this.numthreads; i++) {
                 var worker = new Worker('../js/bittorrent.hasher.worker.js');

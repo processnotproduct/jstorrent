@@ -87,6 +87,7 @@
             assert(this.end_byte >= 0)
         },
         free: function() {
+            assert(this.collection);
             this.collection.remove(this);
             for (var key in this) {
                 delete this[key];

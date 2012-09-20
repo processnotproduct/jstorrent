@@ -263,6 +263,10 @@
             this.set('file_priorities',fp);
             this.save();
         },
+        get_jstorrent_link: function() {
+            //return window.location.origin + window.location.pathname + '#hash=' + this.hash_hex;
+            return window.location.origin + window.location.pathname + '#q=' + encodeURIComponent(this.get_magnet_link());
+        },
         get_magnet_link: function() {
             if (this.container && ! this.hash_hex) {
                 var s = 'magnet:?xt=urn:alth:' + this.althash_hex;
@@ -270,12 +274,19 @@
                 var s = 'magnet:?xt=urn:btih:' + this.hash_hex;
             }
             //s += '&tr=' + encodeURIComponent(config.default_tracker);
+            if (! this._trackers_initialized) {
+                this.initialize_trackers();
+            }
+
             if (this.trackers.models.length > 0) {
                 for (var i=0; i< Math.min(this.trackers.models.length,2); i++) {
                     s += '&tr=' + encodeURIComponent(this.trackers.models[i].url);
                 }
             } else {
                 s += '&tr=' + encodeURIComponent(config.public_trackers[0]);
+            }
+            if (this.get_name()) {
+                s += '&dn=' + encodeURIComponent(this.get_name());
             }
             return s;
         },
@@ -590,7 +601,7 @@
                     }
                 }
             }
-            piece.free();
+            //piece.free(); // cannot free yet!
             this.save();
         },
         is_multifile: function() {
@@ -661,7 +672,7 @@
                 var piece = this.pieces.models[i]
                 //piece.cleanup();
                 this.pieces.remove(piece);
-                piece.free();
+                //piece.free();
             }
         },
         stop: function(opts) {

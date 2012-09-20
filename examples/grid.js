@@ -674,6 +674,7 @@ var GeneralDetailView = BaseView.extend({
     render: function() {
         this.$('.infohash').text( this.model.hash_hex );
         this.$('.magnet').text( this.model.get_magnet_link() );
+        this.$('.jstorrent').html( '<a href="'+this.model.get_jstorrent_link()+'">jstorrent web link</a>' );
     },
     bind_actions: function() {
         
@@ -966,13 +967,14 @@ jQuery(function() {
     jsclient.on('ready', function() {
         window.jsclientview = new JSTorrentClientView({el:$('#client')});
         var url_args = decode_url_arguments('hash');
-        if (url_args.hash) {
-            jsclient.add_unknown(url_args.hash);
-        }
-        var url_args = decode_url_arguments('search');
+        var q_url_args = decode_url_arguments('search');
         if (url_args.q) {
-            // via protocol handler!
             jsclient.add_unknown(url_args.q);
+        } else if (url_args.hash) {
+            jsclient.add_unknown(url_args.hash);
+        } else if (q_url_args.q) {
+            // via protocol handler!
+            jsclient.add_unknown(q_url_args.q);
         }
     });
 

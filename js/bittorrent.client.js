@@ -77,6 +77,8 @@
 
             if (str.slice(0,'magnet:'.length) == 'magnet:') {
                 this.add_torrent({magnet:str}, opts);
+            } else if (str.slice(0,'web+magnet:'.length) == 'web+magnet:') {
+                this.add_torrent({magnet:str}, opts);
             } else if (str.slice(0,'http://'.length) == 'http://') {
                 debugger; // use a proxy service to download and serve back
             } else if (str.length == 40) {

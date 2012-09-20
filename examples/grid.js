@@ -37,8 +37,12 @@ var CommandsView = BaseView.extend({
         var action = 'stop';
         for (var i=0; i<selected.length; i++) {
             var torrent = jsclientview.torrenttable.grid.getDataItem(selected[i]);
-            if (torrent.get('state') == 'stopped') {
-                action = 'start';
+            if (torrent) {
+                if (torrent.get('state') == 'stopped') {
+                    action = 'start';
+                }
+            } else {
+                mylog(1,'update play action on',selected,'couldnt find model');
             }
         }
         this.set_play_action(action);
@@ -908,13 +912,21 @@ jQuery(function() {
 
     jsclient.on('ready', function() {
         window.jsclientview = new JSTorrentClientView({el:$('#client')});
+
+        var url_args = decode_url_arguments('hash');
+        if (url_args.hash) {
+            jsclient.add_unknown(url_args.hash);
+        }
+
+        var url_args = decode_url_arguments('search');
+        if (url_args.q) {
+            // via protocol handler!
+            jsclient.add_unknown(url_args.q);
+        }
+
     });
 
 
-    var url_args = decode_url_arguments('hash');
-    if (url_args.hash) {
-        jsclient.add_unknown(url_args.hash);
-    }
 
 
     //jsclient.add_random_torrent();

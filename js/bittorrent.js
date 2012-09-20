@@ -524,7 +524,9 @@
                                 this.serve_metadata_piece( metapiece, null, sliced );
                             }
                         } else {
-                            debugger;
+                            mylog(LOGMASK.error,'tor meta requset response',tor_meta_type);
+                            this.torrent._requesting_metadata = false;
+                            this.close();
                         }
                     }
                 } else {

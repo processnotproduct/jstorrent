@@ -26,6 +26,9 @@
                 this.torrent.set_file_priority(m.num, v);
             });
         },
+        get_data_url: function() {
+            //'data:application/octet-stream;base64,' + b64encoded
+        },
         get_num_pieces: function() {
             var idx = Math.floor(this.start_byte / this.torrent.piece_size)
             var idx2 = Math.ceil(this.end_byte / this.torrent.piece_size)
@@ -271,6 +274,7 @@
                 _this.torrent.stop();
                 jsclient.notify_filesystem_full();
             } else {
+                log_file_error(evt.target.error)
                 debugger;
             }
         }

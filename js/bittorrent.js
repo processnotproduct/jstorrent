@@ -122,9 +122,7 @@
     jstorrent.WSPeerConnection = Backbone.Model.extend({
         className: 'WSPeerConnection',
         /* 
-
            connection that acts like a bittorrent connection, wrapped just inside a websocket
-
         */
         get_client: function() {
             var hs = this._remote_extension_handshake;
@@ -136,11 +134,21 @@
             if (config.bittorrent_proxy) {
                 var uri = '/wsproxy';
                 var strurl = 'ws://' + config.bittorrent_proxy + uri + '?target=' + encodeURIComponent(this._host+':'+this._port);
+                if (this.using_flash()) {
+                    this.torrent.set('maxconns',1);
+                    strurl += '&flash=1';
+                }
             } else {
                 var uri = '/wsclient';
                 var strurl = 'ws://'+this._host+':'+this._port+uri;
+                if (this.using_flash()) {
+                    strurl += '?flash=1';
+                }
             }
             return strurl;
+        },
+        using_flash: function() {
+            return window.WEB_SOCKET_FORCE_FLASH || window.Modernizr && ! Modernizr.websockets;
         },
         reconnect: function() {
             this.strurl = this.get_host();
@@ -152,7 +160,12 @@
                 debugger;
             }
             mylog(LOGMASK.network,'initializing stream to',this.strurl);
-            this.stream.binaryType = "arraybuffer";
+            if (this.using_flash()) {
+                // this.stream.binaryType = "array";
+                // send string mofo b64 encoded
+            } else {
+                this.stream.binaryType = "arraybuffer";
+            }
             this.stream.onerror = this.onerror;
             this.stream.onopen = this.onopen;
             this.stream.onclose = this.onclose;
@@ -205,7 +218,8 @@
             for (var i=0; i<opts.hash.length; i++) {
                 infohash.push( opts.hash[i] );
             }
-
+            this._handle_after_metadata = [];
+            
             this._outbound_chunk_requests = 0;
             this._outbound_chunk_requests_limit = 10;
 
@@ -214,6 +228,7 @@
             this.infohash = infohash;
             assert(this.infohash.length == 20, 'input infohash as array of bytes');
             this.torrent = torrent;
+            assert(torrent);
             this.torrent.bind('piece_hashed', this.handle_piece_hashed);
             var infodict = this.torrent.get_infodict();
             if (! this.torrent.magnet_only()) {
@@ -389,6 +404,10 @@
             payload = payload.concat(piecedata);
             this.send_message('UTORRENT_MSG', payload);
         },
+        has_metadata: function() {
+            return this._remote_bitmask || 
+                this._remote_extension_handshake && this._remote_extension_handshake.metadata_size;
+        },
         request_metadata: function() {
             if (this.torrent._requesting_metadata) { return; }
 
@@ -434,12 +453,17 @@
             assert( ab2hex(hash) == ab2hex(this.torrent.hash) );
             return result;
         },
+        metadata_download_complete: function() {
+            for (var i=0; i<this._handle_after_metadata.length; i++) {
+                this._handle_after_metadata[i]();
+            }
+        },
         handle_extension_message: function(data) {
             var ext_msg_type = data.payload[0];
             if (ext_msg_type == constants.handshake_code) {
                 this.set('last_message',data.msgtype + ' ' + 'handshake');
-                var braw = new Uint8Array(data.payload.buffer.slice( data.payload.byteOffset + 1 ));
-                var info = bdecode( arr2str( braw ) )
+                //var braw = new Uint8Array(data.payload.buffer.slice( data.payload.byteOffset + 1 ));
+                var info = bdecode( arr2str( new Uint8Array(data.payload), 1 ) )
                 mylog(LOGMASK.network, 'decoded extension message stuff',info);
 
                 this._remote_extension_handshake = info;
@@ -475,6 +499,7 @@
                                 mylog(1, 'have all metadata', meta);
                                 var decoded = bdecode(arr2str(meta));
                                 this.torrent.metadata_download_complete(decoded);
+                                this.metadata_download_complete()
                                 //this.torrent.set_metadata({'info':decoded});
                             } else {
                                 mylog(1,'dont have all metadata yet');
@@ -569,13 +594,18 @@
         },
         handle_have_all: function(data) {
             mylog(1, 'handle have all');
-            this._remote_bitmask = [];
-            for (var i=0; i<this.torrent.get_num_pieces(); i++) {
-                this._remote_bitmask[i] = 1;
+            if (this.torrent.magnet_only()) {
+                this._handle_after_metadata.push( _.bind(this.handle_have_all, this, data) );
+                // dont know bitmask n shit... handle later...
+            } else {
+                this._remote_bitmask = [];
+                for (var i=0; i<this.torrent.get_num_pieces(); i++) {
+                    this._remote_bitmask[i] = 1;
+                }
+                this.trigger('handle_have');
+                this.set('complete', this.fraction_complete(this._remote_bitmask));
+                this.trigger('completed'); // XXX -- make "remote_completed" event instead
             }
-            this.trigger('handle_have');
-            this.set('complete', this.fraction_complete(this._remote_bitmask));
-            this.trigger('completed'); // XXX -- make "remote_completed" event instead
         },
         handle_have: function(data) {
             var index = jspack.Unpack('>i', data.payload);
@@ -671,11 +701,16 @@
         },
         handle_bitfield: function(data) {
             mylog(LOGMASK.network, 'handle bitfield message');
-            this._remote_bitmask = this.torrent.parse_bitmask(data.payload);
-            this.set('complete', this.fraction_complete(this._remote_bitmask));
-            mylog(LOGMASK.network,'parsed bitmask',this._remote_bitmask);
-            if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
-                this.send_bitmask();
+            if (this.torrent.magnet_only()) {
+                this._handle_after_metadata.push( _.bind(this.handle_bitfield, this, data) );
+                // store payload for later
+            } else {
+                this._remote_bitmask = this.torrent.parse_bitmask(data.payload);
+                this.set('complete', this.fraction_complete(this._remote_bitmask));
+                mylog(LOGMASK.network,'parsed bitmask',this._remote_bitmask);
+                if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
+                    this.send_bitmask();
+                }
             }
         },
         send_bitmask: function() {
@@ -731,7 +766,21 @@
             this.bytecounters.sent.sample(msg.byteLength);
             this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
             this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
-            this.stream.send(msg);
+            if (this.using_flash()) {
+/*
+                var arr = [];
+                var src = new Uint8Array(msg);
+                for (var i=0; i<msg.byteLength; i++) {
+                    arr.push(src[i]);
+                }
+
+                this.stream.send(arr);
+*/
+                this.stream.send( btoa(arr2str(new Uint8Array(msg))) )
+                //this.stream.send(
+            } else {
+                this.stream.send(msg);
+            }
         },
         close: function(reason) {
             if (reason) {
@@ -748,10 +797,11 @@
             var handler = this.handlers[data.msgtype];
             if (handler) {
                 handler(data);
+                //handler.apply(this, [data]);
             } else {
                 throw Error('unhandled message ' + data.msgtype);
             }
-            _.defer(_.bind(this.check_more_messages_in_buffer, this));
+            setTimeout( _.bind(this.check_more_messages_in_buffer, this), 1);
         },
         handle_handshake: function(handshake_len) {
             this.handshaking = false;
@@ -841,7 +891,12 @@
             }
         },
         onmessage: function(evt) {
-            var msg = evt.data;
+            if (this.using_flash()) {
+                var strmsg = atob(evt.data)
+                var msg = new Uint8Array(str2arr(strmsg)).buffer
+            } else {
+                var msg = evt.data;
+            }
             this.bytecounters.received.sample(msg.byteLength);
             this.set('bytes_received', this.get('bytes_received') + msg.byteLength);
             this.torrent.set('bytes_received', this.torrent.get('bytes_received') + msg.byteLength);

@@ -2,7 +2,8 @@ window.jstorrent = {
 };
 
 window.config = {
-    //debug_torrent_client: {ip:'127.0.0.1', port:8031},
+    //debug_torrent_client: {ip:'127.0.0.1', port:8030},
+    //debug_torrent_client: {ip:'192.168.56.1', port:8030},
     //debug_torrent_client: {ip:'192.168.56.101', port:64399},
     unit_tests: false, // run unit tests
     debug_asserts: false,
@@ -24,7 +25,7 @@ if (window.location.host.match('jstorrent.com')) {
 } else if (false && window.location.host.match('127.0.0.1')) {
     config.tracker_proxy = 'http://127.0.0.1:6969/proxy';
     config.jstorrent_host = 'http://127.0.0.1:9090';
-    config.bittorrent_proxy = '127.0.0.1:8030';
+    //config.bittorrent_proxy = '127.0.0.1:8030';
     config.default_tracker = 'http://127.0.0.1:6969/announce';
 }
 window.assert = function(v) {
@@ -34,7 +35,7 @@ window.assert = function(v) {
         for (var i=0; i<arguments.length; i++) {
             l.push(arguments[i]);
         }
-        console.error.apply(console, l.slice(1, l.length));
+        mylog(LOGMASK.error, l.slice(1, l.length));
         debugger; 
     }
 }

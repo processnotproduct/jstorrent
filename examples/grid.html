@@ -1,33 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <link rel="stylesheet" href="bootstrap/css/bootstrap.css" type="text/css" />
     <link rel="stylesheet" href="SlickGrid/slick.grid.css" type="text/css" />
     <link rel="stylesheet" href="flags/flags.css" type="text/css" />
     <link rel="stylesheet" href="SlickGrid/css/smoothness/jquery-ui-1.8.16.custom.css" type="text/css" />
     <title>JSTorrent</title>
+
     <script src="../js/deps/jquery-1.7.2.min.js"></script>
 
     <script src="../js/deps/underscore.js"></script> 
     <script src="../js/deps/backbone.js"></script>  
 
-    <script src="../js/deps/polyfill/typedarray.js"></script>  
-    <script src="../js/deps/polyfill/base64.js"></script>  
+
+    <!--script src="../js/deps/polyfill/modernizr.js"></script>
+    <!--IE polyfill stuff>
+<script>
+//var WEB_SOCKET_FORCE_FLASH = true; // test flash polyfill in non-ie
+var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.swf";
+</script>
+    <script src="../js/deps/polyfill/web-socket-js/swfobject.js"></script>
+    <script src="../js/deps/polyfill/web-socket-js/web_socket.js"></script>
+    <script src="../js/deps/polyfill/typedarray.js"></script>
+    <script src="../js/deps/polyfill/base64.js"></script-->
 
     <script src="../js/deps/backbone.localStorage.js"></script>  
-    <!--script src="../js/deps/jstorage.js"></script-->
     <script src="SlickGrid/lib/jquery.event.drag-2.0.min.js"></script>
     <script src="SlickGrid/slick.core.js"></script>
     <script src="SlickGrid/slick.grid.js"></script>
     <script src="SlickGrid/slick.editors.js"></script>
     <script src="SlickGrid/plugins/slick.rowselectionmodel.js"></script>
-    <!--script src="SlickGrid/plugins/slick.cellselectionmodel.js"></script>
-    <script src="SlickGrid/plugins/slick.cellrangeselector.js"></script>
-    <script src="SlickGrid/plugins/slick.cellrangedecorator.js"></script-->
     <script src="../js/deps/digest.js"></script>
     <script src="../js/deps/smoothie.js"></script>
-
-
 
     <!--script src="../js/deps/FileSaver.js"></script-->
     <script src="../js/bittorrent.common.js"></script>  
@@ -126,7 +131,7 @@
 
       <div class="pane-top">
         <div style="position:relative; height:50px;">
-          <div style="margin-left: 10px" class="commands"></div>
+          <div style="position:absolute; margin-left: 10px" class="commands"></div>
           <div style="position:absolute; left: 200px;" class="addview"></div>
         </div>
         <div class="torrentGrid" style="background:#eef;"></div>
@@ -172,6 +177,6 @@
 <br />
 <a href="unregisteredthing:foobar@bar.com">unregistered</a-->
 
-    <script src="../js/deps/geoip/geoip.js"></script>
+    <!--script src="../js/deps/geoip/geoip.js"></script-->
   </body>
 </html>

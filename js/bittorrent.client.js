@@ -25,24 +25,18 @@
             function ready(data) {
                 if (data && data.error) {
                     mylog(LOGMASK.error,'filesystem init error');
-                    this.torrents.fetch();
-                    _.defer(_.bind(function(){this.trigger('ready');},this));
-                    this.tick();
-                    this.long_tick();
-                } else {
-                    mylog(1,'filesystems ready!');
-                    this.torrents.fetch();
-                    for (var i=0; i<this.torrents.models.length; i++) {
-                        var torrent = this.torrents.models[i];
-                        if (torrent.started()) {
-                            this.torrents.models[i].announce();
-                        }
-                    }
-                    this.trigger('ready');
-                    this.tick();
-                    this.long_tick();
                 }
-                
+
+                this.torrents.fetch();
+                for (var i=0; i<this.torrents.models.length; i++) {
+                    var torrent = this.torrents.models[i];
+                    if (torrent.started()) {
+                        this.torrents.models[i].announce();
+                    }
+                }
+                this.trigger('ready');
+                this.tick();
+                this.long_tick();
             }
             /*
               this.filesystem.on('initialized', _.bind(ready, this));

@@ -96,19 +96,7 @@
         check_downloaded_hash: function(callback) {
             var hasher = new Digest.SHA1();
             mylog(LOGMASK.hash, 'hashing...',this.repr());
-
             jsclient.threadhasher.send({msg:'hashplease', chunks: this._chunk_responses}, callback);
-            //return callback([0]);
-            return;
-/*
-            var start = new Date();
-            for (var i=0; i<this._chunk_responses.length; i++) {
-                hasher.update( this._chunk_responses[i] );
-            }
-            var hash = hasher.finalize();
-            mylog(LOGMASK.hash, 'hashed',this.repr(), new Date() - start);
-            return hash;
-*/
         },
         repr: function() {
             return '<Piece '+this.num+'>';
@@ -133,11 +121,16 @@
                         for (var i=0; i<hash.length; i++) {
                             if (hash[i] != metahash[i]) {
                                 mylog(LOGMASK.error,'hash mismatch!',this)
+                                return
                             }
                         }
 
+                        if (this.torrent.collection.client.get_filesystem().unsupported) {
+                            this.torrent.notify_have_piece(this);
+                        } else {
                         //mylog(1,'downloaded piece hash match!')
-                        this.write_data_to_filesystem();
+                            this.write_data_to_filesystem();
+                        }
 
                     },this));
 

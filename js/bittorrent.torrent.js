@@ -40,7 +40,7 @@
 
             if (opts.metadata) {
                 // initialize a torrent from torrent metadata
-                this.metadata = opts.metadata;
+                this.set('metadata',opts.metadata);
                 //this.set('metadata',undefined); // save path to the torrent metadata!
                 // TODO -- save path to torrent metadata instead of saving it in localstorage
                 this.process_metadata();
@@ -225,7 +225,7 @@
                     this.save(); // ?
                 }
             } else {
-                if (! this.metadata) {
+                if (! this.get('metadata')) {
                     this.fake_info['pieces'] = this.get_fake_pieces().join('');
                     var bitmask = this.create_bitmask({full:true});
                 } else {
@@ -241,16 +241,16 @@
             this.metadata_size = bencode(this.get_infodict()).length
         },
         set_metadata: function(metadata) {
-            this.metadata = metadata;
-            this.set('metadata',this.metadata);
+            var metadata = metadata;
+            this.set('metadata',metadata);
             this.process_metadata();
             this.process_post_metadata();
         },
         process_metadata: function() {
             // TODO -- move into method
-            this.piece_size = this.metadata['info']['piece length'];
+            this.piece_size = this.get('metadata')['info']['piece length'];
             var hasher = new Digest.SHA1();
-            hasher.update( new Uint8Array(bencode(this.metadata['info'])) );
+            hasher.update( new Uint8Array(bencode(this.get('metadata')['info'])) );
             this.hash = new Uint8Array(hasher.finalize());
             this.hash_hex = ab2hex(this.hash);
         },
@@ -315,7 +315,7 @@
 
             //mylog(1,conn.repr(),'make chunk requests');
             if (! conn.handshaking) {
-                if (conn._remote_bitmask) {
+                if (conn.has_metadata()) {
                     if (! conn._interested) {
                         // XXX -- only send when we're not 100% complete
                         conn.send_message('INTERESTED');
@@ -410,17 +410,17 @@
             return toreturn;
         },
         magnet_only: function() {
-            return ! (this.fake_info || this.metadata);
+            return ! (this.fake_info || this.get('metadata'));
         },
         has_infodict: function() {
-            return !! this.metadata;
+            return !! this.get('metadata');
         },
         get_infodict: function(opts) {
             if (opts && opts == 'bencoded') {
                 // TODO -- store bencoded version
-                return this.metadata ? bencode(this.metadata['info']) : bencode(this.fake_info);
+                return this.get('metadata') ? bencode(this.get('metadata')['info']) : bencode(this.fake_info);
             } else {
-                return this.metadata ? this.metadata['info'] : this.fake_info;
+                return this.get('metadata') ? this.get('metadata')['info'] : this.fake_info;
             }
         },
         initialize_trackers: function() {
@@ -526,7 +526,9 @@
             }
         },
         get_num_pieces: function() {
-            return Math.ceil( this.size / this.piece_size );
+            var val = Math.ceil( this.size / this.piece_size );
+            assert(val > 0);
+            return val;
         },
         register_meta_piece_requested: function(num, conn, callback) {
             if (this._hashing_all_pieces) {
@@ -693,10 +695,10 @@
                 s += String.fromCharCode(this.real_info.pieces[i]);
             }
             this.fake_info.pieces = s;
-            this.metadata = { 'info': _.clone(this.fake_info) };
-            this.metadata['announce'] = config.public_trackers[0];
-            this.metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
-            this.set('metadata',this.metadata);
+            var metadata = { 'info': _.clone(this.fake_info) };
+            metadata['announce'] = config.public_trackers[0];
+            metadata['announce-list'] = [[config.public_trackers[0]],[config.public_trackers[1]]];
+            this.set('metadata',metadata);
             this.set('complete',1000);
             this.process_metadata();
             this.process_post_metadata();

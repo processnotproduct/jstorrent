@@ -17,6 +17,8 @@
                 worker.addEventListener('message', _.bind(this.onmessage,this,worker));
                 worker.addEventListener('error', _.bind(this.onerror,this,worker));
             }
+        } else {
+            this.nothread = true;
         }
         this.requests = {};
         this.msgid = 0;
@@ -32,13 +34,22 @@
             return this.workers[i];
         },
         send: function(data, callback) {
-            worker = this.get_worker();
-            mylog(LOGMASK.hash,'sending data to worker',data,worker.id);
-            worker.processing = true;
-            this.requests[this.msgid] = callback
-            data.id = this.msgid;
-            worker.postMessage(data);
-            this.msgid++;
+            if (this.nothread) {
+                var hasher = new Digest.SHA1();
+                for (var i=0; i<data.chunks.length; i++) {
+                    hasher.update( data.chunks[i] );
+                }
+                var hash = hasher.finalize();
+                callback({hash:hash});
+            } else {
+                worker = this.get_worker();
+                mylog(LOGMASK.hash,'sending data to worker',data,worker.id);
+                worker.processing = true;
+                this.requests[this.msgid] = callback
+                data.id = this.msgid;
+                worker.postMessage(data);
+                this.msgid++;
+            }
         },
         onmessage: function(worker, msg) {
             worker.processing = false;
@@ -48,7 +59,7 @@
         },
         onerror: function(worker, data) {
             mylog(LOGMASK.error,'worker error');
-            debugger;
+            //debugger;
         }
     };
 

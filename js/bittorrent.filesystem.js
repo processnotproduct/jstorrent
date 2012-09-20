@@ -89,9 +89,10 @@
                 }, this))
                               
             } else {
+                this.unsupported = true;
                 this.trigger('unsupported');
                 mylog(LOGMASK.error,'no fs support');
-                callback({error:true});
+                setTimeout(function(){callback({error:true})}, 1);
             }
         },
         get_quotas: function(callback) {

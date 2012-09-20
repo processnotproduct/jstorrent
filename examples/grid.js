@@ -288,18 +288,22 @@ var TorrentTableView = SuperTableView.extend({
 var FileTableView = SuperTableView.extend({
     initialize: function(opts) {
         function renderLink(cellNode, row, data, colDef) {
-            data.get_filesystem_entry( function() {
-                if (data.filesystem_entry && ! data.filesystem_entry.error) {
-                    $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' + 
-                                              ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'">download</a>' +
-                                         ' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '">play</a>'
-                                            );
-                } else if (data.filesystem_entry && data.filesystem_entry.error) {
-                    $(cellNode).text(data.filesystem_entry.error);
-                } else {
-                    $(cellNode).empty();
-                }
-            }, {create:false});
+            if (jsclient.get_filesystem().unsupported) {
+                return 'no filesystem';
+            } else {
+                data.get_filesystem_entry( function() {
+                    if (data.filesystem_entry && ! data.filesystem_entry.error) {
+                        $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' + 
+                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'">download</a>' +
+                                                  ' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '">play</a>'
+                                                );
+                    } else if (data.filesystem_entry && data.filesystem_entry.error) {
+                        $(cellNode).text(data.filesystem_entry.error);
+                    } else {
+                        $(cellNode).empty();
+                    }
+                }, {create:false});
+            }
         }
         function waitingFormatter() {
             return 'loading...';
@@ -406,8 +410,12 @@ var PeerTableView = SuperTableView.extend({
                 } else if (column.field == 'country') {
                     return function(row,cell,value,col,data) {
                         var code = data.peer.get('country');
-                        var name = geoip_country_name[code];
-                        return '<img src="flags/blank.gif" class="flag flag-'+code.toLowerCase()+'" alt="'+name+'" />' + name;
+                        if (window.geoip_country_name) {
+                            var name = geoip_country_name[code];
+                            return '<img src="flags/blank.gif" class="flag flag-'+code.toLowerCase()+'" alt="'+name+'" />' + name;
+                        } else {
+                            return code;
+                        }
                     };
                 } else if (column.src == 'conn') {
                     return function(row,cell,value,col,data) {
@@ -426,7 +434,8 @@ var PeerTableView = SuperTableView.extend({
     bind_events: function() {
         this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
             var peerconn = this.grid.getDataItem(data.row);
-            mylog(1,'click thing!!!!!',file,evt,data,c,peerconn,peerconn.peer);
+            mylog(LOGMASK.ui,'click thing!!!!!',peerconn);
+            peerconn.close('user closed')
             //file.open();
         },this));
     }
@@ -469,6 +478,21 @@ var SwarmTableView = SuperTableView.extend({
             }
         };
         SuperTableView.prototype.initialize.apply(this,[opts]);
+        this.bind_events()
+    },
+    bind_events: function() {
+
+        this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
+            var peer = this.grid.getDataItem(data.row);
+            mylog(LOGMASK.ui,'click thing!!!!!',peer);
+            var torrent = peer.get('torrent');
+            if (torrent.connections.get(peer.id)) {
+                peer.get('conn').close('user closed')
+            } else {
+                torrent.connections.add_peer(peer);
+            }
+        },this));
+
     }
 });
 

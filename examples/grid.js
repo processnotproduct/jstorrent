@@ -33,6 +33,33 @@ var CommandsView = BaseView.extend({
         this.$el.html( this.template() );
         this.bind_actions();
     },
+    update_play_action: function(selected) {
+        var action = 'stop';
+        for (var i=0; i<selected.length; i++) {
+            var torrent = jsclientview.torrenttable.grid.getDataItem(selected[i]);
+            if (torrent.get('state') == 'stopped') {
+                action = 'start';
+            }
+        }
+        this.set_play_action(action);
+    },
+    set_play_action: function(action) {
+        mylog(1,'set play action',action);
+        if (action == 'start') {
+            this.$('.play-i').removeClass('icon-stop');
+            this.$('.play-i').addClass('icon-play');
+
+            this.$('.play').removeClass('btn-warning');
+            this.$('.play').addClass('btn-success');
+        } else {
+            this.$('.play-i').removeClass('icon-play');
+            this.$('.play-i').addClass('icon-stop');
+
+            this.$('.play').removeClass('btn-success');
+            this.$('.play').addClass('btn-warning');
+        }
+            
+    },
     bind_actions: function() {
         _.each(['play','remove','upload','refresh','bell'], _.bind(function(tabname) {
             this.$('.' + tabname).click( _.bind(function() {
@@ -82,6 +109,9 @@ var SuperTableView = Backbone.View.extend({
             formatterFactory: opts.makeformatter,
             autoEdit: true,
             editDontDeselect: true,
+            rowHeight: 22,
+            //headerRowHeight: 18,
+            //topPanelHeight: 16,
             editable: true,
             enableAsyncPostRender: true
         };
@@ -104,7 +134,12 @@ var SuperTableView = Backbone.View.extend({
 
 
         this.model.bind('change',_.bind(function(model,attributes) {
-            var idx = this.model.indexOf(model);
+            var idx = this.model.indexOf(model); // XXX - slow??
+
+            if (_.contains(this.grid.getSelectedRows(),idx)) {
+                jsclientview.commands.update_play_action(this.grid.getSelectedRows());
+            }
+
             for (var key in attributes.changes) {
 
                 if (this.dependentAttributes[key]) {
@@ -223,10 +258,17 @@ var TorrentTableView = SuperTableView.extend({
         this.grid.onSelectedRowsChanged.subscribe( _.bind(function(evt,data) {
             var selected = data.rows;
             var torrents = [];
+            var action = 'stop';
             for (var i=0; i<selected.length; i++) {
                 var torrent = this.grid.getDataItem(selected[i]);
                 torrents.push(torrent);
+                if (torrent.get('state') == 'stopped') {
+                    action = 'start';
+                }
             }
+
+            jsclientview.commands.set_play_action(action);
+
             mylog(LOGMASK.ui,'selection changed',torrents);
             //window.filetableview.notify_selection(torrents);
         },this));

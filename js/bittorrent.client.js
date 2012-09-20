@@ -214,6 +214,9 @@
             var lowest;
             for (var i=0; i<this.torrents.models.length; i++) {
                 torrent = this.torrents.models[i];
+                if (torrent.get('complete') == 1000) {
+                    continue;
+                }
                 lowest = null;
                 for (var j=0; j<torrent.connections.models.length; j++) {
                     conn = torrent.connections.models[j];

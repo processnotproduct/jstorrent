@@ -85,9 +85,9 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     </script>
 
     <script type="text/template" id="commands_template">
-      <ul class="commands nav nav-pills">
-        <li><a class="play btn btn-small" href="#"><i alt="remove" class="icon-play"></i></a></li>
-        <li><a class="remove btn btn-small" href="#"><i alt="remove" class="icon-remove"></i></a></li>
+      <ul class="commands nav-pills">
+        <li><a class="play btn btn-success" href="#"><i alt="remove" class="play-i icon-play"></i></a></li>
+        <li><a class="remove btn btn-danger" href="#"><i alt="remove" class="remove-i icon-remove"></i></a></li>
       </ul>
     </script>
     
@@ -134,7 +134,7 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
           <div style="position:absolute; margin-left: 10px" class="commands"></div>
           <div style="position:absolute; left: 200px;" class="addview"></div>
         </div>
-        <div class="torrentGrid" style="background:#eef;"></div>
+        <div class="torrentGrid" style="font-size:13px; background:#eef;"></div>
       </div>
 
       <div class="dragbar" style="background:#eee; border-color: black; border-top:1px; border-bottom:1px; height:20px; cursor: row-resize; width:100%"></div>
@@ -142,7 +142,7 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
       <!-- bottom resizey area -->
       <div class="pane-bottom" style="position:absolute: bottom:0px; left:0px; right:0px;">
         <div class="tabs" style=""></div>
-        <div class="fileGrid" style="background:#ffe;height:350px;">Select a torrent (<a href="web+magnet:?xt=urn:btih:2be808c54b33c17ed6a2f8396404a52152bf3047">add one</a>? - (<a href="javascript:jsclient.add_unknown('2be808c54b33c17ed6a2f8396404a52152bf3047')">simple add</a>)
+        <div class="fileGrid" style="font-size:13px; background:#ffe;height:350px;">Select a torrent (<a href="web+magnet:?xt=urn:btih:2be808c54b33c17ed6a2f8396404a52152bf3047">add one</a>? - (<a href="javascript:jsclient.add_unknown('2be808c54b33c17ed6a2f8396404a52152bf3047')">simple add</a>)
           <a id="magnet" href="#">register protocol handler!</a>
         </div>
       </div>
@@ -177,6 +177,6 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
 <br />
 <a href="unregisteredthing:foobar@bar.com">unregistered</a-->
 
-    <!--script src="../js/deps/geoip/geoip.js"></script-->
+    <script src="../js/deps/geoip/geoip.js"></script>
   </body>
 </html>

@@ -361,8 +361,13 @@ function b642arr(inp) {
             s += Math.pow(256,nums.length-1 - i) * parseInt(nums[i],10)
         }
         var idx = bisect_left(geoip_ip, s);
-        assert(s >= geoip_ip[idx-1] && s < geoip_ip[idx]);
-        var country = geoip_country[idx-1];
+        assert(s > geoip_ip[idx-1] && s <= geoip_ip[idx]);
+        if (s == geoip_ip[idx]) {
+            // not sure about this!
+            var country = geoip_country[idx];
+        } else {
+            var country = geoip_country[idx-1];
+        }
         return country;
     }
         

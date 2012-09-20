@@ -44,7 +44,6 @@ var CommandsView = BaseView.extend({
         this.set_play_action(action);
     },
     set_play_action: function(action) {
-        mylog(1,'set play action',action);
         if (action == 'start') {
             this.$('.play-i').removeClass('icon-stop');
             this.$('.play-i').addClass('icon-play');
@@ -124,6 +123,10 @@ var SuperTableView = Backbone.View.extend({
             this.grid.updateRowCount(); // do other stuff to make selection work correctly...
             this.grid.invalidateAllRows();
             this.grid.render();
+            
+            var idx = this.model.indexOf(m); // XXX - slow??
+            this.grid.scrollRowIntoView(idx);
+            this.grid.flashCell(idx, this.grid.getColumnIndex("name"), 400);
         },this));
 
         this.model.on('remove', _.bind(function(m) {
@@ -175,19 +178,19 @@ var SuperTableView = Backbone.View.extend({
 var TorrentTableView = SuperTableView.extend({
     initialize: function(opts) {
         opts.columns = [
-            {id: "#", name: "num", field: "num", sortable:true, width:30 },
+//            {id: "#", name: "num", field: "num", sortable:true, width:30 },
 //            {id: "hash", name: "infohash", field: "hash", sortable:true, width:50 },
-            {id: "name", name: "name", field: "name", sortable: true, width:500 },
-            {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
-            {id: "state", name: "state", field: "state", sortable: true },
-            {id: "storage", name: "storage", field: "storage_area", sortable: true },
+            {id: "name", name: "Name", field: "name", sortable: true, width:500 },
+            {id: "size", unit: 'bytes', name: "Size", field: "size", sortable: true, width:80 },
+            {id: "state", name: "State", field: "state", sortable: true },
             {id: "%", name: "% Complete", field: "complete", sortable: true },
-            {id: "bytes_sent", unit:'bytes',name: "bytes sent", field: "bytes_sent", sortable: true},
-            {id: "send_rate", unit:'bytes',name: "send_rate", field: "send_rate", sortable: true},
+            {id: "bytes_sent", unit:'bytes',name: "Bytes sent", field: "bytes_sent", sortable: true},
+            {id: "send_rate", unit:'bytes',name: "Up Speed", field: "send_rate", sortable: true},
             {id: "bytes_received", unit:'bytes',name: "bytes received", field: "bytes_received", sortable: true},
-            {id: "receive_rate", unit:'bytes',name: "receive_rate", field: "receive_rate", sortable: true},
-            {id: "numpeers", name: "numpeers", field: "numpeers", sortable: true},
-            {id: "numswarm", name: "numswarm", field: "numswarm", sortable: true}
+            {id: "receive_rate", unit:'bytes',name: "Down Speed", field: "receive_rate", sortable: true},
+            {id: "numpeers", name: "Peers", field: "numpeers", sortable: true},
+            {id: "numswarm", name: "Swarm", field: "numswarm", sortable: true},
+            {id: "storage", name: "Storage", field: "storage_area", sortable: true }
         ];
         this.default_height = 200;
         this.options.el.height(this.default_height);
@@ -209,6 +212,20 @@ var TorrentTableView = SuperTableView.extend({
                 } else if (column.field == 'num') {
                     return function(row,cell,value,col,data) { 
                         return row;
+                    }
+                } else if (column.field == 'numpeers') {
+                    return function(row,cell,value,col,data) { 
+                        var val = data.get('numpeers');
+                        if (val > 0) {
+                            return val;
+                        }
+                    }
+                } else if (column.field == 'numswarm') {
+                    return function(row,cell,value,col,data) { 
+                        var val = data.get('numswarm');
+                        if (val > 0) {
+                            return val;
+                        }
                     }
                 } else if (column.field == 'send_rate') {
                     return function(row,cell,value,col,data) { 
@@ -253,7 +270,7 @@ var TorrentTableView = SuperTableView.extend({
         this.grid.onClick.subscribe( _.bind(function(evt, data) {
             var torrent = this.grid.getDataItem(data.row);
             mylog(LOGMASK.ui,'click on torrent',torrent);
-            jsclientview.set_subview_context(torrent);
+            //jsclientview.set_subview_context(torrent);
         },this));
         this.grid.onSelectedRowsChanged.subscribe( _.bind(function(evt,data) {
             var selected = data.rows;
@@ -270,6 +287,10 @@ var TorrentTableView = SuperTableView.extend({
             jsclientview.commands.set_play_action(action);
 
             mylog(LOGMASK.ui,'selection changed',torrents);
+
+            if (torrents.length == 1) {
+                jsclientview.set_subview_context(torrents[0]);
+            }
             //window.filetableview.notify_selection(torrents);
         },this));
     },
@@ -335,9 +356,9 @@ var FileTableView = SuperTableView.extend({
             } else {
                 data.get_filesystem_entry( function() {
                     if (data.filesystem_entry && ! data.filesystem_entry.error) {
-                        $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank">open</a>' + 
-                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'">download</a>' +
-                                                  ' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '">play</a>'
+                        $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank"><i class="icon-folder-open"></i>Open</a>' + 
+                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>' +
+                                                  ' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '"><i class="icon-play"></i>Play</a>'
                                                 );
                     } else if (data.filesystem_entry && data.filesystem_entry.error) {
                         $(cellNode).text(data.filesystem_entry.error);

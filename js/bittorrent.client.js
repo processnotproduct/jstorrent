@@ -163,7 +163,7 @@
             }
         },
         remove_torrent: function(torrent) {
-            torrent.stop();
+            torrent.stop({silent:true});
             torrent.cleanup();
             torrent.remove_files();
             //this.torrents.remove(torrent);

@@ -638,8 +638,8 @@
             }
             this.pieces = {};
         },
-        stop: function() {
-            this.set('state','stopped');
+        stop: function(opts) {
+            this.set({'state':'stopped'}, opts);
             this.save();
             this.connections.each( function(conn) {
                 conn.stream.close();

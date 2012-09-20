@@ -70,7 +70,7 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
 </script>
 
     <script type="text/template" id="tabs_template">
-      <ul class="action-tabs nav nav-tabs">
+      <ul class="nav nav-tabs" style="margin-bottom:0">
         <li class="general"><a href="#"><i class="icon-book"></i>General</a></li>
         <li class="trackers"><a href="#"><i class="icon-screenshot"></i>Trackers</a></li>
         <li class="peers"><a href="#"><i class="icon-user"></i>Peers</a></li>
@@ -80,14 +80,29 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     </script>
 
     <script type="text/template" id="add_template">
-      <input type="text" class="url" />
-      <input type="button" value="add" class="add" />
+      <input style="margin-top:9px" class="url input-large" type="text" placeholder="Paste a Torrent URL" />
+      <input class="add btn btn-small btn-info" type="button" value="Add"/>
     </script>
 
     <script type="text/template" id="commands_template">
       <ul class="commands nav-pills">
-        <li><a class="play btn btn-success" href="#"><i alt="remove" class="play-i icon-play"></i></a></li>
-        <li><a class="remove btn btn-danger" href="#"><i alt="remove" class="remove-i icon-remove"></i></a></li>
+        <li><a class="play btn btn-mini btn-success" href="#"><i alt="remove" class="play-i icon-play"></i></a></li>
+        <li><a class="remove btn btn-mini btn-danger" href="#"><i alt="remove" class="remove-i icon-remove"></i></a></li>
+
+        <!--li>
+          <div class="btn-group">
+            <a class="btn btn-primary btn-primary" href="#">More</a>
+            <a class="btn btn-primary dropdown-toggle" data-toggle="dropdown" href="#"><span class="caret"></span></a>
+            <ul class="dropdown-menu">
+              <li><a href="#"><i class="icon-pencil"></i> Edit</a></li>
+              <li><a href="#"><i class="icon-trash"></i> Delete</a></li>
+              <li><a href="#"><i class="icon-ban-circle"></i> Ban</a></li>
+              <li class="divider"></li>
+              <li><a href="#"><i class="i"></i> Make admin</a></li>
+            </ul>
+          </div>
+        </li-->
+
       </ul>
     </script>
     
@@ -124,31 +139,31 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
 
 
 
-      <div style="margin-left:20px;">
+      <div style="margin-left:10px; margin-right:10px">
         <h1>jstorrent</h1>
-        <span style="float:right; margin-right:2em;">Welcome to jstorrent! Drag in files to create torrents. Drag in a torrent to start downloading!</span>
-      </div>
+        <p class="text-info" style="float:right; margin-right:8px;">Welcome to jstorrent! Drag in files to create torrents. Drag in a torrent to start downloading!</p>
 
-      <div class="pane-top">
-        <div style="position:relative; height:50px;">
-          <div style="position:absolute; margin-left: 10px" class="commands"></div>
-          <div style="position:absolute; left: 200px;" class="addview"></div>
+
+        <div class="pane-top">
+          <div style="position:relative; height:50px;">
+            <div style="position:absolute; margin-left: 10px" class="commands"></div>
+            <div style="position:absolute; left: 250px;" class="addview"></div>
+          </div>
+          <div class="torrentGrid" style="font-size:13px; background:#eef;"></div>
         </div>
-        <div class="torrentGrid" style="font-size:13px; background:#eef;"></div>
-      </div>
 
-      <div class="dragbar" style="background:#eee; border-color: black; border-top:1px; border-bottom:1px; height:20px; cursor: row-resize; width:100%"></div>
+        <div class="dragbar" style="background:#eee; border-color: black; border-top:1px; border-bottom:1px; height:10px; cursor: row-resize; width:100%"></div>
 
-      <!-- bottom resizey area -->
-      <div class="pane-bottom" style="position:absolute: bottom:0px; left:0px; right:0px;">
-        <div class="tabs" style=""></div>
-        <div class="fileGrid" style="font-size:13px; background:#ffe;height:350px;">Select a torrent (<a href="web+magnet:?xt=urn:btih:2be808c54b33c17ed6a2f8396404a52152bf3047">add one</a>? - (<a href="javascript:jsclient.add_unknown('2be808c54b33c17ed6a2f8396404a52152bf3047')">simple add</a>)
-          <a id="magnet" href="#">register protocol handler!</a>
+        <!-- bottom resizey area -->
+        <div class="pane-bottom" style="position:absolute: bottom:0px; left:0px; right:0px;">
+          <div class="tabs" style=""></div>
+          <div class="fileGrid" style="font-size:13px; background:#ffe;height:350px;">Select a torrent (<a href="web+magnet:?xt=urn:btih:2be808c54b33c17ed6a2f8396404a52152bf3047">add one</a>? - (<a href="javascript:jsclient.add_unknown('2be808c54b33c17ed6a2f8396404a52152bf3047')">simple add</a>)
+            <a id="magnet" href="#">register protocol handler!</a>
+          </div>
         </div>
+        <!-- end -->
+
       </div>
-      <!-- end -->
-
-
 
     </script>
 

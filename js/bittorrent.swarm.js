@@ -5,7 +5,13 @@
             this.torrent = torrent;
         },
         healthy: function() {
-            return this.models.length > this.torrent.get('maxconns');
+            var num_unresponsive = 0;
+            for (var i=0; i<this.models.length; i++) {
+                if (this.models[i].get('unresponsive')) {
+                    num_unresponsive++;
+                }
+            }
+            return (this.models.length-num_unresponsive) > this.torrent.get('maxconns');
         }
     });
 })();

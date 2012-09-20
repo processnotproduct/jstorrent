@@ -4,10 +4,12 @@
         this.queue = []; // a mixed queue of pieces to hash and callback functions.
         // [callback, piece, piece, piece] will hash 3 pieces and then call callback...
         this.pieces_computing = [];
+        this.torrent = null;
     }
 
     PieceHasher.prototype = {
-        enqueue: function(pieces, callback) {
+        enqueue: function(torrent, pieces, callback) {
+            this.torrent = torrent;
             // throw a bunch of items on the queue
             for (var i=0;i<pieces.length; i++) {
                 var piece = pieces[i];
@@ -18,21 +20,26 @@
         },
         piece_computed: function(piece) {
             // want to send HAVE to all connections...
+            piece.set('hashed',true);
             this.pieces_computing.shift();
             //mylog(1,'piece finished hashing');
-            piece.torrent.trigger('piece_hashed', piece);
+            //piece.torrent.trigger('piece_hashed', piece);
+            piece.torrent.hashed_single_piece(piece);
+            piece.free();
             this.process_queue();
         },
         process_queue: function() {
             if (this.queue.length > 0 && this.pieces_computing.length == 0) {
                 var item = this.queue.shift();
-                var piece = item;
                 if (typeof item == 'function') {
                     // mylog(1,'computed end of pieces chunk');
                     item();
+                    this.torrent = null;
                     _.defer(_.bind(this.process_queue,this));
                 } else {
-                    if (piece.hashed) {
+                    var piecenum = item;
+                    var piece = this.torrent.get_piece(piecenum);
+                    if (piece.get('hashed')) {
                         // this piece has already been hashed, skip to the next piece
                         this.process_queue();
                     } else {
@@ -49,32 +56,42 @@
     window.piecehasher = new PieceHasher;
 
 
-    jstorrent.Piece = function(torrent, num) {
-        assert(typeof num == 'number');
-        this.torrent = torrent;
-        this.num = num;
-        this.sz = this.torrent.get_piece_len(this.num)
-        this.start_byte = this.torrent.get_piece_len() * this.num
-        this.end_byte = this.start_byte + this.sz - 1
-        this.hashed = false;
-        this.numchunks = Math.ceil( this.sz / constants.chunk_size );
+    jstorrent.Piece = Backbone.Model.extend({
+        initialize: function(opts) {
+            assert(typeof opts.num == 'number');
+            this.torrent = opts.torrent;
+            this.num = opts.num;
+            this.sz = this.torrent.get_piece_len(this.num)
+            this.start_byte = this.torrent.get_piece_len() * this.num
+            this.end_byte = this.start_byte + this.sz - 1
+            this.set('hashed',false);
+            this.set('requests_out', 0);
+            this.set('responses_in', 0);
+            this.set('timeouts', 0);
+            //this.set('last_activity', null); // free memory when no activity..
+            this.set('hashfail', 0);
+            this.numchunks = Math.ceil( this.sz / constants.chunk_size );
 
-        this._data = [];
-        this._requests = [];
-        this._processing_request = false;
+            this._data = [];
+            this._requests = [];
+            this.set('processing_request',false);
 
-        this._peers_contributing = []; // peers contributing to our download
+            this._peers_contributing = []; // peers contributing to our download
 
-        //this._outbound_requests = []; // requests to other peers
-        this._outbound_request_offsets = {}; // holds just the offset, for testing containment
-        this._chunk_responses = [];
+            //this._outbound_requests = []; // requests to other peers
+            this._outbound_request_offsets = {}; // holds just the offset, for testing containment
+            this._chunk_responses = [];
 
-        assert(this.num < this.torrent.get_num_pieces());
-        assert(this.start_byte >= 0)
-        assert(this.end_byte >= 0)
-    }
-
-    jstorrent.Piece.prototype = {
+            assert(this.num < this.torrent.get_num_pieces());
+            assert(this.start_byte >= 0)
+            assert(this.end_byte >= 0)
+        },
+        free: function() {
+            this.collection.remove(this);
+            for (var key in this) {
+                delete this[key];
+            }
+        },
         compute_hash: function(callback) {
             this.get_data(0, this.sz, _.bind(this.got_data_for_compute_hash, this, callback));
         },
@@ -106,8 +123,9 @@
             if (this._outbound_request_offsets[offset]) {
 
                 delete this._outbound_request_offsets[offset];
-
                 this._chunk_responses[Math.floor(offset/constants.chunk_size)] = data;
+                this.set('responses_in', this.get('responses_in')+1);
+
                 var complete = this.check_responses_complete();
                 if (complete) {
                     mylog(LOGMASK.disk,'piece download complete',this.repr());
@@ -117,14 +135,15 @@
                         var arr = response.hash;
                         var hash = new Uint8Array(arr);
                         var metahash = str2arr(this.torrent.get_infodict().pieces.slice( this.num*20, (this.num+1)*20 ))
-                        
+
                         for (var i=0; i<hash.length; i++) {
                             if (hash[i] != metahash[i]) {
                                 mylog(LOGMASK.error,'hash mismatch!',this)
+                                this.set('hashfail',this.get('hashfail')+1);
                                 return
                             }
                         }
-
+                        this.set('hashed',true);
                         if (this.torrent.collection.client.get_filesystem().unsupported) {
                             this.torrent.notify_have_piece(this);
                         } else {
@@ -146,7 +165,7 @@
             this.torrent = null;
             this._data = [];
             this._requests = [];
-            this._processing_request = false;
+            this.set('processing_request',false);
             this._peers_contributing = []; 
             this._outbound_request_offsets = {};
             this._chunk_responses = [];
@@ -189,6 +208,7 @@
 
                     var data = [this.num, offset, sz];
                     this._outbound_request_offsets[offset] = true;
+                    this.set('requests_out', this.get('requests_out')+1);
                     requests.push(data);
                     if (requests.length >= num) {
                         break;
@@ -200,10 +220,12 @@
             return requests;
         },
         check_chunk_request_timeouts: function(conn, requests) {
+            if (! this.collection) { return; } // piece was "freed"
             for (var i=0; i<requests.length; i++) {
                 var offset = requests[i][1];
                 if (this._outbound_request_offsets[offset]) {
                     if (conn._connected) {
+                        this.set('timeouts', this.get('timeouts')+1);
                         conn.set('timeouts', conn.get('timeouts')+1);
                         conn.adjust_chunk_queue_size();
                         conn._outbound_chunk_requests--;
@@ -218,7 +240,7 @@
             jsclient.threadhasher.send({msg:'hashplease', chunks: responses}, _.bind(function(result) {
                 assert(result.hash);
                 this.hash = result.hash;
-                this.hashed = true;
+                this.set('hashed',true); // used in DND case?
                 //mylog(LOGMASK.hash, 'hashed a piece');
                 callback();
             },this));
@@ -275,7 +297,7 @@
             this.process_requests();
         },
         process_requests: function() {
-            if (this._processing_request) {
+            if (this.get('processing_request')) {
                 return;
             } else {
                 if (this._requests.length > 0) {
@@ -307,8 +329,12 @@
                 }
             }
         }
-    };
-
+    });
+    jstorrent.PieceCollection = jstorrent.Collection.extend({
+        //getFormatter: function(col) { debugger; },
+        model: jstorrent.Piece,
+        className: 'PieceCollection'
+    });
 
 
 })();

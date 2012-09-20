@@ -24,7 +24,7 @@
             this.swarm.on('add', _.bind(function() {
                 this.set('numswarm', this.get('numswarm')+1);
             },this));
-            this.pieces = [];
+            this.pieces = new jstorrent.PieceCollection();
             this.bytecounters = { sent: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.sent}),
                                   received: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.received}) };
             this.files = new jstorrent.TorrentFileCollection();
@@ -506,16 +506,13 @@
             //mylog(LOGMASK.network,this.repr(),'handle new peer',data);
             if (data.port && data.port > 0) {
                 var key = data.ip + ':' + data.port;
-                if (this.connections.contains(key)) {
-                    // already have this peer..
-                    mylog(1,'already have this peer',this.connections,key);
-                } else {
-                    var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
-                    if (! this.swarm.get(key)) {
-                        this.swarm.add(peer);
-                    }
+                var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
+                if (! this.swarm.get(key)) {
+                    this.swarm.add(peer);
+                    return true;
                 }
             }
+            return false;
         },
         on_connection_close: function(conn) {
             var key = conn.get_key();
@@ -581,6 +578,7 @@
                     }
                 }
             }
+            piece.free();
             this.save();
         },
         is_multifile: function() {
@@ -605,6 +603,18 @@
             }
         },
         get_piece: function(n) {
+            var piece = this.pieces.get(n);
+            if (piece) {
+                assert (piece.num == n)
+                return piece
+            } else {
+                var piece = new jstorrent.Piece({id:n, torrent:this, num:n});
+                assert(piece.num == n);
+                this.pieces.add(piece);
+                assert(this.pieces.get(n) == piece);
+                return piece;
+            }
+/*
             if (this.pieces[n]) {
                 return this.pieces[n]
             } else {
@@ -612,6 +622,7 @@
                 this.pieces[n] = piece;
                 return piece;
             }
+*/
         },
         get_piece_len: function(piecenum) {
             if (piecenum === undefined) {
@@ -634,19 +645,18 @@
         },
         cleanup: function() {
             // assist garbage collection on things
-            for (var i=0; i<this.num_pieces; i++) {
-                if (this.pieces[i]) {
-                    var piece = this.get_piece(i)
-                    piece.cleanup();
-                }
+            for (var i=0; i<this.pieces.models.length; i++) {
+                var piece = this.pieces.models[i]
+                //piece.cleanup();
+                this.pieces.remove(piece);
+                piece.free();
             }
-            this.pieces = {};
         },
         stop: function(opts) {
             this.set({'state':'stopped'}, opts);
             this.save();
             this.connections.each( function(conn) {
-                conn.stream.close();
+                conn.close('torrent stopped');
             });
         },
         get_files_spanning_bytes: function(start_byte, end_byte) {
@@ -676,14 +686,23 @@
             assert( ! this.has_infodict() );
             var pieces = [];
             for (var i = 0; i < this.num_pieces; i++) {
-                pieces.push(this.get_piece(i));
+                pieces.push(i);
             }
-            mylog(LOGMASK.hash, 'hashing all pieces',pieces.length);
-            piecehasher.enqueue( pieces, _.bind(this.hashed_all_pieces, this, callback) );
+            mylog(LOGMASK.hash, 'hashing all pieces');
+            piecehasher.enqueue( this, pieces, _.bind(this.hashed_all_pieces, this, callback) );
+        },
+        hashed_single_piece: function(piece) {
+            var arr = new Uint8Array(piece.hash);
+            assert (arr.byteLength == 20);
+            var offset = piece.num*20
+            for (var j=0; j<20; j++) {
+                this.real_info['pieces'][offset+j] = arr[j]
+            }
         },
         hashed_all_pieces: function(callback) {
             mylog(LOGMASK.hash, 'hashed all pieces!');
             this._hashing_all_pieces = false;
+/*
             for (var i = 0; i < this.num_pieces; i++) {
                 var piece = this.get_piece(i);
                 //var s = ab2hex();
@@ -694,6 +713,7 @@
                     this.real_info['pieces'][offset+j] = arr[j]
                 }
             }
+*/
             var s = '';
             for (var i=0; i<this.real_info.pieces.length; i++) {
                 s += String.fromCharCode(this.real_info.pieces[i]);

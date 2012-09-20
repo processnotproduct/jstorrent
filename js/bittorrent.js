@@ -15,8 +15,8 @@
         protocol_name: 'BitTorrent protocol',
         handshake_length: 1 + 'BitTorrent protocol'.length + 8 + 20 + 20,
         std_piece_size: Math.pow(2,14),
-        //new_torrent_piece_size: Math.pow(2,16),
-        new_torrent_piece_size: Math.pow(2,14),
+        new_torrent_piece_size: Math.pow(2,18),
+        //new_torrent_piece_size: Math.pow(2,14),
         chunk_size: Math.pow(2,14),
         metadata_request_piece_size: Math.pow(2,14),
         max_packet_size: Math.pow(2,15),
@@ -318,7 +318,7 @@
                 resp['metadata_size'] = this.torrent.metadata_size;
             }
             resp['m']['ut_metadata'] = 2; // totally arbitrary number, but UT needs 2???
-            resp['m']['ut_pex'] = 3; // clients snub us if we advertise but dont respond
+            resp['m']['ut_pex'] = 3; // do clients snub us if we advertise but dont respond??
             this._my_extension_handshake = resp;
             this._my_extension_handshake_codes = reversedict(resp['m']);
             mylog(LOGMASK.network_verbose, 'sending extension handshake with data',resp);
@@ -452,6 +452,7 @@
                 }
             }
             var result = new Uint8Array(metadata);
+            // TODO -- maybe do in thread?
             var hasher = new Digest.SHA1();
             hasher.update( result );
             var hash = new Uint8Array(hasher.finalize());
@@ -536,15 +537,7 @@
                     var arr = new Uint8Array(data.payload.buffer, data.payload.byteOffset+1);
                     var str = arr2str(arr);
                     var info = bdecode(str);
-                    var decodedpeers = [];
-                    if (info.added) {
-                        var itermax = info.added.length/6;
-                        for (var i=0; i<itermax; i++) {
-                            var peerdata = jstorrent.decode_peer( info.added.slice( i*6, (i+1)*6 ) );
-                            decodedpeers.push(peerdata);
-                            this.torrent.handle_new_peer(peerdata);
-                        }
-                    }
+                    this.peer.handle_pex(info);
                     mylog(LOGMASK.network, 'receive ut_pex extension message',info);
                 }
             } else {
@@ -569,7 +562,7 @@
             this._choked = true;
             this.set('am_choked',true);
             if (this.torrent.swarm.healthy()) {
-                this.close('looking for another peer')
+                this.close('choked, find another')
             }
         },
         handle_unchoke: function(data) {
@@ -787,8 +780,10 @@
         },
         close: function(reason) {
             if (reason) {
+                this.peer.set('closereason',reason);
                 mylog(LOGMASK.general,'close connection',this.repr(),reason);
             }
+            // cleanup shizzzz!
             this.stream.close()
         },
         handle_message: function(msg_len) {
@@ -964,6 +959,7 @@
             for (var k in this) {
                 delete this[k];
             }
+            // cleanup/cancel outbound piece requests etc!...
         }
     });
 

@@ -226,6 +226,9 @@
                 lowest = null;
                 for (var j=0; j<torrent.connections.models.length; j++) {
                     conn = torrent.connections.models[j];
+                    if (conn.get('state') == 'connecting' || conn.get('state') == 'handshaking') {
+                        continue;
+                    }
                     conn.compute_max_rates();
                     if (! lowest) {
                         lowest = conn;
@@ -233,9 +236,20 @@
                         lowest = conn;
                     }
                 }
-
                 // got conn with lowest rate, drop that fucker!
                 if (torrent.swarm.healthy() && conn && torrent.connections.models.length == torrent.get('maxconns')) {
+                    // also count number in connecting state... dont close if everyone's still connecting
+/*
+                    var num_connecting = 0;
+                    for (var i=0; i<torrent.connections.models.length; i++) {
+                        if (torrent.connection.models[i].get('state') == 'connecting') {
+                            num_connecting++;
+                        }
+                    }
+                    if (torrent.connection.models.length - num_connecting > 239823) {
+                        conn.close('slowest');
+                    }
+*/
                     conn.close('slowest');
                 }
             }

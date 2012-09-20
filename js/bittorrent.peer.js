@@ -4,13 +4,16 @@
         className: 'Peer',
         initialize: function(opts) {
             this.torrent = opts.torrent;
+            this.swarm = opts.torrent.swarm;
             var parts = this.id.split(':');
             this.ip = parts[0];
             this.port = parseInt(parts[1],10);
             this.set('country',geolocate(this.ip));
             this.set('last_closed', null);
             this.set('unresponsive',null);
-            this.set('banned', false);
+            this.set('pex_peers',0);
+            this.set('banned', null);
+            this.set('closereason', null);
             this.set('ever_connected', null); // whether this peer ever did anything useful...
         },
         repr: function() {
@@ -19,6 +22,21 @@
         ban: function() {
             this.set('banned', true);
             // ban this peer.
+        },
+        handle_pex: function(info) {
+            var decodedpeers = [];
+            if (info.added) {
+                var itermax = info.added.length/6;
+                for (var i=0; i<itermax; i++) {
+                    var peerdata = jstorrent.decode_peer( info.added.slice( i*6, (i+1)*6 ) );
+                    decodedpeers.push(peerdata);
+                    var added = this.torrent.handle_new_peer(peerdata);
+                    if (added) {
+                        this.set('pex_peers', this.get('pex_peers')+1);
+                    }
+                }
+            }
+            mylog(LOGMASK.peer, 'handle pex',info);
         },
         notify_closed: function(data, conn) {
             this.set('conn',undefined);

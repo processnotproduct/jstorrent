@@ -524,7 +524,9 @@ var SwarmTableView = SuperTableView.extend({
             {id: "last_closed", name: "last_closed", field: "last_closed", width:140 },
             {id: "unresponsive", name: "unresponsive", field: "unresponsive" },
             {id: "banned", name: "banned", field: "banned" },
+            {id: "closereason", name: "closereason", field: "closereason", width:200 },
             {id: "ever_connected", name: "ever_connected", field: "ever_connected" },
+            {id: "pex_peers", name: "pex_peers", field: "pex_peers" },
         ];
         opts.makeformatter = {
             getFormatter: function(column) {
@@ -535,7 +537,7 @@ var SwarmTableView = SuperTableView.extend({
                 } else if (column.field == 'conn') {
                     return function(row,cell,value,col,data) {
                         if (data.get('conn')) {
-                            return 'yes'
+                            return data.get('conn').get('state');
                         } else {
                             return '';
                         }
@@ -563,6 +565,49 @@ var SwarmTableView = SuperTableView.extend({
             }
         },this));
 
+    }
+});
+
+var PieceTableView = SuperTableView.extend({
+    initialize: function(opts) {
+        this.torrent = opts.torrent;
+        opts.columns = [
+            {id: "num", name: "Number", field: "num" },
+            {id: "start_byte", name: "Start byte", field: "start_byte", type:'attr' },
+            {id: "end_byte", name: "End byte", field: "end_byte", type:'attr' },
+            {id: "sz", name: "Size", field: "sz", type:'attr' },
+            {id: "numchunks", name: "Chunks", field: "numchunks", type:'attr' },
+            {id: "hashed", name: "hashed", field: "hashed" },
+            {id: "processing_request", name: "processing_request", field: "processing_request" },
+            {id: "requests_out", name: "requests_out", field: "requests_out" },
+            {id: "responses_in", name: "responses_in", field: "responses_in" },
+            {id: "timeouts", name: "timeouts", field: "timeouts" },
+        ];
+        opts.makeformatter = {
+            getFormatter: function(column) {
+                if (column.field == 'pathaoeuaoue') {
+                    return function(row,cell,value,col,data) {
+                        return '<a href="' + data.filesystem_entry + '">open</a>';
+                    };
+                } else if (column.type == 'attr') {
+                    return function(row,cell,value,col,data) {
+                        return data[col.field];
+                    };
+                } else {
+                    return function(row,cell,value,col,data) {
+                        return data.get(col.field);
+                    };
+                }
+            }
+        };
+        SuperTableView.prototype.initialize.apply(this,[opts]);
+        this.bind_events()
+    },
+    bind_events: function() {
+        this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
+            var piece = this.grid.getDataItem(data.row);
+            mylog(LOGMASK.ui,'click thing!!!!!',piece);
+        },this));
     }
 });
 
@@ -611,7 +656,7 @@ var TabsView = BaseView.extend({
         this.bind_actions();
     },
     bind_actions: function() {
-        _.each(['peers','general','files','trackers','swarm'], _.bind(function(tabname) {
+        _.each(['peers','general','files','trackers','swarm','pieces'], _.bind(function(tabname) {
             this.$('.' + tabname).click( _.bind(function() {
                 jsclientview.set_tab(tabname);
             },this));
@@ -712,6 +757,7 @@ var JSTorrentClientView = BaseView.extend({
         if (this.detailview) { this.detailview.destroy(); }
         var ctxid = this.settings.get('subview_context');
         var torrent = jsclient.torrents.get(ctxid);
+        assert(torrent);
         var curtab = this.settings.get('tab');
         if (curtab == 'files') {
             if (torrent.get_infodict()) {
@@ -722,6 +768,8 @@ var JSTorrentClientView = BaseView.extend({
             jsclientview.detailview = new PeerTableView({ model: torrent.connections, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'swarm') {
             jsclientview.detailview = new SwarmTableView({ model: torrent.swarm, torrent: torrent, el: this.$('.fileGrid')});
+        } else if (curtab == 'pieces') {
+            jsclientview.detailview = new PieceTableView({ model: torrent.pieces, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'trackers') {
             jsclientview.detailview = new TrackerTableView({ model: torrent.trackers, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'general') {

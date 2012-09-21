@@ -96,6 +96,7 @@
             }
         },
         free: function() {
+            mylog(1,this.num,'piece free');
             assert(this.collection);
             this.collection.remove(this);
             for (var key in this) {
@@ -172,6 +173,7 @@
             }
         },
         cleanup: function(reason) {
+            mylog(1,this.num,'piece cleanup',reason);
             //this.torrent = null;
             this._data = [];
             this._requests = [];
@@ -245,6 +247,7 @@
             // todo -- make work on multiple threads better
             jsclient.threadhasher.send({msg:'hashplease', chunks: responses}, _.bind(function(result) {
                 assert(result.hash);
+                this.cleanup(); // don't need the actual piece data anymore
                 this.hash = result.hash;
                 this.set('hashed',true); // used in DND case?
                 //mylog(LOGMASK.hash, 'hashed a piece');
@@ -330,8 +333,6 @@
                 var piece = this.torrent.get_piece(request.piece);
                 if (this._requests.length > 0) {
                     this.process_requests();
-                } else {
-                    piece.try_free();
                 }
             }
         },

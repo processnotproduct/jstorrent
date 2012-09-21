@@ -105,8 +105,7 @@
                 this.process_post_metadata();
                 this.hash_all_pieces( _.bind(function() {
                     mylog(1,'torrent ready!');
-                    this.save();
-                    debugger;
+                    this.start();
                     // woo hoo!
                 },this));
                         

@@ -90,13 +90,13 @@
             assert(this.start_byte >= 0)
             assert(this.end_byte >= 0)
         },
-        try_free: function() {
+        try_free: function(reason) {
             if (! this.get('current_request')) {
-                this.free();
+                this.free(reason);
             }
         },
-        free: function() {
-            mylog(1,this.num,'piece free');
+        free: function(reason) {
+            mylog(1,this.num,'piece free',reason);
             assert(this.collection);
             this.collection.remove(this);
             for (var key in this) {
@@ -215,7 +215,7 @@
                     }
 
                     var data = [this.num, offset, sz];
-                    this._outbound_request_offsets[offset] = true;
+                    this._outbound_request_offsets[offset] = data;
                     this.set('requests_out', this.get('requests_out')+1);
                     requests.push(data);
                     if (requests.length >= num) {
@@ -228,13 +228,14 @@
             return requests;
         },
         check_chunk_request_timeouts: function(conn, requests) {
-            if (! this.collection) { return; } // piece was "freed"
+            if (! this.collection) { mylog(LOGMASK.error,'check timeout on piece that was freed'); return; } // piece was "freed"
             for (var i=0; i<requests.length; i++) {
                 var offset = requests[i][1];
                 if (this._outbound_request_offsets[offset]) {
                     if (conn._connected) {
                         this.set('timeouts', this.get('timeouts')+1);
                         conn.set('timeouts', conn.get('timeouts')+1);
+                        conn.do_send_cancel(this._outbound_request_offsets[offset]);
                         conn.adjust_chunk_queue_size();
                         conn._outbound_chunk_requests--;
                     }

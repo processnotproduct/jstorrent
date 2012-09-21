@@ -287,6 +287,11 @@
             this.set('last_message',msg);
             this.message_history.push(msg);
         },
+        do_send_cancel: function(data) {
+            // offset/constants.chunk_size
+            var payload = new JSPack().Pack('>III', data);
+            this.send_message("CANCEL", payload);
+        },
         handle_piece: function(data) {
             var view = new DataView(data.payload.buffer, data.payload.byteOffset);
             var index = view.getUint32(0);
@@ -682,7 +687,6 @@
                 var payload = jspack.Pack(">III", [index, offset, size]);
                 this.send_message("REJECT_REQUEST", payload);
                 mylog(LOGMASK.error,'connection asked for incomplete piece',index,offset,size);
-                piece.try_free();
             }
         },
         on_handle_request_data: function(piece, request, responses) {

@@ -108,8 +108,6 @@
                     this.start();
                     // woo hoo!
                 },this));
-                        
-
             } else if (opts.state == 'hashing') {
                 mylog(LOGMASK.error,'torrent didnt finish hashing!... eeeeeee');
                 debugger;

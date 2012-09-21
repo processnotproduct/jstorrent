@@ -81,6 +81,9 @@
 
             if (str.slice(0,'magnet:'.length) == 'magnet:') {
                 this.add_torrent({magnet:str}, opts);
+            } else if (str.slice(0,'http://'.length) == 'http://') {
+                // also checks endswith
+                window.location = str;
             } else if (str.slice(0,'web+magnet:'.length) == 'web+magnet:') {
                 this.add_torrent({magnet:str}, opts);
             } else if (str.slice(0,'http://'.length) == 'http://') {
@@ -178,6 +181,9 @@
             //this.torrents.save();
         },
         run_tests: function() {
+        },
+        add_example_torrent: function() {
+            this.add_unknown("magnet:?xt=urn:btih:3HDQCCOLAXAYD6PMSNZ35B3KBVAMJV5Q&tr=http://tracker.vodo.net:6970/announce")
         },
         tick: function() {
             var now = (new Date()).getTime();

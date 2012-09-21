@@ -10,6 +10,7 @@ window.config = {
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     bittorrent_proxy: '192.168.56.1:8030',
+    bittorrent_incoming_proxy: '192.168.56.1:8030',
     default_tracker: 'http://192.168.56.1:6969/announce',
     kyle_ut_home: 'kzahel.dyndns.org:38028',
     public_trackers: ["udp://tracker.openbittorrent.com:80/announce",
@@ -22,6 +23,7 @@ if (window.location.host.match('jstorrent.com')) {
     config.tracker_proxy = 'http://kzahel.dyndns.org:6969/proxy';
     config.jstorrent_host = 'http://jstorrent.com';
     config.bittorrent_proxy = 'kzahel.dyndns.org:8030';
+    config.bittorrent_incoming_proxy = 'kzahel.dyndns.org:8030';
 } else if (false && window.location.host.match('127.0.0.1')) {
     config.tracker_proxy = 'http://127.0.0.1:6969/proxy';
     config.jstorrent_host = 'http://127.0.0.1:9090';
@@ -91,8 +93,8 @@ function to_file_size(size) {
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
 //var curlogmask = LOGMASK.general | LOGMASK.hash;
-var curlogmask = LOGMASK.general | LOGMASK.disk;
-//var curlogmask = LOGMASK.general | LOGMASK.ui;
+//var curlogmask = LOGMASK.general | LOGMASK.disk;
+var curlogmask = LOGMASK.general | LOGMASK.ui;
 //var curlogmask = LOGMASK.all;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;

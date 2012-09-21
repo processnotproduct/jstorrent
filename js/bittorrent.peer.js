@@ -46,6 +46,11 @@
             }
             mylog(LOGMASK.peer, this.repr(),'peer closed',data, data.reason);
             this.set('last_closed', new Date());
+            
+            if (data.reason) {
+                assert(! this.get('closereason') );
+                this.set('closereason', data.reason);
+            }
 
             if (data.reason == 'dpoint closed') {
                 this._reconnect_in = new Date() + 1000;

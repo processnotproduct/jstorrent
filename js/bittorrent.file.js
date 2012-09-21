@@ -316,7 +316,8 @@
 
                     if (canclean) {
                         mylog(LOGMASK.disk,'piece',piece.num,'wrote out all data',file.repr(),'CLEARING OUT RESPONSES');
-                        piece.cleanup();
+                        //piece.cleanup('wrote out all data?'); // causes breaking?
+                        piece.try_free();
                         //piece._chunk_responses = [];
                     } else {
                         // file.on_download_complete(); // this simply checks that it got written with the right size

@@ -504,7 +504,7 @@ var PeerTableView = SuperTableView.extend({
     bind_events: function() {
         this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
             var peerconn = this.grid.getDataItem(data.row);
-            mylog(LOGMASK.ui,'click thing!!!!!',peerconn);
+            mylog(LOGMASK.ui,'click conn!!!!!',peerconn);
             peerconn.close('user closed')
             //file.open();
         },this));
@@ -553,10 +553,9 @@ var SwarmTableView = SuperTableView.extend({
         this.bind_events()
     },
     bind_events: function() {
-
         this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
             var peer = this.grid.getDataItem(data.row);
-            mylog(LOGMASK.ui,'click thing!!!!!',peer);
+            mylog(LOGMASK.ui,'click peer!!!!!',peer);
             var torrent = peer.get('torrent');
             if (torrent.connections.get(peer.id)) {
                 peer.get('conn').close('user closed')
@@ -564,7 +563,6 @@ var SwarmTableView = SuperTableView.extend({
                 torrent.connections.add_peer(peer);
             }
         },this));
-
     }
 });
 
@@ -578,10 +576,14 @@ var PieceTableView = SuperTableView.extend({
             {id: "sz", name: "Size", field: "sz", type:'attr' },
             {id: "numchunks", name: "Chunks", field: "numchunks", type:'attr' },
             {id: "hashed", name: "hashed", field: "hashed" },
-            {id: "processing_request", name: "processing_request", field: "processing_request" },
+            {id: "current_request", name: "current_request", field: "current_request" },
             {id: "requests_out", name: "requests_out", field: "requests_out" },
             {id: "responses_in", name: "responses_in", field: "responses_in" },
+
             {id: "timeouts", name: "timeouts", field: "timeouts" },
+
+            {id: "requests_in", name: "requests_in", field: "requests_in" },
+            {id: "responses_out", name: "responses_out", field: "responses_out" }
         ];
         opts.makeformatter = {
             getFormatter: function(column) {
@@ -592,6 +594,11 @@ var PieceTableView = SuperTableView.extend({
                 } else if (column.type == 'attr') {
                     return function(row,cell,value,col,data) {
                         return data[col.field];
+                    };
+                } else if (column.field == 'current_request') {
+                    return function(row,cell,value,col,data) {
+                        var req = data.get(col.field)
+                        if (req) { return req.piece + ',' + req.original[0]; } else { return ''; }
                     };
                 } else {
                     return function(row,cell,value,col,data) {
@@ -643,8 +650,9 @@ var TrackerTableView = SuperTableView.extend({
     },
     bind_events: function() {
         this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
-            var thing = this.grid.getDataItem(data.row);
-            mylog(1,'click thing!!!!!',thing);
+            var tracker = this.grid.getDataItem(data.row);
+            mylog(1,'click tracker!!!!!',tracker);
+            tracker.force_announce();
         },this));
     }
 });

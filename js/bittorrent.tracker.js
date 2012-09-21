@@ -43,6 +43,10 @@
             }
             return true;
         },
+        force_announce: function() {
+            this._last_announce = null;
+            this.announce();
+        },
         announce: function() {
             if (! this.can_announce()) {
                 return;

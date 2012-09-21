@@ -3,8 +3,9 @@
     var DHT = parseInt('0x01');
     var UTORRENT = parseInt('0x10');
     var NAT_TRAVERSAL = parseInt('0x08');
-    var LAST_BYTE = DHT;
-    LAST_BYTE |= NAT_TRAVERSAL;
+    //var LAST_BYTE = DHT;
+    //LAST_BYTE |= NAT_TRAVERSAL;
+    var LAST_BYTE = 0;
 
     var FLAGS = [0,0,0,0,0,0,0,0];
     FLAGS[5] = UTORRENT;
@@ -671,20 +672,25 @@
             var offset = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 4, 4))[0];
             var size = jspack.Unpack('>I', new Uint8Array(data.payload.buffer, data.payload.byteOffset + 8, 4))[0];
             mylog(LOGMASK.network,'handle piece request for piece',index,'offset',offset,'of size',size);
+            //mylog(1,'handle piece request for piece',index,'offset',offset);
 
             var piece = this.torrent.get_piece(index);
             if (piece.complete()) {
-
-            // read each of these file payloads and respond...
-            // var request_info = {'index':index, 'offset':offset, 'size':size};
+                piece.set('requests_in', piece.get('requests_in')+1 );
                 piece.get_data(offset, size, this.on_handle_request_data);
             } else {
                 var payload = jspack.Pack(">III", [index, offset, size]);
                 this.send_message("REJECT_REQUEST", payload);
                 mylog(LOGMASK.error,'connection asked for incomplete piece',index,offset,size);
+                piece.try_free();
             }
         },
         on_handle_request_data: function(piece, request, responses) {
+            // TODO -- assert matches original request offsets !
+            if (! this._connected) {
+                mylog(LOGMASK.error,'got piece data to send but conn closed');
+                return;
+            }
             var payload = jspack.Pack('>II', [piece.num, request.original[0]]);
             for (var i=0; i<responses.length; i++) {
                 var response = new Uint8Array(responses[i]);
@@ -693,6 +699,8 @@
                     payload.push(response[j]);
                 }
             }
+            //mylog(1,'respond piece',piece.num, request.original[0]);
+            piece.set('responses_out', piece.get('responses_out')+1 );
             this.send_message('PIECE', payload);
         },
         handle_bitfield: function(data) {
@@ -796,10 +804,12 @@
             if (handler) {
                 handler(data);
                 //handler.apply(this, [data]);
+                _.defer( _.bind(this.check_more_messages_in_buffer, this) );
             } else {
-                throw Error('unhandled message ' + data.msgtype);
+                var err = 'unhandled message ' + data.msgtype
+                mylog(LOGMASK.error,err);
+                this.close(err);
             }
-            setTimeout( _.bind(this.check_more_messages_in_buffer, this), 1);
         },
         handle_handshake: function(handshake_len) {
             this.handshaking = false;
@@ -815,8 +825,7 @@
                 }
                 this.check_more_messages_in_buffer();
             } else {
-                debugger;
-                this.close('invalid handshake', data.protocol);
+                this.close('invalid handshake ' + data.protocol);
             }
         },
         read_buffer_consume: function(bytes, peek) {

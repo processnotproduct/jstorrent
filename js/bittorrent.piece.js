@@ -67,6 +67,10 @@
             this.set('hashed',false);
             this.set('requests_out', 0);
             this.set('responses_in', 0);
+
+            this.set('responses_out', 0);
+            this.set('requests_in', 0);
+
             this.set('timeouts', 0);
             //this.set('last_activity', null); // free memory when no activity..
             this.set('hashfail', 0);
@@ -74,7 +78,7 @@
 
             this._data = [];
             this._requests = [];
-            this.set('processing_request',false);
+            this.set('current_request',null);
 
             this._peers_contributing = []; // peers contributing to our download
 
@@ -85,6 +89,11 @@
             assert(this.num < this.torrent.get_num_pieces());
             assert(this.start_byte >= 0)
             assert(this.end_byte >= 0)
+        },
+        try_free: function() {
+            if (! this.get('current_request')) {
+                this.free();
+            }
         },
         free: function() {
             assert(this.collection);
@@ -163,14 +172,14 @@
             }
         },
         cleanup: function(reason) {
-            this.torrent = null;
+            //this.torrent = null;
             this._data = [];
             this._requests = [];
-            this.set('processing_request',false);
+            this.set('current_request',null);
             this._peers_contributing = []; 
             this._outbound_request_offsets = {};
             this._chunk_responses = [];
-            mylog(LOGMASK.disk,'piece cleanup',this.num,reason);
+            mylog(1,'piece cleanup',this.num,reason);
         },
         wrote_but_not_stored: function() {
             return this.torrent.piece_wrote_but_not_stored(this.num);
@@ -284,46 +293,55 @@
             // gives data needed to service piece requests
             var file_info = this.get_file_info(offset, size);
             assert(file_info.length > 0);
-            this._requests.push({'original':[offset,size],'info':file_info,'callback':callback});
+            var request = {'piece':this.num, 'original':[offset,size],'info':file_info,'callback':callback};
+            this._requests.push(request);
             this.process_requests();
         },
-        got_file_data: function(request, file, data, payload) {
-            //file._cache[JSON.stringify(data[1])] = 
+        got_file_data: function(file, data, payload) {
+            var request = this.get('current_request');
             data.response = payload;
-            //request.results.push( payload );
-            this.process_requests();
+            this.continue_processing();
+        },
+        continue_processing: function() {
+            var request = this.get('current_request');
+            var data;
+            var found_unread = false;
+            for (var i=0; i<request.info.length; i++) {
+                // look for more file data to read...
+                data = request.info[i];
+                if (! data.response) {
+                    found_unread = true;
+                    break;
+                }
+            }
+            if (found_unread) {
+                var file = this.torrent.get_file(data.filenum);
+                file.get_data( _.bind(this.got_file_data, this, file, data),
+                               data.filerange );
+            } else {
+                var callback = request['callback'];
+                // should we format out the responses?
+                var responses = [];
+                for (var i=0; i<request.info.length; i++) {
+                    responses.push( request.info[i].response );
+                }
+                callback(this, request, responses);
+                this.set('current_request', null)
+                var piece = this.torrent.get_piece(request.piece);
+                if (this._requests.length > 0) {
+                    this.process_requests();
+                } else {
+                    piece.try_free();
+                }
+            }
         },
         process_requests: function() {
-            if (this.get('processing_request')) {
-                return;
-            } else {
-                if (this._requests.length > 0) {
-                    var request = this._requests[ this._requests.length - 1 ];
-
-                    var found_unread = null;
-
-                    for (var i=0; i<request.info.length; i++) {
-                        // look for more file data to read...
-                        var data = request.info[i];
-                        if (! data.response) {
-                            found_unread = data;
-                            break;
-                        }
-                    }
-                    if (found_unread) {
-                        var file = this.torrent.get_file(data.filenum);
-                        file.get_data( _.bind(this.got_file_data, this, request, file, data),
-                                       data.filerange );
-                    } else {
-                        var callback = request['callback'];
-                        // should we format out the responses?
-                        var responses = [];
-                        for (var i=0; i<request.info.length; i++) {
-                            responses.push( request.info[i].response );
-                        }
-                        callback(this, request, responses);
-                    }
-                }
+            if (this.get('current_request')) {
+                //mylog(,'already processing request');
+            } else if (this._requests.length > 0) {
+                var request = this._requests.pop();
+                this.set('current_request', request);
+                this.continue_processing();
             }
         }
     });

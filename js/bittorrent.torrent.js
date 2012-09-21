@@ -510,7 +510,10 @@
             return this.get('storage_area') || 'temporary';
         },
         try_add_peers: function() {
-            if (this.connections.models.length < this.get('maxconns') && this.get('complete') != 1000) {
+
+            //&& this.get('complete') != 1000 // try to seed!
+
+            if (this.connections.models.length < this.get('maxconns')) {
                 for (var i=0; i<this.swarm.models.length; i++) {
                     var peer = this.swarm.models[i];
                     if (! peer.is_self() && peer.can_reconnect()) {

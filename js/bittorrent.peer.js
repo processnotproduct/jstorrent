@@ -48,10 +48,13 @@
             this.set('last_closed', new Date());
             
             if (data.reason) {
-                assert(! this.get('closereason') );
-                this.set('closereason', data.reason);
+                if (this.get('closereason')) {
+                    mylog(LOGMASK.error,'two close reasons', this.get('closereason'), data.reason);
+                    this.set('closereason', this.get('closereason') + ', ' + data.reason);
+                } else {
+                    this.set('closereason', data.reason);
+                }
             }
-
             if (data.reason == 'dpoint closed') {
                 this._reconnect_in = new Date() + 1000;
             } else if (data.reason == 'dpoint timeout') {

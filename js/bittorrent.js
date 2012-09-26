@@ -109,8 +109,7 @@
     function create_handshake(infohash, peerid) {
         // use binary buffer
         var parts = [constants.protocol_name.length];
-        
-        parts = parts.concat( _.map(constants.protocol_name.split(''), function(c) { return c.charCodeAt(0); } ) );
+        parts = parts.concat( str2arr(constants.protocol_name) );
         parts = parts.concat( constants.handshake_flags );
         parts = parts.concat( infohash )
         parts = parts.concat( peerid )
@@ -122,6 +121,21 @@
 
     jstorrent.WSPeerConnection = Backbone.Model.extend({
         className: 'WSPeerConnection',
+        handlers: {
+            'UTORRENT_MSG': 'handle_extension_message',
+            'PORT': 'handle_port',
+            'HAVE': 'handle_have',
+            'CHOKE': 'handle_choke',
+            'UNCHOKE': 'handle_unchoke',
+            'INTERESTED': 'handle_interested',
+            'NOT_INTERESTED': 'handle_not_interested',
+            'HAVE_ALL': 'handle_have_all',
+            'PIECE': 'handle_piece',
+            'BITFIELD': 'handle_bitfield',
+            'REQUEST': 'handle_request',
+            'CANCEL': 'handle_cancel',
+            'keepalive': 'handle_keepalive'
+        },
         /* 
            connection that acts like a bittorrent connection, wrapped just inside a websocket
         */
@@ -171,7 +185,6 @@
             this.stream.onopen = this.onopen;
             this.stream.onclose = this.onclose;
             this.stream.onmessage = this.onmessage;
-            this.read_buffer = []; // utorrent does not send an entire message in each websocket frame
         },
         can_send_messages: function() {
             return ! this.handshaking && this._connected && ! this._closed && ! this._error;
@@ -192,22 +205,62 @@
                       'handle_have_all',
                       'handle_interested',
                       'handle_not_interested',
-                      'handle_piece_hashed',
                       'handle_keepalive',
                       'handle_piece',
                       'handle_cancel',
                       'handle_port'
                      );
             //mylog(LOGMASK.network,'initialize wspeerconn');
-            this.set('state','connecting');
-            this.message_history = new jstorrent.RingBuffer(30); // for debugging messages
-            var host = opts.host;
-            var port = opts.port;
-            this.peer = opts.peer;
-            this.peer.set('conn',this);
-            assert( typeof opts.port == 'number' );
-            var torrent = opts.torrent;
+            this._host = opts.host;
+            this._port = opts.port;
 
+            if (opts && opts.incoming) {
+                // incoming connection
+                this.set('state','incoming');
+                this.strurl = this._host + ':' + this._port;
+                this.id = this.strurl;
+                this._was_incoming = true;
+                mylog(LOGMASK.network,'initialize peer connection without infohash (incoming)')
+                this.inittime = new Date();
+                this.client = opts.client;
+                this.incoming = opts.incoming;
+                this.stream = opts.incoming.stream;
+                this.stream.onerror = this.onerror;
+                this.stream.onopen = this.onopen;
+                this.stream.onclose = this.onclose;
+                this.stream.onmessage = this.onmessage;
+                this.bytecounters = { sent: new jstorrent.ByteCounter({}),
+                                      received: new jstorrent.ByteCounter({}) }
+                this._connected = true;
+                this._connecting = false;
+            } else {
+                this._connected = false;
+                this._connecting = true;
+
+                this._was_incoming = false;
+                this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
+                this.set('state','connecting');
+                assert(opts.peer);
+                this.peer = opts.peer;
+                this.peer.set('conn',this);
+                assert(opts.hash.length == 20);
+                var infohash = [];
+                for (var i=0; i<opts.hash.length; i++) {
+                    infohash.push( opts.hash[i] );
+                }
+                this.infohash = infohash;
+                assert(this.infohash.length == 20, 'input infohash as array of bytes');
+                this.torrent = opts.torrent;
+                assert(this.torrent);
+                mylog(LOGMASK.network,'initialize peer connection with infohash',ab2hex(this.infohash));
+                this.bytecounters = { sent: new jstorrent.ByteCounter({parent:this.torrent.bytecounters.sent}),
+                                      received: new jstorrent.ByteCounter({parent:this.torrent.bytecounters.received}) };
+
+            }
+
+            //this.message_history = new jstorrent.RingBuffer(20); // for debugging messages
+            assert( typeof opts.port == 'number' );
+            this.read_buffer = []; // utorrent does not send an entire message in each websocket frame
             this.set('bytes_received',0);
             this.set('bytes_sent',0);
             this.set('chunks_received',0);
@@ -215,31 +268,12 @@
             this.set('max_up',0);
             this.set('timeouts',0);
             //var infohash = opts.hash; // array buffers and stuff no bueno... just want simple array
-            assert(opts.hash.length == 20);
-            var infohash = [];
-            for (var i=0; i<opts.hash.length; i++) {
-                infohash.push( opts.hash[i] );
-            }
             this._handle_after_metadata = [];
-            
             this._outbound_chunk_requests = 0;
             this._outbound_chunk_requests_limit = 10;
 
-            this._host = host;
-            this._port = port;
-            this.infohash = infohash;
-            assert(this.infohash.length == 20, 'input infohash as array of bytes');
-            this.torrent = torrent;
-            assert(torrent);
-            this.torrent.bind('piece_hashed', this.handle_piece_hashed);
-            var infodict = this.torrent.get_infodict();
-            if (! this.torrent.magnet_only()) {
-                this.torrent._metadata_requests = {};
-            }
-            mylog(LOGMASK.network,'initialize peer connection with infohash',ab2hex(this.infohash));
-            this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
-            this._connected = false;
-            this._connecting = true;
+
+
             this.handshaking = true;
 
             this._remote_bitmask = null;
@@ -255,24 +289,11 @@
 
             this._sent_bitmask = false;
 
-            this.handlers = {
-                'UTORRENT_MSG': this.handle_extension_message,
-                'PORT': this.handle_port,
-                'HAVE': this.handle_have,
-                'CHOKE': this.handle_choke,
-                'UNCHOKE': this.handle_unchoke,
-                'INTERESTED': this.handle_interested,
-                'NOT_INTERESTED': this.handle_not_interested,
-                'HAVE_ALL': this.handle_have_all,
-                'PIECE': this.handle_piece,
-                'BITFIELD': this.handle_bitfield,
-                'REQUEST': this.handle_request,
-                'CANCEL': this.handle_cancel,
-                'keepalive': this.handle_keepalive
-            };
-            this.bytecounters = { sent: new jstorrent.ByteCounter({parent:this.torrent.bytecounters.sent}),
-                                  received: new jstorrent.ByteCounter({parent:this.torrent.bytecounters.received}) };
-            this.reconnect();
+            if (this._was_incoming) {
+                // wait for handshake message. (send ours now?)
+            } else {
+                this.reconnect();
+            }
         },
         compute_max_rates: function() {
             this.set('max_up', Math.max(this.bytecounters.sent.avg({noparent:true}), this.get('max_up')));
@@ -285,7 +306,7 @@
         },
         record_message: function(msg) {
             this.set('last_message',msg);
-            this.message_history.push(msg);
+            //this.message_history.push(msg);
         },
         do_send_cancel: function(data) {
             // offset/constants.chunk_size
@@ -305,9 +326,6 @@
                 this._outbound_chunk_requests --;
                 this.set('outbound_chunks',this._outbound_chunk_requests);
             }
-        },
-        handle_piece_hashed: function(piece) {
-            this.trigger('hash_progress', (piece.num / (this.torrent.num_pieces-1)))
         },
         handle_keepalive: function() {
             this._keepalive_sent = null;
@@ -773,7 +791,9 @@
             this._last_message_out = new Date().getTime();
             this.bytecounters.sent.sample(msg.byteLength);
             this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
-            this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
+            if (this.torrent) {
+                this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
+            }
             if (this.using_flash()) {
 /*
                 var arr = [];
@@ -792,7 +812,9 @@
         },
         close: function(reason) {
             if (reason) {
-                this.peer.set('closereason',reason);
+                if (this.peer) {
+                    this.peer.set('closereason',reason);
+                }
                 mylog(LOGMASK.general,'close connection',this.repr(),reason);
             }
             // cleanup shizzzz!
@@ -804,7 +826,7 @@
             this._last_message_in = new Date().getTime();
             mylog(LOGMASK.network,'handle message',data.msgtype,data);
             if (data.msgtype != 'PIECE' && data.msgtype != 'UTORRENT_MSG') this.record_message(data.msgtype);
-            var handler = this.handlers[data.msgtype];
+            var handler = this[this.handlers[data.msgtype]];
             if (handler) {
                 handler(data);
                 //handler.apply(this, [data]);
@@ -822,8 +844,38 @@
             var data = parse_handshake(blob);
             if (data.protocol == constants.protocol_name) {
                 mylog(LOGMASK.network,'parsed handshake',data)
+
+                if (this._was_incoming) {
+                    // first time finding out about infohash ... set this.torrent, peer, etc.
+                    var torrent = this.client.torrents.contains( data.infohash );
+                    if (! torrent) {
+                        mylog(1,'incoming connection for torrent which we dont have')
+                        this.close('no torrent');
+                        return;
+                    } else if (torrent.get('state') != 'started') {
+                        mylog(1,'incoming connection for torrent which is not started')
+                        this.close('torrent not started');
+                        return;
+                    } else {
+                        this.torrent = torrent;
+                        this.bind('onclose', torrent.on_connection_close);
+                        this.infohash = ab2arr(this.torrent.hash);
+                        this.torrent.connections.add(this);
+                        this.torrent.handle_new_peer({ip:this._host, port:this._port, incoming:true});
+                        var key = this._host + ':' + this._port;
+                        var peer = this.torrent.swarm.get(key);
+                        this.peer = peer;
+                        this.peer.set('conn',this);
+                    }
+                }
                 this.set('state','active');
                 this.peer.set('ever_connected',true);
+                if (! this._sent_handshake) {
+                    this.send_handshake();
+                }
+                if (! this._sent_extension_handshake) {
+                    this.send_extension_handshake();
+                }
                 if (! this._sent_bitmask && ! this.torrent.magnet_only()) {
                     this.send_bitmask();
                 }
@@ -912,7 +964,9 @@
             }
             this.bytecounters.received.sample(msg.byteLength);
             this.set('bytes_received', this.get('bytes_received') + msg.byteLength);
-            this.torrent.set('bytes_received', this.torrent.get('bytes_received') + msg.byteLength);
+            if (this.torrent) {
+                this.torrent.set('bytes_received', this.torrent.get('bytes_received') + msg.byteLength);
+            }
             this.read_buffer.push(msg);
             //mylog(LOGMASK.network, 'receive new packet', msg.byteLength);
             if (this.handshaking) {
@@ -931,7 +985,7 @@
         },
         repr: function() {
             var client = this._remote_extension_handshake ? this._remote_extension_handshake['v'] : '';
-            return '<Conn:' + this.strurl +', '+client+', '+ this.peer.repr() + '>';
+            return '<Conn:' + this.strurl +', '+client+', '+ (this.peer?this.peer.repr():'nopeer') + '>';
         },
         onclose: function(evt) {
             // websocket is closed.
@@ -968,7 +1022,12 @@
         handle_close: function(data) {
             // gets called 
             // clean up variables...
-            this.peer.notify_closed(data, this);
+            if (this.peer) {
+                this.peer.notify_closed(data, this);
+            }
+            if (this.incoming) {
+                this.incoming.notify_closed(data, this);
+            }
             for (var k in this) {
                 delete this[k];
             }

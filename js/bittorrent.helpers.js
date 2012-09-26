@@ -866,6 +866,14 @@ function hmac_sha1_stream_tail(opad, naked_hash) {
         return String.fromCharCode.apply(null, new Uint16Array(buf));
     }
 
+    window.ab2arr = function(buf) {
+        var arr = [];
+        for (var i=0; i<buf.length; i++) {
+            arr.push(buf[i]);
+        }
+        return arr;
+    }
+
     window.arr2str = function(buf, startindex) {
         //return String.fromCharCode.apply(null, buf); // returns maximum stack exceeded
         startindex = (startindex === undefined)?0:startindex;

@@ -566,6 +566,51 @@ var SwarmTableView = SuperTableView.extend({
     }
 });
 
+
+var IncomingTableView = SuperTableView.extend({
+    initialize: function(opts) {
+        this.torrent = opts.torrent;
+        opts.columns = [
+            {name: "id", field: "id" },
+            {name: "state", field: "state", width: 200 },
+            {name: "remote_port", field: "remote_port" },
+            {name: "remote_peer", field: "remote_peer", width: 200 },
+            {name: "peer", field: "peer" },
+            {name: "token", field: "token" }
+        ];
+        opts.makeformatter = {
+            getFormatter: function(column) {
+                if (column.field == 'pathaoeuaoue') {
+                    return function(row,cell,value,col,data) {
+                        return '<a href="' + data.filesystem_entry + '">open</a>';
+                    };
+                } else if (column.field == 'conn') {
+                    return function(row,cell,value,col,data) {
+                        if (data.get('conn')) {
+                            return data.get('conn').get('state');
+                        } else {
+                            return '';
+                        }
+                    };
+                } else {
+                    return function(row,cell,value,col,data) {
+                        return data.get(col.field);
+                    };
+                }
+            }
+        };
+        SuperTableView.prototype.initialize.apply(this,[opts]);
+        this.bind_events()
+    },
+    bind_events: function() {
+        this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
+            var conn = this.grid.getDataItem(data.row);
+            mylog(LOGMASK.ui,'click inc conn!!!!!',conn);
+        },this));
+    }
+});
+
+
 var PieceTableView = SuperTableView.extend({
     initialize: function(opts) {
         this.torrent = opts.torrent;
@@ -664,7 +709,7 @@ var TabsView = BaseView.extend({
         this.bind_actions();
     },
     bind_actions: function() {
-        _.each(['peers','general','files','trackers','swarm','pieces'], _.bind(function(tabname) {
+        _.each(['peers','general','files','trackers','swarm','pieces','incoming'], _.bind(function(tabname) {
             this.$('.' + tabname).click( _.bind(function() {
                 jsclientview.set_tab(tabname);
             },this));
@@ -781,6 +826,8 @@ var JSTorrentClientView = BaseView.extend({
             jsclientview.detailview = new PieceTableView({ model: torrent.pieces, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'trackers') {
             jsclientview.detailview = new TrackerTableView({ model: torrent.trackers, torrent: torrent, el: this.$('.fileGrid')});
+        } else if (curtab == 'incoming') {
+            jsclientview.detailview = new IncomingTableView({ model: torrent.collection.client.incoming_connections, el: this.$('.fileGrid')});
         } else if (curtab == 'general') {
             jsclientview.detailview = new GeneralDetailView({ model: torrent, el: this.$('.fileGrid') });
         }

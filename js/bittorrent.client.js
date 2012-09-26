@@ -9,6 +9,12 @@
             this.bytecounters = { sent: new jstorrent.ByteCounter({}),
                                   received: new jstorrent.ByteCounter({}) };
             this.torrents = new jstorrent.TorrentCollection();
+
+
+            this.incoming_connections = new jstorrent.IncomingConnectionProxyCollection();
+            this.incoming_connections.client = this;
+            this.incoming_connections.establish();
+
             this.torrents.client = this;
 
             /*
@@ -47,8 +53,19 @@
               this.filesystem.on('unsupported', _.bind(ready, this));
               this.filesystem.request_fs();
             */
-
             this.filesystem.init_filesystems(_.bind(ready,this));
+        },
+        incoming_closed: function(model) {
+            debugger;
+
+        },
+        incoming_taken: function(model) {
+            debugger;
+
+        },
+        handle_incoming_connection: function(incoming, address) {
+            var conn = new jstorrent.WSPeerConnection({incoming: incoming, client:this, host:address[0], port:address[1]});
+            return conn;
         },
         get_filesystem: function() {
             return this.filesystem;

@@ -30,7 +30,7 @@
             this.files = new jstorrent.TorrentFileCollection();
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
-            this.set('maxconns',10);
+            this.set('maxconns',20);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
             this.set('size',0);
@@ -90,7 +90,7 @@
                 this.set('container',undefined); // make sure doesn't store on model.save
                 //this.althash = opts.althash;
                 //this.althash_hex = ab2hex(this.althash);
-                this.piece_size = constants.new_torrent_piece_size;
+                this.piece_size = constants.new_torrent_piece_size; // TODO -- calculate based on entire torrent size
                 this.fake_info = this.get_fake_infodict();
                 this.set('fake_info',this.fake_info);
                 mylog(1,'created fake infodict',this.fake_info);
@@ -513,6 +513,7 @@
             if (this.connections.models.length < this.get('maxconns')) {
                 for (var i=0; i<this.swarm.models.length; i++) {
                     var peer = this.swarm.models[i];
+                    assert(peer.id);
                     if (! peer.is_self() && peer.can_reconnect()) {
                         if (! this.connections.get(peer.id)) {
                             this.connections.add_peer(peer);
@@ -529,8 +530,8 @@
             //mylog(LOGMASK.network,this.repr(),'handle new peer',data);
             if (data.port && data.port > 0) {
                 var key = data.ip + ':' + data.port;
-                var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this});
                 if (! this.swarm.get(key)) {
+                    var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this, incoming:data.incoming?data.incoming:false});
                     this.swarm.add(peer);
                     return true;
                 }
@@ -1117,10 +1118,12 @@
         model: jstorrent.Torrent,
         className: 'TorrentCollection',
 
-        contains: function(torrent) {
+        contains: function(torrent_or_hash) {
+            var hash = (torrent_or_hash instanceof jstorrent.Torrent ? torrent_or_hash.hash_hex.toLowerCase() : torrent_or_hash.toLowerCase());
+
             for (var i=0; i<this.models.length; i++) {
-                if (torrent.hash_hex.toLowerCase() == this.models[i].hash_hex.toLowerCase()) {
-                    return true;
+                if (hash == this.models[i].hash_hex.toLowerCase()) {
+                    return this.models[i];
                 }
             }
             return false;

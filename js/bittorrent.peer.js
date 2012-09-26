@@ -8,6 +8,7 @@
             var parts = this.id.split(':');
             this.ip = parts[0];
             this.port = parseInt(parts[1],10);
+            this.set('incoming',opts.incoming);
             this.set('country',geolocate(this.ip));
             this.set('last_closed', null);
             this.set('unresponsive',null);

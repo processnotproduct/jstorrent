@@ -11,25 +11,22 @@ window.config = {
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     bittorrent_proxy: '192.168.56.1:8030',
     bittorrent_incoming_proxy: '192.168.56.1:8030',
+    udp_proxy: '192.168.56.1:8030',
     default_tracker: 'http://192.168.56.1:6969/announce',
     kyle_ut_home: 'kzahel.dyndns.org:38028',
     public_trackers: ["udp://tracker.openbittorrent.com:80/announce",
                       "udp://tracker.publicbt.com:80/announce"]
     //bittorrent_proxy: 'kzahel.dyndns.org:8030' // torrent proxy service
 }
-
 if (window.location.host.match('jstorrent.com')) {
     config.default_tracker = "udp://tracker.openbittorrent.com:80/announce";
     config.tracker_proxy = 'http://kzahel.dyndns.org:6969/proxy';
     config.jstorrent_host = 'http://jstorrent.com';
     config.bittorrent_proxy = 'kzahel.dyndns.org:8030';
+    config.udp_proxy = 'kzahel.dyndns.org:8030';
     config.bittorrent_incoming_proxy = 'kzahel.dyndns.org:8030';
-} else if (false && window.location.host.match('127.0.0.1')) {
-    config.tracker_proxy = 'http://127.0.0.1:6969/proxy';
-    config.jstorrent_host = 'http://127.0.0.1:9090';
-    //config.bittorrent_proxy = '127.0.0.1:8030';
-    config.default_tracker = 'http://127.0.0.1:6969/announce';
 }
+
 window.assert = function(v) {
     if (!v) { 
         mylog(LOGMASK.error,'assertion failed');

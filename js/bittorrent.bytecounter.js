@@ -18,6 +18,7 @@
         this.numsamples = opts.samples || 10;
         this.sampsize = opts.sampsize || 1;
         this.parent = opts.parent;
+        this.totalbytes = 0;
         this.cbuf = [];
         this.cpos = 0;
         this.last_sample = null;
@@ -26,6 +27,7 @@
     }
     jstorrent.ByteCounter.prototype = {
         sample: function(bytes, t, s, opts) {
+            this.totalbytes += bytes;
             // takes a sample at time t of some bytes
             t = t || new Date();
             var s = s || Math.floor(t/1000);
@@ -55,6 +57,9 @@
                     this.parent.sample(bytes, t, s);
                 }
             }
+        },
+        total: function() {
+            return this.totalbytes;
         },
         recent: function(t, s, opts) {
             this.sample(0, t, s, opts);

@@ -12,6 +12,8 @@
 
 
             this.incoming_connections = new jstorrent.IncomingConnectionProxyCollection();
+
+            this.udp_proxy = new jstorrent.UDPProxy({client:this});
             this.incoming_connections.client = this;
             this.incoming_connections.establish();
 
@@ -38,12 +40,17 @@
                 }
 
                 this.torrents.fetch();
-                for (var i=0; i<this.torrents.models.length; i++) {
-                    var torrent = this.torrents.models[i];
-                    if (torrent.started()) {
-                        this.torrents.models[i].announce();
-                    }
-                }
+
+                this.incoming_connections.on('established', _.bind(function() {
+                    this.incoming_connections.current().on('change:remote_port', _.bind(function(){
+                        for (var i=0; i<this.torrents.models.length; i++) {
+                            var torrent = this.torrents.models[i];
+                            if (torrent.started()) {
+                                this.torrents.models[i].announce();
+                            }
+                        }
+                    },this));
+                },this));
                 this.trigger('ready');
                 this.tick();
                 this.long_tick();
@@ -64,6 +71,7 @@
 
         },
         handle_incoming_connection: function(incoming, address) {
+            mylog(1,"new incoming connection at",address)
             var conn = new jstorrent.WSPeerConnection({incoming: incoming, client:this, host:address[0], port:address[1]});
             return conn;
         },

@@ -478,7 +478,11 @@
             }
             this._trackers_initialized = true;
             for (var i=0; i<strs.length; i++) {
-                var tracker = new jstorrent.TrackerConnection( { url: strs[i], torrent: this } );
+                if (strs[i].slice(0,'udp://'.length) == 'udp://') {
+                    var tracker = new jstorrent.UDPTrackerConnection( { url: strs[i], torrent: this } );
+                } else {
+                    var tracker = new jstorrent.TrackerConnection( { url: strs[i], torrent: this } );
+                }
                 tracker.bind('newpeer', this.handle_new_peer);
                 this.trackers.add( tracker );
             }
@@ -530,6 +534,8 @@
             //mylog(LOGMASK.network,this.repr(),'handle new peer',data);
             if (data.port && data.port > 0) {
                 var key = data.ip + ':' + data.port;
+                // XXX -- id is NOT ip/port, it's the peer's (handshake) id...
+                // well, kind of?
                 if (! this.swarm.get(key)) {
                     var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this, incoming:data.incoming?data.incoming:false});
                     this.swarm.add(peer);

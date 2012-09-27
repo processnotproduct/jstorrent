@@ -726,7 +726,7 @@ var GeneralDetailView = BaseView.extend({
     },
     render: function() {
         this.$('.infohash').text( this.model.hash_hex );
-        this.$('.magnet').text( this.model.get_magnet_link() );
+        this.$('.magnet').val( this.model.get_magnet_link() );
         this.$('.jstorrent').html( '<a href="'+this.model.get_jstorrent_link()+'">jstorrent web link</a>' );
     },
     bind_actions: function() {
@@ -753,9 +753,6 @@ var JSTorrentClientView = BaseView.extend({
         this.detailview = null;
         this.commands = new CommandsView({el:this.$('.commands'), table:this.torrenttable});
         this.tabs = new TabsView({el:this.$('.tabs')});
-
-        
-
 
         this.$('.dragbar').mousedown(_.bind(function(e){
             e.preventDefault();
@@ -797,7 +794,7 @@ var JSTorrentClientView = BaseView.extend({
         $('#magnet').click( function() {
             try_register_protocol();
         });
-
+        this.init_detailview();
     },
     get_dim: function(elt) {
         if (elt == 'header') {
@@ -816,20 +813,20 @@ var JSTorrentClientView = BaseView.extend({
         if (curtab == 'files') {
             if (torrent.get_infodict()) {
                 torrent.init_files();
-                jsclientview.detailview = new FileTableView({ model: torrent.files, torrent: torrent, el: this.$('.fileGrid')});
+                this.detailview = new FileTableView({ model: torrent.files, torrent: torrent, el: this.$('.fileGrid')});
             }
         } else if (curtab == 'peers') {
-            jsclientview.detailview = new PeerTableView({ model: torrent.connections, torrent: torrent, el: this.$('.fileGrid')});
+            this.detailview = new PeerTableView({ model: torrent.connections, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'swarm') {
-            jsclientview.detailview = new SwarmTableView({ model: torrent.swarm, torrent: torrent, el: this.$('.fileGrid')});
+            this.detailview = new SwarmTableView({ model: torrent.swarm, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'pieces') {
-            jsclientview.detailview = new PieceTableView({ model: torrent.pieces, torrent: torrent, el: this.$('.fileGrid')});
+            this.detailview = new PieceTableView({ model: torrent.pieces, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'trackers') {
-            jsclientview.detailview = new TrackerTableView({ model: torrent.trackers, torrent: torrent, el: this.$('.fileGrid')});
+            this.detailview = new TrackerTableView({ model: torrent.trackers, torrent: torrent, el: this.$('.fileGrid')});
         } else if (curtab == 'incoming') {
-            jsclientview.detailview = new IncomingTableView({ model: torrent.collection.client.incoming_connections, el: this.$('.fileGrid')});
+            this.detailview = new IncomingTableView({ model: torrent.collection.client.incoming_connections, el: this.$('.fileGrid')});
         } else if (curtab == 'general') {
-            jsclientview.detailview = new GeneralDetailView({ model: torrent, el: this.$('.fileGrid') });
+            this.detailview = new GeneralDetailView({ model: torrent, el: this.$('.fileGrid') });
         }
     },
     set_subview_context: function(ctx) {
@@ -861,7 +858,7 @@ var JSTorrentClientView = BaseView.extend({
 });
 
 
-jQuery(function() {
+function main() {
     window.jsclient = new jstorrent.JSTorrentClient();
     function copy_success(model, entry) {
         mylog(1,'copy success',model,entry);
@@ -1040,4 +1037,8 @@ jQuery(function() {
 
 
     //jsclient.add_random_torrent();
-});
+}
+
+function post_traceur_compile() {
+    jQuery(document).ready( main );
+}

@@ -117,7 +117,7 @@
         return parts
     }
 
-    var jspack = new JSPack();
+    
 
     jstorrent.WSPeerConnection = Backbone.Model.extend({
         className: 'WSPeerConnection',
@@ -804,13 +804,14 @@
 
                 this.stream.send(arr);
 */
-                this.stream.send( btoa(arr2str(new Uint8Array(msg))) )
+                this.stream.send( btoa(arr2str(new Uint8Array(msg))) );
                 //this.stream.send(
             } else {
                 this.stream.send(msg);
             }
         },
         close: function(reason) {
+            this._manually_closed = true;
             if (reason) {
                 if (this.peer) {
                     this.peer.set('closereason',reason);
@@ -849,11 +850,11 @@
                     // first time finding out about infohash ... set this.torrent, peer, etc.
                     var torrent = this.client.torrents.contains( data.infohash );
                     if (! torrent) {
-                        mylog(1,'incoming connection for torrent which we dont have')
+                        mylog(1,'incoming connection for torrent which we dont have', data.infohash)
                         this.close('no torrent');
                         return;
                     } else if (torrent.get('state') != 'started') {
-                        mylog(1,'incoming connection for torrent which is not started')
+                        mylog(1,'incoming connection for torrent which is not started', data.infohash,torrent.get('state'))
                         this.close('torrent not started');
                         return;
                     } else {
@@ -941,7 +942,7 @@
             return s;
         },
         check_more_messages_in_buffer: function() {
-            if (this._connected) {
+            if (this._connected && ! this._closed) {
                 var bufsz = this.read_buffer_size();
                 if (bufsz >= 4) {
                     var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0);
@@ -956,6 +957,9 @@
             }
         },
         onmessage: function(evt) {
+            if (this._manually_closed) {
+                return;
+            }
             if (this.using_flash()) {
                 var strmsg = atob(evt.data)
                 var msg = new Uint8Array(str2arr(strmsg)).buffer
@@ -967,6 +971,7 @@
             if (this.torrent) {
                 this.torrent.set('bytes_received', this.torrent.get('bytes_received') + msg.byteLength);
             }
+            assert(msg instanceof ArrayBuffer);
             this.read_buffer.push(msg);
             //mylog(LOGMASK.network, 'receive new packet', msg.byteLength);
             if (this.handshaking) {
@@ -1027,6 +1032,9 @@
             }
             if (this.incoming) {
                 this.incoming.notify_closed(data, this);
+            }
+            if (this.connect_timeout) {
+                clearTimeout(this.connect_timeout);
             }
             for (var k in this) {
                 delete this[k];

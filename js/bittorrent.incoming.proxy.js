@@ -25,7 +25,7 @@
             this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
         },
         repr: function() {
-            return "<Incoming " + this.id + ">";
+            return "<IncomingProxy " + this.id + ">";
         },
         establish_new: function() {
             this.collection.incoming_taken(this)
@@ -85,6 +85,7 @@
             }
         },
         on_connect_timeout: function() {
+            this.connect_timeout = null;
             this.close('timeout');
         },
         close: function(reason) {
@@ -132,7 +133,7 @@
             return this._established;
         },
         incoming_closed: function(old, evt) {
-            if (evt.reason == 't a valid token') {
+            if (evt.reason == 'not a valid token') {
                 this._last = null;
             }
 

@@ -38,7 +38,7 @@
         },
         socksendrecv: function(socknum, msg, res) {
             // send payload to socknum
-            var deferred = new Deferred;
+            var deferred = new jQuery.Deferred;
             var payload = { sock: socknum, method: 'send', args: [msg] };
             var encoded = new Uint8Array(bencode(payload)).buffer;
             this.do_send(encoded);
@@ -52,7 +52,7 @@
             return deferred;
         },
         newsock_connect: function(addr, res) {
-            var deferred = new Deferred();
+            var deferred = new jQuery.Deferred();
             var payload = { id: this._await_req_ctr, method: 'newsock', args: [addr] };
             var encoded = new Uint8Array(bencode(payload)).buffer;
             this.do_send(encoded);
@@ -106,8 +106,8 @@
                 var data = this._await_reqs[message.id];
                 //mylog(LOGMASK.udp,'found await req', data)
                 data.res['message'] = message
-                assert (data.deferred.listeners_.length > 0)
-                data.deferred.callback(true);
+                //assert (data.deferred.listeners_.length > 0)
+                data.deferred.resolve(true);
                 delete this._await_reqs[message.id];
             }
         },

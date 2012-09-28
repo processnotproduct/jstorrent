@@ -1052,6 +1052,6 @@ function main() {
     //jsclient.add_random_torrent();
 }
 
-function post_traceur_compile() {
-    jQuery(document).ready( main );
-}
+
+jQuery(document).ready( main );
+

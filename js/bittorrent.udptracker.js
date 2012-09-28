@@ -39,26 +39,28 @@ var FIRST = null;
             var addr = [this.host, this.port];
             var res = {};
             var _this = this; // XXX -- await is making "this" into window
-            await _this.client.udp_proxy.newsock_connect(addr, res);
-            mylog(LOGMASK.udp,'got sock id',res, res.message.newsock);
-            var protocol_id = [0, 0, 4, 23, 39, 16, 25, 128];
-            var conn_req_action = 0;
-            var transaction_id = get_transaction_id();
-            var packed = jspack.Pack(">II", [conn_req_action, transaction_id]);
-            var payload = protocol_id.concat(packed);
-            var res2 = {};
-            await _this.client.udp_proxy.socksendrecv(res.message.newsock, arr2str(payload), res2)
-            var asarr = str2arr(res2.message.data);
-            assert(asarr.length == 16);
-            var rparts = jspack.Unpack(">II",asarr);
-            var raction = rparts[0];
-            var rtid = rparts[1];
-            var connid = asarr.slice(8);
-            assert(transaction_id == rtid);
-            callback({connid:connid, sock:res.message.newsock});
+            this.client.udp_proxy.newsock_connect(addr, res).then( _.bind(function() {
+                mylog(LOGMASK.udp,'got sock id',res, res.message.newsock);
+                var protocol_id = [0, 0, 4, 23, 39, 16, 25, 128];
+                var conn_req_action = 0;
+                var transaction_id = get_transaction_id();
+                var packed = jspack.Pack(">II", [conn_req_action, transaction_id]);
+                var payload = protocol_id.concat(packed);
+                var res2 = {};
+                this.client.udp_proxy.socksendrecv(res.message.newsock, arr2str(payload), res2).then( _.bind(function() {
+                    var asarr = str2arr(res2.message.data);
+                    assert(asarr.length == 16);
+                    var rparts = jspack.Unpack(">II",asarr);
+                    var raction = rparts[0];
+                    var rtid = rparts[1];
+                    var connid = asarr.slice(8);
+                    assert(transaction_id == rtid);
+                    callback({connid:connid, sock:res.message.newsock});
+                },this));
+            }, this));
         },
         announce: function() {
-            if (FIRST != this) { return; }
+            //if (FIRST != this) { return; }
             if (! this.can_announce()) { return; }
             this._last_announce = new Date();
             this.set('announces',this.get('announces')+1);
@@ -78,8 +80,6 @@ var FIRST = null;
                 port: inc_conn ? inc_conn.get('remote_port') : 0,
                 extensions: 0
             }
-
-            
 
             var _this = this;
             var conn = {};
@@ -111,32 +111,33 @@ var FIRST = null;
                 payload = payload.concat(jspack.Pack(">H",[params.extensions]));
                 assert (payload.length == 100 );
                 var res3 = {};
-                await _this.client.udp_proxy.socksendrecv(conn.sock, arr2str(payload), res3)
-                mylog(LOGMASK.udp,'announce res',res3);
-                this.set('responses',this.get('responses')+1);
-                assert(res3.message.data.length >= 20);
-                //res.message.data.slice(0,20);
-                var parts = jspack.Unpack(">IIIII", str2arr(res3.message.data));
-                var rdata = { raction: parts[0],
-                              rtid: parts[1],
-                              interval: parts[2],
-                              leechers: parts[3],
-                              seeders: parts[4] };
-                mylog(LOGMASK.udp,'announce req/res data',payload,params,rdata);
+                this.client.udp_proxy.socksendrecv(conn.sock, arr2str(payload), res3).then( _.bind(function(){
+                    mylog(LOGMASK.udp,'announce res',res3);
+                    this.set('responses',this.get('responses')+1);
+                    assert(res3.message.data.length >= 20);
+                    //res.message.data.slice(0,20);
+                    var parts = jspack.Unpack(">IIIII", str2arr(res3.message.data));
+                    var rdata = { raction: parts[0],
+                                  rtid: parts[1],
+                                  interval: parts[2],
+                                  leechers: parts[3],
+                                  seeders: parts[4] };
+                    mylog(LOGMASK.udp,'announce req/res data',payload,params,rdata);
 
-                var remain = res3.message.data.length - 20;
-                assert(remain % 6 == 0);
-                var peers = [];
-                var peer;
-                for (var i=0; i<remain/6; i++) {
-                    peer = jstorrent.decode_peer( res3.message.data.slice( 20+i * 6, 20+(i+1) * 6 ) );
-                    peers.push( peer );
-                    this.trigger('newpeer',peer);
-                }
-                this.set('peers',this.get('peers')+peers.length);
-                mylog(LOGMASK.udp,'GOT PEERS',peers);
-                //this.client.udp_proxy.sock_close(conn.sock);
-                //payload = payload.concat(jspack.Pack(">L",params.tid));
+                    var remain = res3.message.data.length - 20;
+                    assert(remain % 6 == 0);
+                    var peers = [];
+                    var peer;
+                    for (var i=0; i<remain/6; i++) {
+                        peer = jstorrent.decode_peer( res3.message.data.slice( 20+i * 6, 20+(i+1) * 6 ) );
+                        peers.push( peer );
+                        this.trigger('newpeer',peer);
+                    }
+                    this.set('peers',this.get('peers')+peers.length);
+                    mylog(LOGMASK.udp,'GOT PEERS',peers);
+                    //this.client.udp_proxy.sock_close(conn.sock);
+                    //payload = payload.concat(jspack.Pack(">L",params.tid));
+                },this));
 
             },this));
         }

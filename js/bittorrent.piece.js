@@ -91,12 +91,20 @@
             assert(this.end_byte >= 0)
         },
         try_free: function(reason) {
+            // what are the possible ways a piece can be used?
+
+            // pending inbound requests...(check)
+            // 
+
             if (! this.get('current_request')) {
                 this.free(reason);
             }
         },
         free: function(reason) {
-            mylog(1,this.num,'piece free',reason);
+            if (this._check_request_timeout) {
+                clearTimeout(this._check_request_timeout)
+            }
+            mylog(LOGMASK.mem,this.num,'piece free',reason);
             assert(this.collection);
             this.collection.remove(this);
             for (var key in this) {
@@ -173,7 +181,7 @@
             }
         },
         cleanup: function(reason) {
-            mylog(1,this.num,'piece cleanup',reason);
+            mylog(LOGMASK.mem,this.num,'piece cleanup',reason);
             //this.torrent = null;
             this._data = [];
             this._requests = [];
@@ -181,7 +189,6 @@
             this._peers_contributing = []; 
             this._outbound_request_offsets = {};
             this._chunk_responses = [];
-            mylog(1,'piece cleanup',this.num,reason);
         },
         wrote_but_not_stored: function() {
             return this.torrent.piece_wrote_but_not_stored(this.num);
@@ -224,7 +231,8 @@
                 }
             }
             // set timeouts for all these requests
-            setTimeout( _.bind(this.check_chunk_request_timeouts, this, conn, requests), this.torrent._chunk_request_timeout );
+            assert(requests.length > 0);
+            this._check_request_timeout = setTimeout( _.bind(this.check_chunk_request_timeouts, this, conn, requests), this.torrent._chunk_request_timeout );
             return requests;
         },
         check_chunk_request_timeouts: function(conn, requests) {

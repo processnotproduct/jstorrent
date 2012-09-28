@@ -54,6 +54,7 @@ window.LOGMASK = {'general':1,
                   'queue': Math.pow(2,9),
                   'udp': Math.pow(2,10),
                   'warn': Math.pow(2,11),
+                  'mem': Math.pow(2,12),
                  };
 LOGMASK_R = {}
 for (var name in LOGMASK) {

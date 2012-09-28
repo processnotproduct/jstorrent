@@ -479,6 +479,7 @@ var PeerTableView = SuperTableView.extend({
                     };
                 } else if (column.field == 'country') {
                     return function(row,cell,value,col,data) {
+                        if (!data.peer){return;}
                         var code = data.peer.get('country');
                         if (window.geoip_country_name) {
                             var name = geoip_country_name[code];
@@ -493,6 +494,7 @@ var PeerTableView = SuperTableView.extend({
                     };
                 } else {
                     return function(row,cell,value,col,data) {
+                        if (!data.peer){return;}
                         return data.peer.get(col.field);
                     };
                 }

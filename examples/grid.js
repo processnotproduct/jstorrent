@@ -525,6 +525,7 @@ var SwarmTableView = SuperTableView.extend({
             {id: "conn", name: "conn", field: "conn" },
             {id: "last_closed", name: "last_closed", field: "last_closed", width:140 },
             {id: "unresponsive", name: "unresponsive", field: "unresponsive" },
+            { name: "is_self", field: "is_self" },
             {id: "banned", name: "banned", field: "banned" },
             {id: "closereason", name: "closereason", field: "closereason", width:200 },
             {id: "ever_connected", name: "ever_connected", field: "ever_connected" },
@@ -546,7 +547,12 @@ var SwarmTableView = SuperTableView.extend({
                     };
                 } else {
                     return function(row,cell,value,col,data) {
-                        return data.get(col.field);
+                        var val = data.get(col.field);
+                        if (val === false) {
+                            return '';
+                        } else {
+                            return val;
+                        }
                     };
                 }
             }
@@ -810,6 +816,9 @@ var JSTorrentClientView = BaseView.extend({
         if (this.detailview) { this.detailview.destroy(); }
         var ctxid = this.settings.get('subview_context');
         var torrent = jsclient.torrents.get(ctxid);
+        if (!torrent) {
+            return; // torrent was deleted but subview_context was not saved..
+        }
         assert(torrent);
         var curtab = this.settings.get('tab');
         if (curtab == 'files') {
@@ -862,6 +871,7 @@ var JSTorrentClientView = BaseView.extend({
 
 function main() {
     window.jsclient = new jstorrent.JSTorrentClient();
+
     function copy_success(model, entry) {
         mylog(1,'copy success',model,entry);
         if (entry instanceof FileError) {

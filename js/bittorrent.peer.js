@@ -63,6 +63,9 @@
             }
         },
         is_self: function() {
+            if (this.get('is_self')) {
+                return true;
+            }
             return false;
         },
         can_reconnect: function() {

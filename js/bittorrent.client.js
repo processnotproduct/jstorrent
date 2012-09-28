@@ -1,10 +1,12 @@
 (function() {
     jstorrent.JSTorrentClient = Backbone.Model.extend({
+        localStorage: new Store('JSTorrentSettings'),
         initialize: function() {
             this.filesystem = new jstorrent.FileSystem();
             this.threadhasher = new jstorrent.ThreadHasher();
             //this.worker.postMessage();
-
+            this.id = "DefaultClient";
+            this.fetch();
             //this.torrents = {};
             this.bytecounters = { sent: new jstorrent.ByteCounter({}),
                                   received: new jstorrent.ByteCounter({}) };
@@ -61,6 +63,29 @@
               this.filesystem.request_fs();
             */
             this.filesystem.init_filesystems(_.bind(ready,this));
+        },
+        get_external_ip: function() {
+            // TODO: figure this out when we accidentally connect to ourself
+            return config.external_ip;
+        },
+        get_my_hostports: function() {
+            // returns a list of my host/port combos... (prevent from connecting to self)
+            if (this.incoming_connections.current()) {
+                var port = this.incoming_connections.current().get('remote_port');
+            } else if (this.incoming_connections._last) {
+                var port = this.incoming_connections._last.get('remote_port');
+            }
+            var addrs = [];
+            addrs.push( '127.0.0.1:' + port );
+            addrs.push( this.get_external_ip() + ':' + port );
+            return addrs;
+        },
+        get_username: function() {
+            if (this.get('username')) {
+                return this.get('username');
+            } else {
+                return "anonymous";
+            }
         },
         incoming_closed: function(model) {
             debugger;

@@ -9,12 +9,21 @@
                       'on_connect_timeout');
             this.client = opts.client;
             this.strurl = 'ws://' + config.bittorrent_incoming_proxy + '/wsincomingproxy';
+
+            var username = this.client.get_username();
+            this.strurl += '?username=' + encodeURIComponent(username);
+
             if (opts.last) {
                 this.set('resuming',true);
                 this.set('token', opts.last.get('token'));
                 this.set('remote_port', opts.last.get('remote_port'));
-                this.strurl += '?token=' + encodeURIComponent(this.get('token')) + '&port=' + encodeURIComponent(this.get('remote_port'));
+                this.strurl += '&token=' + encodeURIComponent(this.get('token')) + '&port=' + encodeURIComponent(this.get('remote_port'));
+            } else if (this.client.get('incoming.token')) {
+                this.set('token',this.client.get('incoming.token'));
+                this.strurl += '&token=' + encodeURIComponent(this.get('token'));
             }
+
+
             this.set('state','establishing');
             this.stream = new WebSocket(this.strurl);
             this.stream.binaryType = "arraybuffer";
@@ -37,7 +46,7 @@
         onopen: function(evt) {
             clearTimeout( this.connect_timeout );
             this.connect_timeout = null;
-            mylog(1,this.repr(),'incoming conn established');
+            //mylog(1,this.repr(),'incoming conn established');
             this.trigger('established');
             if (this.get('resuming')) {
                 this.set('state','resumed listening')
@@ -49,11 +58,11 @@
             if (this.connect_timeout) {
                 clearTimeout( this.connect_timeout );
             }
-            mylog(1,this.repr(),'incoming conn stream close',evt);
+            mylog(1,this.repr(),'incoming conn stream close',evt, evt.reason);
             this.collection.incoming_closed(this, evt)
         },
         onmessage: function(evt) {
-            mylog(1,this.repr(),'inc conn onmessage',evt.data);
+            //mylog(1,this.repr(),'inc conn onmessage',evt.data);
             if (! this.get('remote_port')) {
                 try {
                     var notification = JSON.parse(evt.data);
@@ -61,8 +70,10 @@
                     assert(notification.token);
                     this.set('state','listening');
                     this.set('token', notification.token);
+                    // also save token to settings
+                    this.client.set('incoming.token', notification.token);
                     this.set('remote_port', notification.port);
-                    mylog(1,this.repr(),'incoming conn on port',this.get('remote_port'));
+                    mylog(1,this.repr(),'listening on port',this.get('remote_port'));
                 } catch(e) {
                     mylog(1,this.repr(),'error parsing port/token',evt.data);
                     this.close('error parsing port/token');
@@ -94,7 +105,7 @@
         },
         notify_closed: function(evt, conn) {
             // WSPeerConnection has closed
-            mylog(1,this.repr(),'incoming conn closed',evt, conn);
+            mylog(1,this.repr(),'listening conn closed',evt, conn);
             this.collection.incoming_closed(this, evt);
         }
     });
@@ -103,8 +114,11 @@
     jstorrent.IncomingConnectionProxyCollection = jstorrent.Collection.extend({
         model: jstorrent.IncomingConnectionProxy,
         establish: function() {
-            if (this._establishing || this._established) { mylog(1,'already establishing or established'); return; }
-            mylog(1,'attempt re-establish incoming');
+            if (this._establishing || this._established) { 
+                //mylog(1,'already establishing or established'); 
+                return;
+            }
+            //mylog(1,'attempt re-establish incoming');
 
             var inc_conn = new jstorrent.IncomingConnectionProxy({id: connid, client: this.client, collection:this, last: this._last});
             this._establishing = inc_conn;
@@ -135,6 +149,7 @@
         incoming_closed: function(old, evt) {
             if (evt.reason == 'not a valid token') {
                 this._last = null;
+                this.client.set('incoming.token',null); // unset?
             }
 
             if (old == this._established) {

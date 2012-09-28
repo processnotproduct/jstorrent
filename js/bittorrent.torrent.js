@@ -534,10 +534,18 @@
             //mylog(LOGMASK.network,this.repr(),'handle new peer',data);
             if (data.port && data.port > 0) {
                 var key = data.ip + ':' + data.port;
+                var is_self = false;
+                var myhostports = this.collection.client.get_my_hostports();
+                if (_.contains(myhostports, key)) {
+                    //mylog(LOGMASK.warn, 'not adding self to swarm...', key);
+                    is_self = true;
+                    // return;
+                }
+
                 // XXX -- id is NOT ip/port, it's the peer's (handshake) id...
                 // well, kind of?
                 if (! this.swarm.get(key)) {
-                    var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this, incoming:data.incoming?data.incoming:false});
+                    var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this, incoming:data.incoming?data.incoming:false, is_self:is_self});
                     this.swarm.add(peer);
                     return true;
                 }

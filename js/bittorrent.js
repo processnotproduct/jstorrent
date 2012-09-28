@@ -146,16 +146,22 @@
             }
         },
         get_host: function() {
+            if (config.ip_aliases && config.ip_aliases[this._host]) {
+                var usehost = config.ip_aliases[this._host];
+            } else {
+                var usehost = this._host
+            }
+
             if (config.bittorrent_proxy) {
                 var uri = '/wsproxy';
-                var strurl = 'ws://' + config.bittorrent_proxy + uri + '?target=' + encodeURIComponent(this._host+':'+this._port);
+                var strurl = 'ws://' + config.bittorrent_proxy + uri + '?target=' + encodeURIComponent(usehost+':'+this._port) + '&username=' + encodeURIComponent(this.torrent.collection.client.get_username());
                 if (this.using_flash()) {
                     this.torrent.set('maxconns',1);
                     strurl += '&flash=1';
                 }
             } else {
                 var uri = '/wsclient';
-                var strurl = 'ws://'+this._host+':'+this._port+uri;
+                var strurl = 'ws://'+usehost+':'+this._port+uri;
                 if (this.using_flash()) {
                     strurl += '?flash=1';
                 }
@@ -291,6 +297,7 @@
 
             if (this._was_incoming) {
                 // wait for handshake message. (send ours now?)
+                //this._manual_assert = true;
             } else {
                 this.reconnect();
             }
@@ -347,6 +354,7 @@
             this._my_extension_handshake_codes = reversedict(resp['m']);
             mylog(LOGMASK.network_verbose, 'sending extension handshake with data',resp);
             var payload = bencode(resp);
+            this._sent_extension_handshake = true;
             this.send_message('UTORRENT_MSG', [constants.handshake_code].concat(payload));
         },
         ready: function() {
@@ -768,6 +776,8 @@
             mylog(LOGMASK.network, this.repr(), "connected!");
             this.trigger('connected'); // send HAVE, unchoke
             //_.delay( this.send_handshake, 100 );
+
+            // XXX!
             this.send_handshake();
         },
         send_have: function(num) {
@@ -775,13 +785,19 @@
             this.send_message('HAVE', payload);
         },
         send_handshake: function() {
+            assert(! this._sent_handshake);
             this.set('state','handshaking');
             var handshake = create_handshake(this.infohash, my_peer_id);
-            mylog(LOGMASK.network, 'sending handshake of len',handshake.length,[handshake])
+            mylog(LOGMASK.network, this.repr(), 'sending handshake of len',handshake.length,[handshake])
             var s = new Uint8Array(handshake);
+            this._sent_handshake = true;
             this.send( s.buffer );
         },
         send_keepalive: function() {
+            if (new Date() - this._keepalive_sent < 30 * 1000) {
+                return;
+            }
+
             this._keepalive_sent = new Date();
             mylog(LOGMASK.network,'send keepalive');
             var s = new Uint8Array(4);
@@ -843,10 +859,18 @@
             var blob = this.read_buffer_consume(handshake_len);
             this._remote_handshake = blob;
             var data = parse_handshake(blob);
+            this._remote_handshake_parsed = data;
             if (data.protocol == constants.protocol_name) {
                 mylog(LOGMASK.network,'parsed handshake',data)
 
                 if (this._was_incoming) {
+
+                    if (data.peerid == ab2hex(my_peer_id)) {
+                        mylog(LOGMASK.error,'connected to own peer id');
+                        this.close('connected to own peer id');
+                        return;
+                    }
+
                     // first time finding out about infohash ... set this.torrent, peer, etc.
                     var torrent = this.client.torrents.contains( data.infohash );
                     if (! torrent) {
@@ -948,6 +972,7 @@
                     var msg_len = new DataView(this.read_buffer_consume(4,true)).getUint32(0);
                     if (msg_len > constants.max_packet_size) {
                         this.close('packet too large');
+                        debugger;
                     } else {
                         if (bufsz >= msg_len + 4) {
                             this.handle_message(msg_len + 4);
@@ -957,6 +982,9 @@
             }
         },
         onmessage: function(evt) {
+            if (this._manual_assert) {
+                debugger;
+            }
             if (this._manually_closed) {
                 return;
             }

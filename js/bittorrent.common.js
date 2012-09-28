@@ -9,9 +9,11 @@ window.config = {
     debug_asserts: false,
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
-    bittorrent_proxy: '192.168.56.1:8030',
+    bittorrent_proxy: '192.168.56.1:8031',
+//    external_ip: '38.99.42.130', // HARD CODED IP AT WORK
     bittorrent_incoming_proxy: '192.168.56.1:8030',
     udp_proxy: '192.168.56.1:8030',
+    ip_aliases: { '38.99.42.130': '127.0.0.1' },
     default_tracker: 'http://192.168.56.1:6969/announce',
     kyle_ut_home: 'kzahel.dyndns.org:38028',
     public_trackers: ["udp://tracker.openbittorrent.com:80/announce",
@@ -49,7 +51,9 @@ window.LOGMASK = {'general':1,
                   'error': Math.pow(2,6),
                   'peer': Math.pow(2,7),
                   'tracker': Math.pow(2,8),
-                  'queue': Math.pow(2,9)
+                  'queue': Math.pow(2,9),
+                  'udp': Math.pow(2,10),
+                  'warn': Math.pow(2,11),
                  };
 LOGMASK_R = {}
 for (var name in LOGMASK) {
@@ -91,8 +95,9 @@ function to_file_size(size) {
 //var curlogmask = LOGMASK.network | LOGMASK.general
 //var curlogmask = LOGMASK.general | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk;
-var curlogmask = LOGMASK.general | LOGMASK.ui;
-//var curlogmask = LOGMASK.all;
+//var curlogmask = LOGMASK.general | LOGMASK.ui;
+//var curlogmask = LOGMASK.general;
+var curlogmask = LOGMASK.all;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;
 
@@ -109,10 +114,18 @@ window.mylog = function(level) {
     }
 
     if (LOGMASK_R[level] == 'error') {
+        l[0] = LOGMASK_R[level] + '>  ';
         if (typeof console.error == 'object') {
             console.error(l[0], l[1], l[2], l[3], l[4], l[5]);
         } else {
             console.error.apply(console, l);
+        }
+    } else if (LOGMASK_R[level] == 'warn') {
+        l[0] = LOGMASK_R[level] + '>  ';
+        if (typeof console.warn == 'object') {
+            console.warn(l[0], l[1], l[2], l[3], l[4], l[5]);
+        } else {
+            console.warn.apply(console, l);
         }
     } else if (level & curlogmask) {
         l[0] = LOGMASK_R[level] + '>  ';

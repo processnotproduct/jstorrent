@@ -19,7 +19,7 @@ var FIRST = null;
         return Math.floor(Math.random() * Math.pow(2,30));
     }
 
-    jstorrent.UDPTrackerConnection = Backbone.Model.extend({
+    jstorrent.UDPTrackerConnection = jstorrent.TrackerConnection.extend({
         initialize: function(opts) {
             FIRST = this;
             this.client = opts.torrent.collection.client;
@@ -28,25 +28,19 @@ var FIRST = null;
             var hostport = this.url.split('/')[2].split(':');
             this.host = hostport[0];
             this.port = parseInt(hostport[1],10);
+            this.set('announces',0);
+            this.set('responses',0);
+            this.set('errors',0);
+            this.set('peers',0);
             //this.dws = new DWebSocket(opts.url);
-            mylog(1,'INIT UDP TRACKER CONN');
-        },
-        min_announce_interval: function() {
-            return 60 * 1000 * 30;
-        },
-        can_announce: function(t) {
-            var now = t || new Date();
-            if (this._last_announce && now - this._last_announce < this.min_announce_interval()) {
-                return false;
-            }
-            return true;
+            mylog(LOGMASK.udp,'INIT UDP TRACKER CONN');
         },
         get_connection: function(callback) {
             var addr = [this.host, this.port];
             var res = {};
             var _this = this; // XXX -- await is making "this" into window
             await _this.client.udp_proxy.newsock_connect(addr, res);
-            mylog(1,'got sock id',res, res.message.newsock);
+            mylog(LOGMASK.udp,'got sock id',res, res.message.newsock);
             var protocol_id = [0, 0, 4, 23, 39, 16, 25, 128];
             var conn_req_action = 0;
             var transaction_id = get_transaction_id();
@@ -67,7 +61,7 @@ var FIRST = null;
             if (FIRST != this) { return; }
             if (! this.can_announce()) { return; }
             this._last_announce = new Date();
-
+            this.set('announces',this.get('announces')+1);
             this._connection = null;
 
             var inc_conn = this.client.incoming_connections.current();
@@ -94,7 +88,7 @@ var FIRST = null;
                 var payload = [];
                 var tid = get_transaction_id();
                 this._connection = conn;
-                mylog(1,'got udp tracker connection',conn);
+                mylog(LOGMASK.udp,'got udp tracker connection',conn);
 
                 payload = payload.concat(conn.connid);
                 payload = payload.concat(jspack.Pack(">L",[params.action]));
@@ -118,8 +112,8 @@ var FIRST = null;
                 assert (payload.length == 100 );
                 var res2 = {};
                 await _this.client.udp_proxy.socksendrecv(conn.sock, arr2str(payload), res2)
-                mylog(1,'announce res',res2);
-
+                mylog(LOGMASK.udp,'announce res',res2);
+                this.set('responses',this.get('responses')+1);
                 assert(res2.message.data.length >= 20);
                 //res.message.data.slice(0,20);
                 var parts = jspack.Unpack(">IIIII", str2arr(res2.message.data));
@@ -128,7 +122,7 @@ var FIRST = null;
                               interval: parts[2],
                               leechers: parts[3],
                               seeders: parts[4] };
-                mylog(1,'announce req/res data',payload,params,rdata);
+                mylog(LOGMASK.udp,'announce req/res data',payload,params,rdata);
 
                 var remain = res2.message.data.length - 20;
                 assert(remain % 6 == 0);
@@ -139,7 +133,8 @@ var FIRST = null;
                     peers.push( peer );
                     this.trigger('newpeer',peer);
                 }
-                mylog(1,'GOT PEERS',peers);
+                this.set('peers',this.get('peers')+peers.length);
+                mylog(LOGMASK.udp,'GOT PEERS',peers);
 
                 //payload = payload.concat(jspack.Pack(">L",params.tid));
 

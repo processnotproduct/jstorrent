@@ -26,6 +26,9 @@
         
     }
     jstorrent.ByteCounter.prototype = {
+        set_parent: function(parent) {
+            this.parent = parent;
+        },
         sample: function(bytes, t, s, opts) {
             this.totalbytes += bytes;
             // takes a sample at time t of some bytes

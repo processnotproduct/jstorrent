@@ -110,13 +110,13 @@ var FIRST = null;
                 payload = payload.concat(jspack.Pack(">H",[params.port]));
                 payload = payload.concat(jspack.Pack(">H",[params.extensions]));
                 assert (payload.length == 100 );
-                var res2 = {};
-                await _this.client.udp_proxy.socksendrecv(conn.sock, arr2str(payload), res2)
-                mylog(LOGMASK.udp,'announce res',res2);
+                var res3 = {};
+                await _this.client.udp_proxy.socksendrecv(conn.sock, arr2str(payload), res3)
+                mylog(LOGMASK.udp,'announce res',res3);
                 this.set('responses',this.get('responses')+1);
-                assert(res2.message.data.length >= 20);
+                assert(res3.message.data.length >= 20);
                 //res.message.data.slice(0,20);
-                var parts = jspack.Unpack(">IIIII", str2arr(res2.message.data));
+                var parts = jspack.Unpack(">IIIII", str2arr(res3.message.data));
                 var rdata = { raction: parts[0],
                               rtid: parts[1],
                               interval: parts[2],
@@ -124,18 +124,18 @@ var FIRST = null;
                               seeders: parts[4] };
                 mylog(LOGMASK.udp,'announce req/res data',payload,params,rdata);
 
-                var remain = res2.message.data.length - 20;
+                var remain = res3.message.data.length - 20;
                 assert(remain % 6 == 0);
                 var peers = [];
                 var peer;
                 for (var i=0; i<remain/6; i++) {
-                    peer = jstorrent.decode_peer( res2.message.data.slice( 20+i * 6, 20+(i+1) * 6 ) );
+                    peer = jstorrent.decode_peer( res3.message.data.slice( 20+i * 6, 20+(i+1) * 6 ) );
                     peers.push( peer );
                     this.trigger('newpeer',peer);
                 }
                 this.set('peers',this.get('peers')+peers.length);
                 mylog(LOGMASK.udp,'GOT PEERS',peers);
-
+                //this.client.udp_proxy.sock_close(conn.sock);
                 //payload = payload.concat(jspack.Pack(">L",params.tid));
 
             },this));

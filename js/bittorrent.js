@@ -335,7 +335,6 @@
             }
         },
         handle_keepalive: function() {
-            this._keepalive_sent = null;
             mylog(LOGMASK.network,'got keepalive');
             this.send_keepalive();
         },
@@ -883,6 +882,12 @@
                         return;
                     } else {
                         this.torrent = torrent;
+
+                        if (! this.bytecounters.sent.parent) {
+                            this.bytecounters.sent.set_parent( this.torrent.bytecounters.sent );
+                            this.bytecounters.received.set_parent( this.torrent.bytecounters.received );
+                        }
+
                         this.bind('onclose', torrent.on_connection_close);
                         this.infohash = ab2arr(this.torrent.hash);
                         this.torrent.connections.add(this);

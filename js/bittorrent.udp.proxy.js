@@ -58,10 +58,15 @@
             this.do_send(encoded);
             this._await_reqs[this._await_req_ctr] = { deferred: deferred, res: res };
             this._await_req_ctr++;
-            return deferred; // MUST RETURN!!! DAMN IT
+            return deferred;
         },
         recvfrom: function(addr) {
             var payload = { method: 'recvfrom', args: [addr] };
+            var encoded = new Uint8Array(bencode(payload)).buffer;
+            this.do_send(encoded);
+        },
+        sock_close: function(socknum) {
+            var payload = { method: 'sock_close', args: [socknum] };
             var encoded = new Uint8Array(bencode(payload)).buffer;
             this.do_send(encoded);
         },
@@ -96,7 +101,7 @@
         onmessage: function(evt) {
             // received message, trigger deferreds if they are available
             var message = bdecode(arr2str(new Uint8Array(evt.data)));
-            //mylog(LOGMASK.udp,'got udpsock msg',evt, message);
+            mylog(LOGMASK.udp,'got udpsock msg',evt, message);
             if (message.id !== undefined) {
                 var data = this._await_reqs[message.id];
                 //mylog(LOGMASK.udp,'found await req', data)

@@ -444,6 +444,7 @@ var PeerTableView = SuperTableView.extend({
             {id: "country", name: "country", field: "country", sortable: true, width:140 },
             {id: "host", name: "host", field: "host", sortable: true, width:130 },
             {id: "port", name: "port", field: "port", sortable: true, width:60 },
+            {id: "eport", name: "eport", field: "eport", sortable: true, width:60 },
 //            {id: "dht_port", name: "dht_port", field: "dht_port", sortable: true, src:'conn',width:80 },
             {id: "bytes_sent", name: "bytes_sent", field: "bytes_sent", unit: 'bytes', sortable: true },
             {id: "bytes_received", name: "bytes_received", field: "bytes_received", unit: 'bytes', sortable: true },

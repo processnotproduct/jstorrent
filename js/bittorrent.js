@@ -343,7 +343,7 @@
             // woo!!
             var resp = {'v': constants.client_version,
                         'm': {},
-                        'p': 0}; // we don't have a port to connect to :-(
+                        'p': this.torrent.collection.client.get_external_port()}; // we don't have a port to connect to :-(
             if (! this.torrent.magnet_only()) {
                 resp['metadata_size'] = this.torrent.metadata_size;
             }
@@ -505,6 +505,9 @@
 
                 this._remote_extension_handshake = info;
                 this._remote_extension_handshake_codes = reversedict(info['m']);
+                if (this._remote_extension_handshake.p !== undefined) {
+                    this.peer.set('eport', this._remote_extension_handshake.p);
+                }
                 if (! this._sent_extension_handshake) {
                     this.send_extension_handshake();
                 }

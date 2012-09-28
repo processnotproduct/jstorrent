@@ -68,13 +68,18 @@
             // TODO: figure this out when we accidentally connect to ourself
             return config.external_ip;
         },
+        get_external_port: function() {
+            if (this.incoming_connections.current()) {
+                return this.incoming_connections.current().get('remote_port');
+            } else if (this.incoming_connections._last) {
+                return this.incoming_connections._last.get('remote_port');
+            } else {
+                return 0;
+            }
+        },
         get_my_hostports: function() {
             // returns a list of my host/port combos... (prevent from connecting to self)
-            if (this.incoming_connections.current()) {
-                var port = this.incoming_connections.current().get('remote_port');
-            } else if (this.incoming_connections._last) {
-                var port = this.incoming_connections._last.get('remote_port');
-            }
+            var port = this.get_external_port();
             var addrs = [];
             addrs.push( '127.0.0.1:' + port );
             addrs.push( this.get_external_ip() + ':' + port );

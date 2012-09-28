@@ -236,7 +236,7 @@
             return requests;
         },
         check_chunk_request_timeouts: function(conn, requests) {
-            if (! this.collection) { mylog(LOGMASK.error,'check timeout on piece that was freed'); return; } // piece was "freed"
+            if (! this.collection) { mylog(LOGMASK.mem,'check timeout on piece that was freed'); return; } // piece was "freed"
             for (var i=0; i<requests.length; i++) {
                 var offset = requests[i][1];
                 if (this._outbound_request_offsets[offset]) {

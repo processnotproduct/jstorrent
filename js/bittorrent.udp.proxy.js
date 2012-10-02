@@ -66,7 +66,7 @@
             this.do_send(encoded);
         },
         sock_close: function(socknum) {
-            var payload = { method: 'sock_close', args: [socknum] };
+            var payload = { method: 'sock_close', sock: socknum };
             var encoded = new Uint8Array(bencode(payload)).buffer;
             this.do_send(encoded);
         },

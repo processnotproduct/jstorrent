@@ -684,6 +684,7 @@ var TrackerTableView = SuperTableView.extend({
             {id: "announces", name: "announces", field: "announces", sortable: true, width:100 },
             {id: "responses", name: "responses", field: "responses", sortable: true },
             {id: "errors", name: "errors", field: "errors", sortable: true },
+            { name: "timeouts", field: "timeouts" },
             {id: "peers", name: "peers", field: "peers", sortable: true, width:100 },
         ];
         opts.makeformatter = {
@@ -737,6 +738,9 @@ var GeneralDetailView = BaseView.extend({
         this.$('.infohash').text( this.model.hash_hex );
         this.$('.magnet').val( this.model.get_magnet_link() );
         this.$('.jstorrent').html( '<a href="'+this.model.get_jstorrent_link()+'">jstorrent web link</a>' );
+
+
+
     },
     bind_actions: function() {
         

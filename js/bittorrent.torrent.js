@@ -30,7 +30,7 @@
             this.files = new jstorrent.TorrentFileCollection();
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
-            this.set('maxconns',20);
+            this.set('maxconns',10);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
             this.set('size',0);

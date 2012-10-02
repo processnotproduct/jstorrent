@@ -13,7 +13,7 @@ window.config = {
 //    external_ip: '38.99.42.130', // HARD CODED IP AT WORK
     bittorrent_incoming_proxy: '192.168.56.1:8030',
     udp_proxy: '192.168.56.1:8030',
-    ip_aliases: { '38.99.42.130': '127.0.0.1' },
+    //ip_aliases: { '38.99.42.130': '127.0.0.1' },
     default_tracker: 'http://192.168.56.1:6969/announce',
     kyle_ut_home: 'kzahel.dyndns.org:38028',
     public_trackers: ["udp://tracker.openbittorrent.com:80/announce",

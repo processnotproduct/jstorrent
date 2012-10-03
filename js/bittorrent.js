@@ -12,7 +12,7 @@
     FLAGS[7] = LAST_BYTE;
 
     window.constants = {
-        client_version: 'jstorrent 0.0.2',
+        client_version: 'jstorrent 0.0.3',
         protocol_name: 'BitTorrent protocol',
         handshake_length: 1 + 'BitTorrent protocol'.length + 8 + 20 + 20,
         std_piece_size: Math.pow(2,14),

@@ -12,6 +12,7 @@
 
             var username = this.client.get_username();
             this.strurl += '?username=' + encodeURIComponent(username);
+            this.strurl += '&v=' + encodeURIComponent(constants.client_version);
 
             if (opts.last) {
                 this.set('resuming',true);

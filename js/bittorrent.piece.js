@@ -112,7 +112,7 @@
             }
         },
         compute_hash: function(callback) {
-            this.get_data(0, this.sz, _.bind(this.got_data_for_compute_hash, this, callback));
+            this.get_data(0, this.sz, _.bind(this.got_data_for_compute_hash, this, callback), {forhash:true});
         },
         all_chunks_requested: function() {
             // returns whether all chunks have outbound requests right now
@@ -132,7 +132,7 @@
         check_downloaded_hash: function(callback) {
             var hasher = new Digest.SHA1();
             mylog(LOGMASK.hash, 'hashing...',this.repr());
-            jsclient.threadhasher.send({msg:'hashplease', chunks: this._chunk_responses}, callback);
+            this.collection.client.threadhasher.send({msg:'hashplease', chunks: this._chunk_responses}, callback);
         },
         repr: function() {
             return '<Piece '+this.num+'>';
@@ -254,7 +254,7 @@
         },
         got_data_for_compute_hash: function(callback, piece, request, responses) {
             // todo -- make work on multiple threads better
-            jsclient.threadhasher.send({msg:'hashplease', chunks: responses}, _.bind(function(result) {
+            this.collection.client.threadhasher.send({msg:'hashplease', chunks: responses}, _.bind(function(result) {
                 assert(result.hash);
                 this.cleanup(); // don't need the actual piece data anymore
                 this.hash = result.hash;
@@ -301,11 +301,11 @@
             }
             return info
         },
-        get_data: function(offset, size, callback) {
+        get_data: function(offset, size, callback, opts) {
             // gives data needed to service piece requests
             var file_info = this.get_file_info(offset, size);
             assert(file_info.length > 0);
-            var request = {'piece':this.num, 'original':[offset,size],'info':file_info,'callback':callback};
+            var request = {'piece':this.num, 'original':[offset,size],'info':file_info,'callback':callback, 'opts': opts};
             this._requests.push(request);
             this.process_requests();
         },
@@ -339,9 +339,16 @@
                 }
                 callback(this, request, responses);
                 this.set('current_request', null)
+                assert( request.piece == this.num );
                 var piece = this.torrent.get_piece(request.piece);
                 if (this._requests.length > 0) {
                     this.process_requests();
+                } else {
+                    if (request.opts && request.opts.forhash) {
+                        // hashing pieces will free themselves
+                    } else {
+                        piece.try_free();
+                    }
                 }
             }
         },

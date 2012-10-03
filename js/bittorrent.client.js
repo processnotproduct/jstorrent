@@ -37,7 +37,10 @@
                     if (! window.WebSocket && ! window.ArrayBuffer) {
                         this.trigger('unsupported');
                         return;
+                    } else {
+                        this.trigger('slightly_supported');
                     }
+                    
                     mylog(LOGMASK.error,'filesystem init error');
                 }
 
@@ -121,9 +124,11 @@
             }
             if (! this.torrents.contains(torrent)) {
                 this.torrents.add(torrent);
-                torrent.save();
                 assert( this.torrents._byId[torrent.id] );
-                torrent.start();
+                if (opts && opts.dontstart) {
+                } else {
+                    torrent.start();
+                }
                 torrent.save();
                 //torrent.announce();
             } else {

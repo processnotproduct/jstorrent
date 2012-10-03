@@ -34,6 +34,28 @@
             var idx2 = Math.ceil(this.end_byte / this.torrent.piece_size)
             return idx2 - idx;
         },
+        get_complete_array: function() {
+            var arr = [];
+            var idx = Math.floor(this.start_byte / this.torrent.piece_size);
+            //var idx = bisect_left( this.torrent._file_byte_accum, this.start_byte );
+            var c = 0;
+            var t = 0;
+            while (idx < this.torrent.num_pieces) {
+                var piecedims = this.torrent.get_piece_dims(idx);
+                if (intersect( piecedims, [this.start_byte, this.end_byte] )) {
+                    if (this.torrent.piece_complete(idx) || (! this.skipped() && this.torrent.piece_wrote_but_not_stored(idx))) {
+                        arr.push(1);
+                    } else {
+                        arr.push(0);
+                    }
+                    t++;
+                } else {
+                    break;
+                }
+                idx++;
+            }
+            return arr;
+        },
         get_percent_complete: function() {
             // returns piece range that this file intersects
             var idx = Math.floor(this.start_byte / this.torrent.piece_size);
@@ -98,7 +120,7 @@
             if (this.filesystem_entry) {
                 callback(this.filesystem_entry);
             } else {
-                jsclient.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
+                this.collection.client.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
                     if (file.error) {
                         //debugger;
                     } else {
@@ -272,7 +294,7 @@
         writer.onerror = function(evt) {
             if (evt.target.error.code == FileError.QUOTA_EXCEEDED_ERR) {
                 _this.torrent.stop();
-                jsclient.notify_filesystem_full();
+                piece.collection.client.notify_filesystem_full();
             } else {
                 log_file_error(evt.target.error)
                 debugger;

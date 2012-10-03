@@ -1047,6 +1047,10 @@ function main() {
         }
     });
 
+    jsclient.on('slightly_supported', function() {
+        alert('This website requires a browser implementing the HTML5 FileSystem APIs. Yours does not support these features and you will not be able to view the files after downloading them. Please try using Google Chrome. Or continue with crippled functionality.')
+    });
+
     jsclient.on('unsupported', function() {
         alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays). Please try again after installing one.')
         window.location = 'http://www.google.com/chrome';

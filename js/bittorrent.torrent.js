@@ -25,9 +25,11 @@
                 this.set('numswarm', this.get('numswarm')+1);
             },this));
             this.pieces = new jstorrent.PieceCollection();
+            this.pieces.client = this.collection.client;
             this.bytecounters = { sent: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.sent}),
                                   received: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.received}) };
             this.files = new jstorrent.TorrentFileCollection();
+            this.files.client = this.collection.client;
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
             this.set('maxconns',10);
@@ -488,6 +490,7 @@
             }
         },
         announce: function() {
+            if (this.get('disable_trackers')) { return; }
             if (! this._trackers_initialized) {
                 this.initialize_trackers();
             }
@@ -1141,7 +1144,10 @@
                 }
             }
             return false;
-        }
+        },
+        get_by_hash: function(hash) {
+            return this.contains(hash);
+        },
 
     });
 

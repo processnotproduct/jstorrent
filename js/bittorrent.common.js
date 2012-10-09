@@ -5,11 +5,11 @@ window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8030},
     //debug_torrent_client: {ip:'192.168.56.1', port:8030},
     //debug_torrent_client: {ip:'192.168.56.101', port:64399},
-    unit_tests: false, // run unit tests
+    unit_tests: true, // run unit tests
     debug_asserts: false,
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
-    bittorrent_proxy: '192.168.56.1:8031',
+    bittorrent_proxy: '192.168.56.1:8030',
 //    external_ip: '38.99.42.130', // HARD CODED IP AT WORK
     bittorrent_incoming_proxy: '192.168.56.1:8030',
     udp_proxy: '192.168.56.1:8030',
@@ -38,6 +38,10 @@ window.assert = function(v) {
         }
         mylog(LOGMASK.error, l.slice(1, l.length));
         debugger; 
+        if (arguments[1] && arguments[1].throw) {
+            throw Error('assert throw');
+        }
+
     }
 }
 
@@ -97,8 +101,8 @@ function to_file_size(size) {
 //var curlogmask = LOGMASK.general | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.ui;
-//var curlogmask = LOGMASK.general;
-var curlogmask = LOGMASK.all;
+var curlogmask = LOGMASK.general;
+//var curlogmask = LOGMASK.all;
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;
 
@@ -409,7 +413,7 @@ function b642arr(inp) {
         show: function() {
             var toshow = [];
             for (var i=0; i<Math.min(this.num, this.recorded); i++) {
-                var w = this.idx - i;
+                var w = this.idx - 1 - i;
                 if (w<0) {
                     w = w+this.num;
                 }
@@ -420,17 +424,17 @@ function b642arr(inp) {
     }
 
     if (config.unit_tests) {
-        var rb = new RingBuffer(3);
+        var rb = new jstorrent.RingBuffer(3);
         rb.push(2)
         rb.push(4)
-        assert( rb.buf.toString() == '[2,4]' );
-        assert( rb.show().toString() == '[4,2]');
+        assert( JSON.stringify(rb.buf) == '[2,4]' );
+        assert( JSON.stringify(rb.show()) == '[4,2]');
         rb.push(9)
         rb.push(8)
-        assert( rb.buf.toString() == '[8,4,9]' );
-        assert( rb.show().toString() == '[8,9,4]');
+        assert( JSON.stringify(rb.buf) == '[8,4,9]' );
+        assert( JSON.stringify(rb.show()) == '[8,9,4]');
         rb.push(33)
-        assert( rb.show().toString() == '[9,4,33]');
+        assert( JSON.stringify(rb.show()) == '[33,8,9]');
     }
 
 })();

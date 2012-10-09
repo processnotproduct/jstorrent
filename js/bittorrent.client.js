@@ -2,8 +2,10 @@
     jstorrent.JSTorrentClient = Backbone.Model.extend({
         localStorage: new Store('JSTorrentSettings'),
         initialize: function() {
+            window.jspack = new JSPack();
             this.filesystem = new jstorrent.FileSystem();
             this.threadhasher = new jstorrent.ThreadHasher();
+            this.streamparser = null;
             //this.worker.postMessage();
             this.id = "DefaultClient";
             this.fetch();
@@ -26,7 +28,7 @@
 
             //mylog(1,'torrents synced', this.torrents.models);
 
-            this.tick_interval = 100;
+            this.tick_interval = 300;
             this.long_tick_interval = 10000;
 
             this.requests_per_tick = 10;
@@ -51,7 +53,7 @@
                         for (var i=0; i<this.torrents.models.length; i++) {
                             var torrent = this.torrents.models[i];
                             if (torrent.started()) {
-                                this.torrents.models[i].announce();
+                                // this.torrents.models[i].announce(); // move announce into .tick()
                             }
                         }
                     },this));
@@ -66,6 +68,12 @@
               this.filesystem.request_fs();
             */
             this.filesystem.init_filesystems(_.bind(ready,this));
+        },
+        get_streamparser: function() {
+            if (! this.streamparser) {
+                this.streamparser = new jstorrent.StreamParser;
+            }
+            return this.streamparser;
         },
         get_external_ip: function() {
             // TODO: figure this out when we accidentally connect to ourself
@@ -111,6 +119,16 @@
         get_filesystem: function() {
             return this.filesystem;
         },
+        stream: function(hash, filenum) {
+            var torrent = jsclient.torrents.get_by_hash(hash);
+            var file = torrent.files.get(filenum);
+            file.get_filesystem_entry( _.bind(function(entry) {
+                this.videomodel = new jstorrent.FileSystemVideoModel( {entry: entry, file: file} );
+                $('#video_view').show();
+                this.videoview = new jstorrent.VideoView( { el: $("#video_view"), model: this.videomodel } );
+
+            },this));
+        },
         add_torrent: function(args, opts) {
             // check if already in models...
 
@@ -124,6 +142,7 @@
             }
             if (! this.torrents.contains(torrent)) {
                 this.torrents.add(torrent);
+                torrent.save(); // have to save so that id gets set
                 assert( this.torrents._byId[torrent.id] );
                 if (opts && opts.dontstart) {
                 } else {
@@ -158,9 +177,8 @@
         },
         add_consec_torrent: function(num) {
             num = num | 1;
-            jsp = new JSPack();
             for (j=0;j<num;j++) { 
-                arr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0].concat( jsp.Pack(">I", [j*16]) );
+                arr = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0].concat( jspack.Pack(">I", [j*16]) );
                 var infohash = ab2hex(arr);
                 this.add_torrent( {infohash: infohash} );
             }
@@ -231,14 +249,14 @@
                 this.add_torrent( { infohash: ab2hex(new Uint8Array(hash)) } );
             }
         },
-        remove_torrent: function(torrent) {
+        remove_torrent: function(torrent, callback) {
             torrent.stop({silent:true});
             torrent.cleanup();
-            torrent.remove_files();
-            //this.torrents.remove(torrent);
-            torrent.destroy();
-            this.torrents.remove(torrent);
-            //this.torrents.save();
+            torrent.remove_files( _.bind(function() {
+                torrent.destroy();
+                this.torrents.remove(torrent);
+                if (callback)callback();
+            },this));
         },
         run_tests: function() {
         },
@@ -250,6 +268,10 @@
             for (var j=0; j<this.torrents.models.length; j++) {
                 var torrent = this.torrents.models[j];
                 if (torrent.get('state') == 'started') {
+                    if (this.get('stop_all_torrents') && ! torrent.get('streaming')) {
+                        continue
+                    }
+
                     torrent.try_add_peers();
                     torrent.try_announce();
 
@@ -262,7 +284,8 @@
                             conn.peer.ban();
                             conn.close('both seeding');
                         } else if (conn.can_send_messages()) {
-                            var numchunks = torrent.make_chunk_requests(conn, Math.min(this.requests_per_tick, conn._outbound_chunk_requests_limit));
+                            //conn.adjust_max_outbound();
+                            var numchunks = torrent.make_chunk_requests(conn, Math.min(this.requests_per_tick, conn.get('outbound_chunk_requests_limit')));
                             if (! numchunks) {
                                 if (now - conn._last_message_in > constants.keepalive_interval ||
                                     now - conn._last_message_out > constants.keepalive_interval) {

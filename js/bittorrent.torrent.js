@@ -4,7 +4,7 @@
         // misnomer -- not just a new torrent anymore.
         initialize: function(opts) {
             //mylog(1,'init torrent',this.id);
-            _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close');
+            _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close', 'on_file_new_piece');
 
             this.availability = []; // sits alongside the bitmask, stores how many distributed copies of each piece for connected peers.
 
@@ -29,13 +29,15 @@
             this.bytecounters = { sent: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.sent}),
                                   received: new jstorrent.ByteCounter({parent:this.collection.client.bytecounters.received}) };
             this.files = new jstorrent.TorrentFileCollection();
+            this.files.on('newpiece', this.on_file_new_piece);
             this.files.client = this.collection.client;
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
-            this.set('maxconns',10);
+            this.set('maxconns',20);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
             this.set('size',0);
+            this._proxy_streams = [];
             this._trackers_initialized = false;
             this._metadata_requests = {};
             this._chunk_request_timeout = 1000 * 60; // 60 seconds
@@ -120,6 +122,8 @@
             this.set('name',this.get_name());
 
         },
+        on_file_new_piece: function(num) {
+        },
         get_client: function() {
             return this.collection.client;
         },
@@ -175,19 +179,19 @@
             area = area || 'temporary';
             this.get_client().get_filesystem().fss[area].root.getDirectory( this.get_name(), null, callback, callback );
         },
-        remove_files: function() {
+        remove_files: function(callback) {
             if (this.magnet_only()) {
-                return;
-            }
-
-            if (this.is_multifile()) {
+                if (callback){callback()}
+            } else if (this.is_multifile()) {
                 this.get_directory( _.bind(function(dir) {
                     if (dir instanceof FileError) {
+                        if (callback) callback({error:true,fileerror:dir});
                         log_file_error(dir);
                         return; // TODO -- remove
                     }
                     dir.removeRecursively(function() {
                         mylog(1,'recursively removed directory');
+                        if (callback) callback();
                     });
                 }, this));
 /*
@@ -198,7 +202,7 @@
                 }
 */
             } else {
-                this.get_file(0).remove_from_disk();
+                this.get_file(0).remove_from_disk(callback);
             }
         },
         process_post_metadata: function() {
@@ -297,6 +301,16 @@
                 return this.hash ? this.hash : this.althash;
             }
         },
+        register_proxy_stream: function(model) {
+            this._proxy_streams.push(model);
+            model.on('stream_cancel', _.bind(function() {
+                var idx = this._proxy_streams.indexOf(model);
+                this._proxy_streams.splice(idx,1);
+            },this));
+        },
+        has_proxy_stream: function() {
+            return this._proxy_streams.length > 0;
+        },
         get_complete: function() {
             var bitmask = this.get_bitmask();
             var l = bitmask.length
@@ -345,13 +359,17 @@
                                 return;
                             }
 
-                            if (conn._outbound_chunk_requests >= conn._outbound_chunk_requests_limit) {
+                            if (conn._outbound_chunk_requests >= conn.get('outbound_chunk_requests_limit')) {
                                 //mylog(1,'cannot make chunk requests, outbound',conn._outbound_chunk_requests);
                                 return;
                             }
                             // select piece i'm missing but they have
 
-                            var piece = this.choose_incomplete_piece(conn._remote_bitmask);
+                            if (this.has_proxy_stream()) {
+                                var piece = this.choose_priority_piece(conn._remote_bitmask);
+                            } else {
+                                var piece = this.choose_incomplete_piece(conn._remote_bitmask);
+                            }
                             // XXX -- choose a piece that doesn't make us go to far into a file ( filling up zeros sucks...?)
                             if (piece) {
                                 var requests = piece.create_chunk_requests(conn, num_to_request);
@@ -371,6 +389,11 @@
                 }
             }
         },
+        set_piece_complete: function(i,v) {
+            var bitmask = this.get('bitmask');
+            bitmask[i]=v;
+            this.set('bitmask',bitmask);
+        },
         piece_complete: function(i) {
             return this.get('bitmask')[i] == 1;
         },
@@ -387,8 +410,9 @@
             }
         },
         get_piece_dims: function(num) {
+            assert(num !== undefined);
             var sz = this.get_piece_len(num)
-            var start_byte = sz * num
+            var start_byte = this.piece_size * num
             var end_byte = start_byte + sz - 1
             return [start_byte, end_byte];
         },
@@ -398,6 +422,53 @@
                 return true;
             }
             return false;
+        },
+        choose_priority_piece: function(remote_bitmask) {
+            assert( this._proxy_streams.length == 1 )
+            var video = this._proxy_streams[0];
+            var file = video.file;
+            if (file.get('parsed_stream_metadata')) {
+                if (video.get('seeked')) {
+                    var bytes = file.get_bytes_for_seek_percent( video.get('seeked') )
+                    var file_offset = bytes[0] - file.start_byte
+                    var pieces_in = Math.floor(file_offset / this.piece_size);
+                    this.set('first_incomplete', pieces_in);
+                    video.set('seeked',null);
+                }
+
+                return this.choose_incomplete_piece(remote_bitmask)
+
+            }
+            var piecebounds = file.get_piece_boundaries();
+            var arr = file.get_complete_array();
+            var i = 0;
+            var toreturn = null;
+            var piece_left, piece_right;
+
+            while(i<piecebounds[1]-piecebounds[0]) {
+                var piece_left = piecebounds[0] + i;
+                var piece_right = piecebounds[1] - i;
+                if (piece_left > piece_right || piece_right < piece_left) {
+                    break;
+                }
+                var places = [piece_left, piece_right];
+                for (var j=0;j<places.length;j++) {
+                    var pp = places[j];
+                    if (! this.piece_complete(pp) && remote_bitmask[pp]) {
+                        var piece = this.get_piece(pp);
+                        if (! piece.all_chunks_requested() && ! piece.skipped() && ! piece.wrote_but_not_stored()) {
+                            toreturn = piece;
+                            break;
+                        }
+                    }
+                }
+                if (toreturn) {
+                    break;
+                }
+                i++;
+            }
+            return toreturn;
+            // have registered "piece consumers"
         },
         choose_incomplete_piece: function(remote_bitmask) {
             // TODO -- have my own pieces sorted by completed or not
@@ -490,7 +561,9 @@
             }
         },
         announce: function() {
-            if (this.get('disable_trackers')) { return; }
+            if (this.get('disable_trackers')) { 
+                return; 
+            }
             if (! this._trackers_initialized) {
                 this.initialize_trackers();
             }
@@ -626,6 +699,7 @@
             return !! this.get_infodict().files;
         },
         get_file: function(n) {
+            assert(! this.magnet_only() );
             var file = this.files.get(n);
             if (file) {
                 assert (file.num == n)
@@ -847,6 +921,8 @@
             for (var i=0; i<this.connections.models.length; i++) {
                 this.connections.models[i].metadata_download_complete()
             }
+
+            this.trigger('got_metadata');
         },
         create_bitmask_payload: function(opts) {
             var bitfield = [];

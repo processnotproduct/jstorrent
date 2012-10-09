@@ -8,14 +8,11 @@
     jstorrent.ThreadHasher = function() {
         //this.worker = new Worker('../js/bittorrent.hasher.worker.js');
         this.workers = [];
-        this.numthreads = 4;
+        this.numthreads = 1;
         if (window.Worker) {
             for (var i=0; i<this.numthreads; i++) {
-                var worker = new Worker('../js/bittorrent.hasher.worker.js');
-                worker.id = i;
-                this.workers.push( worker );
-                worker.addEventListener('message', _.bind(this.onmessage,this,worker));
-                worker.addEventListener('error', _.bind(this.onerror,this,worker));
+                this.workers.push(null);
+
             }
         } else {
             this.nothread = true;
@@ -26,6 +23,13 @@
     jstorrent.ThreadHasher.prototype = {
         get_worker: function() {
             for (var i=0; i<this.numthreads; i++) {
+                if (! this.workers[i]) {
+                    var worker = new Worker('../js/bittorrent.hasher.worker.js');
+                    worker.id = i;
+                    this.workers[i] = worker;
+                    worker.addEventListener('message', _.bind(this.onmessage,this,worker));
+                    worker.addEventListener('error', _.bind(this.onerror,this,worker));
+                }
                 if (! this.workers[i].processing) {
                     return this.workers[i];
                 }
@@ -58,7 +62,7 @@
             callback(msg.data);
         },
         onerror: function(worker, data) {
-            mylog(LOGMASK.error,'worker error');
+            mylog(LOGMASK.error,'worker error', worker, data);
             //debugger;
         }
     };

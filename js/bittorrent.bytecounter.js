@@ -30,6 +30,7 @@
             this.parent = parent;
         },
         sample: function(bytes, t, s, opts) {
+            return;
             this.totalbytes += bytes;
             // takes a sample at time t of some bytes
             t = t || new Date();
@@ -38,8 +39,8 @@
             if (this.last_sample) {
                 var time_elapsed = s - this.last_sample;
                 var buckets_elapsed = time_elapsed / this.sampsize;
-                assert( isInteger(time_elapsed) );
-                assert( isInteger(buckets_elapsed) );
+                assert( isInteger(time_elapsed), {throw:true} );
+                assert( isInteger(buckets_elapsed), {throw:true} );
 
                 for (var i=0; i<buckets_elapsed-1; i++) {
                     var zeroat = (this.cpos+1+i)%this.numsamples;
@@ -93,7 +94,7 @@
         return false;
     }
 
-    if (config.unit_tests) {
+    if (false && config.unit_tests) {
         var bc = new jstorrent.ByteCounter({samples:4});
 
         bc.sample(1, 1000);
@@ -114,6 +115,13 @@
         bc.sample(7, 5000);
         assert(arrayEq(bc.cbuf, [7,0,0,4]));
         assert(bc.recent() == 11);
+
+        bc = new jstorrent.ByteCounter({samples:6});
+        bc.sample(1, 0);
+        assert(arrayEq(bc.cbuf, [1,0,0,0,0,0]));
+        bc.sample(1, 0);
+        assert(arrayEq(bc.cbuf, [3,0,0,0,0,0]));
+        
     }
 
 })();

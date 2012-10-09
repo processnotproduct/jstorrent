@@ -273,12 +273,10 @@
             this.set('max_down',0);
             this.set('max_up',0);
             this.set('timeouts',0);
+            this.set('outbound_chunk_requests_limit',8);
             //var infohash = opts.hash; // array buffers and stuff no bueno... just want simple array
             this._handle_after_metadata = [];
             this._outbound_chunk_requests = 0;
-            this._outbound_chunk_requests_limit = 10;
-
-
 
             this.handshaking = true;
 
@@ -302,13 +300,28 @@
                 this.reconnect();
             }
         },
+        adjust_max_outbound: function() {
+            var maxdown = this.get('max_down');
+            mylog(1,this.repr(),'maxdown',maxdown);
+            
+            var tick_interval = this.torrent.collection.client.tick_interval // we choose new pieces every tick interval
+            var ticks_per_sec = 1000 / tick_interval;
+
+            var chunks_per_sec = maxdown/constants.chunk_size;
+
+            var chunks_last_tick = chunks_per_sec / ticks_per_sec * 2;
+            var newval = Math.ceil(chunks_last_tick);
+
+            mylog(1,'choosing new max outbound',newval);
+            this.set('outbound_chunk_requests_limit',newval);
+        },
         compute_max_rates: function() {
             this.set('max_up', Math.max(this.bytecounters.sent.avg({noparent:true}), this.get('max_up')));
             this.set('max_down', Math.max(this.bytecounters.received.avg({noparent:true}), this.get('max_down')));
         },
         adjust_chunk_queue_size: function() {
             if (this.get('timeouts') > this.get('chunks_received')) {
-                this._outbound_chunk_requests_limit = 1;
+                this.set('outbound_chunk_requests_limit', 1);
             }
         },
         record_message: function(msg) {

@@ -8,14 +8,15 @@
             this.end_byte = this.start_byte + this.size - 1;
             this._data = null;
             this._reading = false;
+            this._stream_metadata_pieces = {};
             this.info = this.get_info();
             this._cache = {};
             this.filesystem_entry = null;
-
+            this.piece_bounds = this.get_piece_boundaries();
+            assert( this.get_complete_array().length == this.get_num_pieces() )
             this._read_queue = [];
             this._processing_read_queue = false;
             //this._write_queue = [];
-
             this.read_callback = null;
             this.set('name',this.get_name());
             this.set('size',this.get_size());
@@ -26,13 +27,38 @@
                 this.torrent.set_file_priority(m.num, v);
             });
         },
+        get_bytes_for_seek_percent: function(frac) {
+            var mp4file = this.get('mp4file');
+            var mp4time = mp4file.getTotalTimeInSeconds();
+            var seektime = mp4time * frac;
+            var data = mp4file.getFileBytesForTimeInSeconds(seektime)
+            //mylog(1,'seek, need bytes', data.join(', '));
+            return data;
+        },
         get_data_url: function() {
             //'data:application/octet-stream;base64,' + b64encoded
         },
-        get_num_pieces: function() {
+        get_piece_boundaries: function() {
             var idx = Math.floor(this.start_byte / this.torrent.piece_size)
-            var idx2 = Math.ceil(this.end_byte / this.torrent.piece_size)
-            return idx2 - idx;
+            var idx2 = Math.ceil(this.end_byte / this.torrent.piece_size) - 1; // inclusive
+            return [idx, idx2];
+        },
+        get_num_pieces: function() {
+            var bounds = this.get_piece_boundaries()
+            return bounds[1] - bounds[0] + 1;
+        },
+        set_pieces_zero: function() {
+            var idx = Math.floor(this.start_byte / this.torrent.piece_size);
+            while (idx < this.torrent.num_pieces) {
+                var piecedims = this.torrent.get_piece_dims(idx);
+                if (intersect( piecedims, [this.start_byte, this.end_byte] )) {
+                    this.torrent.set_piece_complete(idx,0);
+                } else {
+                    break;
+                }
+                idx++;
+            }
+            this.torrent.save();
         },
         get_complete_array: function() {
             var arr = [];
@@ -42,7 +68,8 @@
             var t = 0;
             while (idx < this.torrent.num_pieces) {
                 var piecedims = this.torrent.get_piece_dims(idx);
-                if (intersect( piecedims, [this.start_byte, this.end_byte] )) {
+                var inter = intersect( piecedims, [this.start_byte, this.end_byte] );
+                if (inter) {
                     if (this.torrent.piece_complete(idx) || (! this.skipped() && this.torrent.piece_wrote_but_not_stored(idx))) {
                         arr.push(1);
                     } else {
@@ -78,6 +105,161 @@
             var pct = c/t;
             return pct;
         },
+        complete_array_to_own_bytes: function(idx1, idx2) {
+            var startpiece = Math.floor(this.start_byte / this.torrent.piece_size);
+            var pieceadims = this.torrent.get_piece_dims(startpiece+idx1);
+            var piecebdims = this.torrent.get_piece_dims(startpiece+idx2);
+            var piecea = this.torrent.get_piece(startpiece+idx1);
+            var pieceb = this.torrent.get_piece(startpiece+idx2);
+            assert(piecea.start_byte == pieceadims[0]);
+            assert(pieceb.start_byte == piecebdims[0]);
+            var relstart = Math.max(pieceadims[0] - this.start_byte, 0);
+            var relend = Math.min(piecebdims[1] - this.start_byte, this.end_byte);
+            return [relstart, relend];
+        },
+        get_complete_ranges: function() {
+            // returns array of byte-ranges for which this file has complete (hashed) data
+            var complete_arr = this.get_complete_array();
+            var debug_ranges = [];
+            var ranges = [];
+            var a = 0;
+            var b = 0;
+            var newrange = false;
+            while (true) {
+                if (a >= complete_arr.length) {
+                    break;
+                }
+                if (b+1 == complete_arr.length) {
+                    debug_ranges.push([a,b])
+                    if (newrange) {
+                        ranges.push( this.complete_array_to_own_bytes(a,b) )
+                    }
+                    break;
+                }
+
+                if (complete_arr[a]) {
+                    newrange = true;
+                }
+
+                if (! complete_arr[a]) {
+                    a++;
+                    b++;
+                } else if (! complete_arr[b+1] && newrange) {
+                    // end of segment
+                    debug_ranges.push([a,b])
+                    ranges.push( this.complete_array_to_own_bytes(a,b) )
+                    newrange = false;
+                    a = b+2;
+                    b = b+2;
+                } else {
+                    b++;
+                }
+            }
+            if (config.unit_tests && this.complete()) {
+                assert( ranges.length == 1 && ranges[0][1] == this.size-1 );
+            }
+            return ranges;
+        },
+        stream_parseable_type: function() {
+            var parts = this.get_name().split('.');
+            if (parts.length > 1) {
+                return parts[parts.length-1].toLowerCase() == 'mp4';
+            }
+        },
+        try_parse_stream_metadata: function(piecenum, piece) {
+            if (! this.stream_parseable_type()) {
+                return;
+            }
+            if (! this.get('parsed_stream_metadata')) {
+                var mybounds = this.get_piece_boundaries();
+                // check if the new piece "fills in" from the outside edges of the file (left or right)
+                var newedgeright = true;
+                var newedgeleft = true;
+                var newedge = false;
+                if (piecenum == mybounds[0] || piecenum == mybounds[1]) {
+                    newedge = true;
+                }
+
+                var i = piecenum+1
+                while (i < mybounds[1]) {
+                    if (! this.torrent.piece_complete(i)) {
+                        newedgeright = false;
+                        break;
+                    }
+                    i++;
+                }
+                i = piecenum-1;
+                while (i > mybounds[0]) {
+                    if (! this.torrent.piece_complete(i)) {
+                        newedgeleft = false;
+                        break;
+                    }
+                    i--;
+                }
+                var is_edge = newedge | newedgeleft | newedgeright;
+                
+                //this._stream_metadata_pieces[piecenum] = piece._chunk_responses;
+                //new PieceBytestream(this._stream_metadata_pieces);
+                if (is_edge) {
+                    this.parse_stream();
+                }
+            }
+        },
+        parse_stream: function() {
+            if (this._stream_parsing) {
+                return
+            }
+            var client = this.torrent.collection.client;
+            var parser = client.get_streamparser();
+            var ranges = this.get_complete_ranges();
+            mylog(1,'parse stream, ranges',ranges);
+            if (ranges.length == 0) {
+                return
+            }
+            var storage_area = this.torrent.get_storage_area()
+/*
+            this.get_filesystem_entry( function(entry) {
+                entry.file( function(file) {
+                    var stream = new Bytestream(file)
+                    debugger;
+                });
+            });
+*/
+            this._stream_parsing = true;
+            parser.parse( this, storage_area, this.get_path().join('/'), ranges, _.bind(function(res) {
+                this._stream_parsing = false;
+                if (res && res.error) {
+                    mylog(LOGMASK.error,'error in stream parser',res);
+                } else if (res.file.error) {
+                    mylog(1,'metadata not yet parsed',res);
+                    if (res.file.error_msg == 'no data' && res.file.error_pos) {
+                        //mylog(1,'need to download piece >=',res.file.error_pos / this.torrent.piece_size)
+                        // prioritize pieces starting from this pos...
+                        
+                    }
+                } else {
+                    mylog(1,'metadata parsed',res);
+                    this.set('parsed_stream_metadata', res)
+                    var tracks = {};
+                    if (res.file.moov && res.file.moov.trak) {
+                        for (var i=0; i<res.file.moov.trak.length; i++) {
+                            var box = res.file.moov.trak[i];
+                            var track = new MP4Track(res.file, box);
+                            tracks[box.tkhd.trackId] = track;
+                            //track.foo();
+                        }
+                        var mp4file = new MP4Reader();
+                        mp4file.tracks = tracks;
+                        mp4file.file = res.file;
+                        this.set('mp4file', mp4file);
+                    }
+                    //this.set('tracks', tracks);
+                }
+            },this) );
+        },
+        complete: function() {
+            return this.get_percent_complete() == 1;
+        },
         on_download_complete: function() {
             var _this = this;
             this.get_filesystem_entry( function(entry) {
@@ -91,10 +273,12 @@
         repr: function() {
             return this.info.path.join('/');
         },
-        remove_from_disk: function() {
+        remove_from_disk: function(callback) {
+            this.torrent.set('first_incomplete',null);
             this.get_filesystem_entry( function(entry) {
                 entry.remove( function() {
                     mylog(1,'removed from disk!')
+                    if (callback) callback();
                 });
             });
         },
@@ -116,12 +300,28 @@
                 return this.get_info().path;
             }
         },
+        remove: function(callback) {
+            // removes file and updates torrent pieces
+            this.get_filesystem_entry( _.bind(function(entry) {
+                this.set_pieces_zero();
+                function onremove(res) {
+                    callback({removed:true,onremove:res});
+                }
+                if (entry.error) {
+                    callback({removed:true,info:'already removed'});
+                } else {
+                    entry.remove( onremove )
+                }
+            },this), {create:false});
+        },
         get_filesystem_entry: function(callback, opts) {
             if (this.filesystem_entry) {
                 callback(this.filesystem_entry);
             } else {
                 this.collection.client.get_filesystem().get_file_by_path(this.get_path(), _.bind(function(file) {
                     if (file.error) {
+                        callback(file);
+                        return;
                         //debugger;
                     } else {
                         this.filesystem_entry = file;
@@ -139,6 +339,7 @@
             TorrentFile.process_write_queue();
         },
         fs_error: function(evt) {
+            TorrentFile._write_queue_action = -1;
             debugger;
         },
         get_data: function(callback, byte_range) {
@@ -257,6 +458,7 @@
     TorrentFile._write_queue = [];
     TorrentFile._write_queue_active = false;
     TorrentFile.process_write_queue = function() {
+        mylog(LOGMASK.disk,'process write queue');
         if (! TorrentFile._write_queue_active ) {
             if (TorrentFile._write_queue.length > 0) {
                 var item = this._write_queue.shift(1);
@@ -271,12 +473,16 @@
                     return;
                 }
                 // writes piece's data. byte_range is relative to this file.
+                TorrentFile._write_queue_action = 1;
                 file.get_filesystem_entry( function(entry) {
+                    TorrentFile._write_queue_action = 2;
                     //mylog(1,'got entry',entry);
                     // entry.file is a function, that also gives size
                     entry.getMetadata( function(metadata) {
+                        TorrentFile._write_queue_action = 3;
                         //mylog(1,'got metadata',metadata);
                         entry.createWriter( function(writer) {
+                            TorrentFile._write_queue_action = 4;
                             //mylog(1,'got writer',writer);
                             TorrentFile.handle_write_piece_data(piece, entry, metadata, writer, byte_range, file);
                         }, TorrentFile.fs_error);
@@ -288,6 +494,8 @@
     }
 
     TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writer, file_byte_range, file) {
+        /* TODO -- clean this up. write in a single pass (create blob of all data to be written to file from chunks) */
+
         // write the data, when done process the queue
         assert(file_metadata.size <= file.get_size()); // file on disk is too large!
         var _this = file;
@@ -295,6 +503,7 @@
             if (evt.target.error.code == FileError.QUOTA_EXCEEDED_ERR) {
                 _this.torrent.stop();
                 piece.collection.client.notify_filesystem_full();
+                debugger;
             } else {
                 log_file_error(evt.target.error)
                 debugger;
@@ -329,6 +538,9 @@
             function write_next(evt) {
 
                 function oncomplete(canclean) {
+                    file.trigger('newpiece',piece.num);
+                    file.try_parse_stream_metadata(piece.num, piece);
+
                     if (piece._file_was_skipped) {
                         // doesn't send the HAVE messages
                         file.torrent.notify_have_piece(piece, {skipped:true});
@@ -374,7 +586,9 @@
                     return;
                 }
 
-
+                // writing to disk would probably be much faster if we
+                // concatenated these buffers together and THEN wrote
+                // the larger blob.
                 var chunk = piece._chunk_responses[i];
                 assert(chunk);
                 var chunk_a = piece.start_byte + constants.chunk_size * i;

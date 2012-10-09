@@ -197,6 +197,7 @@
             return this.torrent.piece_complete(this.num);
         },
         write_data_to_filesystem: function() {
+            mylog(LOGMASK.disk,'queue write',this.repr(),'queue len',jstorrent.TorrentFile._write_queue.length,'active',jstorrent.TorrentFile._write_queue_active);
             this.torrent.write_data_from_piece(this);
         },
         check_responses_complete: function() {

@@ -32,11 +32,11 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     <script src="SlickGrid/slick.editors.js"></script>
     <script src="SlickGrid/plugins/slick.rowselectionmodel.js"></script>
     <script src="../js/deps/digest.js"></script>
-    <script src="../js/deps/smoothie.js"></script>
-
-    <!--script src="../js/deps/FileSaver.js"></script-->
+    <!--script src="../js/deps/smoothie.js"></script-->
+    <script src="../js/deps/jspack.js"></script>
     <script src="../js/bittorrent.common.js"></script>  
     <script src="../js/bittorrent.threadhasher.js"></script>  
+    <script src="../js/bittorrent.streamparser.js"></script>  
     <script src="../js/bittorrent.dnd.js"></script>  
     <script src="../js/bittorrent.helpers.js"></script>  
     <script src="../js/bittorrent.tracker.js"></script>  
@@ -48,18 +48,12 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     <script src="../js/bittorrent.swarm.js"></script>  
     <script src="../js/bittorrent.bytecounter.js"></script>  
     <script src="../js/bittorrent.incoming.proxy.js"></script>  
-
-
     <script src="../js/bittorrent.torrent.js"></script>  
     <script src="../js/bittorrent.js"></script>  
-
-    <!--script src="../js/deps/traceur-compiler/src/traceur.js"></script>
-    <script src="../js/deps/traceur-compiler/src/WebPageProject.js"></script>
-    <script src="../js/deps/traceur-compiler/src/bootstrap.js"></script-->
-
     <script src="../js/bittorrent.udp.proxy.js"></script>  
     <script src="../js/bittorrent.udptracker.js"></script>  
-    <!--script type="text/javascript" src="../js/deps/dht.js"></script-->
+    <script src="../js/bittorrent.quicktime.js"></script>
+    <script src="../js/bittorrent.video.js"></script>
 
     <script type="text/javascript" src="grid.js"></script>
 
@@ -93,6 +87,18 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
       <input style="margin-top:9px" class="url input-large" type="text" placeholder="Paste a Torrent URL" />
       <input class="add btn btn-small btn-info" type="button" value="Add"/>
     </script>
+
+    <script type="text/template" id="video_view_template">
+      <div class="video_container"></div>
+      <div class="controls_container"></div>
+    </script>
+
+    <script type="text/template" id="video_controls_template">
+
+      <canvas class="seekbar"></canvas><br />
+      <span class="play-pause"></span>
+    </script>
+
 
     <script type="text/template" id="commands_template">
       <ul class="commands nav-pills">
@@ -191,14 +197,14 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
       .torrentlist { background:#eff; }
     </style>
   </head>
-  <body style="background:#ccc; overflow:hidden">
+  <body style="background:#ccc">
 
 
 
     <!--div id="client">
         </div-->
 
-
+    <div id="video_view" style="display:none"></div>
     <div id="client" style="height:100%">Loading...</div>
 
       <!--a id="magnet" href="#">register protocol!</a-->

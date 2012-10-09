@@ -115,7 +115,7 @@ var FIRST = null;
                 this.client.udp_proxy.socksendrecv(conn.sock, arr2str(payload), res3).then( _.bind(function(){
                     mylog(LOGMASK.udp,'announce res',res3);
 
-                    if (res3.message.data.timeout) {
+                    if (res3.message.error && res3.message.error == 'timeout') {
                         this.set('timeouts',this.get('timeouts')+1);
                     } else {
 

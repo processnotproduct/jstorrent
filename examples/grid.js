@@ -365,7 +365,11 @@ var FileTableView = SuperTableView.extend({
                     if (data.filesystem_entry && ! data.filesystem_entry.error) {
                         $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank"><i class="icon-folder-open"></i>Open</a>' + 
                                                   ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>' +
-                                                  ' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '"><i class="icon-play"></i>Play</a>'
+
+                                                  '<a href="javascript:jsclient.stream(\'' + 
+                                                  data.torrent.hash_hex + '\',' + data.num
+                                                  + ')">Stream</a>'
+                                                  //' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '"><i class="icon-play"></i>Play</a>'
                                                 );
                     } else if (data.filesystem_entry && data.filesystem_entry.error) {
                         $(cellNode).text(data.filesystem_entry.error);
@@ -390,7 +394,7 @@ var FileTableView = SuperTableView.extend({
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
             {id: "first_piece", name: "first_piece", field: "first_piece", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
-            {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderLink, formatter: waitingFormatter },
+            {id:'actions', name:'actions', field:'actions', width:320, asyncPostRender: renderLink, formatter: waitingFormatter },
             {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false },
             {id: "priority", name: "priority", field: "priority", sortable: true, editor: editor, options:'Normal,Skip' }
         ];

@@ -50,6 +50,8 @@
 
             //this.video.controls = true;
             setup_video(this.video);
+
+
             this.video.addEventListener("loadedmetadata", _.bind(function(evt) { 
                 mylog(1,'loaded video metadata',evt.target.buffered.start(0),evt.target.buffered.end(0))
                 this.set('width',evt.target.videoWidth);
@@ -80,6 +82,11 @@
             mylog(1,'playing');
             this.video.play();
         },
+        close: function() {
+            this.video.pause();
+            this.trigger('stream_cancel'); // same as this.file.torrent.unregister_proxy_stream( this );
+            this.trigger('close');
+        },
         pause: function() {
             mylog(1,'pausing');
             this.video.pause();
@@ -106,17 +113,30 @@
             this.$el.html( this.template() );
             _.bindAll(this,'onseek');
             this.bind_model_events();
+
+
         },
         setup_buttons: function() {
-            this.$('.play-pause').text('play');
+            this.model.video.addEventListener("pause", _.bind(function(evt) { 
+                this.$('.control-play-pause').text('Play');
+            },this));
+            this.model.video.addEventListener("play", _.bind(function(evt) { 
+                this.$('.control-play-pause').text('Pause');
+            },this));
 
-            this.$('.play-pause').click( _.bind(function() {
+
+
+            this.$('.control-play-pause').text('Play');
+
+            this.$('.control-close').click( _.bind(function() {
+                this.model.close()
+            }, this));
+
+            this.$('.control-play-pause').click( _.bind(function() {
                 if (this.model.video.paused) {
                     this.model.play();
-                    this.$('.play-pause').text('pause');
                 } else {
                     this.model.pause();
-                    this.$('.play-pause').text('play');
                 }
             },this));
         },
@@ -134,6 +154,7 @@
 
 
 /*
+  // only valid for http streaming
             for (var i=0; i<this.model.video.buffered.length; i++) {
                 ctx.fillStyle = "rgb(0,255,"+(i*50)%255+")";
                 var start = this.model.video.buffered.start(i)/this.model.video.duration * canvas.width;
@@ -143,30 +164,22 @@
 */
 
 
-            var carr = this.model.file.get_complete_array();
-            var piece_boundaries = this.model.file.get_piece_boundaries();
+            //var carr = this.model.file.get_complete_array();
+            //var piece_boundaries = this.model.file.get_piece_boundaries();
             var torrent = this.model.file.torrent;
             var mp4file = this.model.file.get('mp4file')
+            var ranges = this.model.file.get_complete_ranges();
 
             if (mp4file) {
                 var vid_track = mp4file.tracks[1];
                 ctx.fillStyle = "blue";
-                for (var i=0; i<carr.length; i++) {
-                    if (carr[i]) {
-                        /*
-                          var start = i/carr.length * canvas.width;
-                          var end = (i+1)/carr.length * canvas.width;
-                        */
+                for (var i=0; i<ranges.length; i++) {
 
-                        var piece_dims = torrent.get_piece_dims(i);
+                    var start = vid_track.byteToTimeInSeconds(ranges[i][0]) / this.model.video.duration * canvas.width;
+                    var end = vid_track.byteToTimeInSeconds(ranges[i][1]) / this.model.video.duration * canvas.width;
 
-                        var start = vid_track.byteToTimeInSeconds(piece_dims[0]) / this.model.video.duration * canvas.width;
-                        var end = vid_track.byteToTimeInSeconds(piece_dims[1]) / this.model.video.duration * canvas.width;
+                    ctx.fillRect(start, 3, Math.max(2, end-start), 10);
 
-                        
-
-                        ctx.fillRect(start, 3, Math.max(2, end-start), 10);
-                    }
                 }
             }
             ctx.fillStyle = "red";
@@ -219,7 +232,7 @@
 
                 this.setup_buttons();
                 this.update_canvas();
-                this.update_canvas_interval = setInterval( _.bind(this.update_canvas,this), 1000 );
+                this.update_canvas_interval = setInterval( _.bind(this.update_canvas,this), 2000 );
             },this));
         },
     });
@@ -237,6 +250,12 @@
             this.controls_view = new jstorrent.VideoControlsView( { model: this.model } );
             this.$('.controls_container').append( this.controls_view.el );
             this.bind_model_events();
+            this.model.on('close', _.bind(function() {
+                this.destroy();
+            },this));
+        },
+        destroy: function() {
+            this.$el.html('');
         },
         bind_model_events: function() {
             this.model.file.on('change:mp4file', _.bind(function() {

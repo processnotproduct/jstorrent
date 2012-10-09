@@ -89,6 +89,11 @@ var FIRST = null;
             var _this = this;
             var conn = {};
             this.get_connection(_.bind(function(conn) {
+                if (conn && conn.error) {
+                    this.set('timeouts',this.get('timeouts')+1);
+                    return;
+                }
+
 
                 var payload = [];
                 var tid = get_transaction_id();

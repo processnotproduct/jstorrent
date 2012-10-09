@@ -363,12 +363,14 @@ var FileTableView = SuperTableView.extend({
             } else {
                 data.get_filesystem_entry( function() {
                     if (data.filesystem_entry && ! data.filesystem_entry.error) {
-                        $(cellNode).empty().html( '<a href="' + data.filesystem_entry.toURL() + '" target="_blank"><i class="icon-folder-open"></i>Open</a>' + 
-                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>' +
-
+                        $(cellNode).empty().html( 
+                                                  (data.stream_parseable_type() ? (
                                                   '<a href="javascript:jsclient.stream(\'' + 
                                                   data.torrent.hash_hex + '\',' + data.num
-                                                  + ')">Stream</a>'
+                                                  + ')"><i class="icon-play"></i>Stream</a> ' ) : '') +
+
+                            '<a href="' + data.filesystem_entry.toURL() + '" target="_blank"><i class="icon-folder-open"></i>Open</a>' + 
+                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
                                                   //' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '"><i class="icon-play"></i>Play</a>'
                                                 );
                     } else if (data.filesystem_entry && data.filesystem_entry.error) {

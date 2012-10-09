@@ -720,8 +720,8 @@
             mylog(LOGMASK.network,'handle piece request for piece',index,'offset',offset,'of size',size);
             //mylog(1,'handle piece request for piece',index,'offset',offset);
 
-            var piece = this.torrent.get_piece(index);
-            if (piece.complete()) {
+            if (this.torrent.has_piece(index)) {
+                var piece = this.torrent.get_piece(index);
                 piece.set('requests_in', piece.get('requests_in')+1 );
                 piece.get_data(offset, size, this.on_handle_request_data);
             } else {

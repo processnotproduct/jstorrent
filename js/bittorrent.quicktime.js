@@ -650,29 +650,29 @@ var MP4Track = (function track () {
             } else {
                 var abstime = t;
             }
-            if (this.isVideo()) { console.log("VIDEO TRACK") }
-            console.log('abstime',t,abstime);
+            //if (this.isVideo()) { console.log("VIDEO TRACK") }
+            //console.log('abstime',t,abstime);
             var sample = this.timeToSample( t * this.getTimeScale() );
 
             if (this.trak.mdia.minf.stbl.stss) {
                 var samps = this.trak.mdia.minf.stbl.stss.samples
                 var bi = bisect_left( samps, sample );
                 var keyframe_sample_idx = Math.max(0, bi - 2); // go back one keyframe
-                console.log('keyframe sample idx',keyframe_sample_idx);
+                //console.log('keyframe sample idx',keyframe_sample_idx);
                 var keyframe_sample = samps[keyframe_sample_idx];
                 assert(keyframe_sample !== undefined);
             } else {
                 var keyframe_sample = Math.max(0, sample); // audio has no keyframes, but needs to prebuffer..
                 // bad guess at presampling
             }
-            console.log('keyframe sample',keyframe_sample);
+            //console.log('keyframe sample',keyframe_sample);
             // need to move back to first entry in "stss" // iframe sync sample thingie
             
 
 
             keyframe_sample = Math.max(0, keyframe_sample); // move back a single sample... cuz chrome needs to? keyframes need it? dunno
             var offset = this.sampleToOffset(keyframe_sample);
-            console.log('offset',offset);
+            //console.log('offset',offset);
             return offset
         },
         getSampleSizeTable: function () {

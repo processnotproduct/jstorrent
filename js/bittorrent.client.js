@@ -53,7 +53,7 @@
                         for (var i=0; i<this.torrents.models.length; i++) {
                             var torrent = this.torrents.models[i];
                             if (torrent.started()) {
-                                // this.torrents.models[i].announce(); // move announce into .tick()
+                                this.torrents.models[i].announce(); // move announce into .tick()
                             }
                         }
                     },this));

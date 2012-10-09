@@ -49,6 +49,11 @@ ParserWorker.prototype = {
             var parsedata = {};
             mp4reader.readBoxes(stream, parsedata);
             result.file = parsedata;
+
+            if (mp4reader.error) {
+                result.error = mp4reader.error
+                self.postMessage({result:result, id:msgid});
+            }
             self.postMessage({result:result, id:msgid});
         } else {
             self.postMessage({result:{error:'unable to open filesystem'}, id:msgid});

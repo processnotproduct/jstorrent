@@ -253,6 +253,7 @@ var MP4Reader = (function reader() {
     var FULL_BOX_HEADER_SIZE = BOX_HEADER_SIZE + 4;
 
     function constructor(stream) {
+        this.error = null;
         this.stream = stream;
         this.tracks = {};
         this.EOF = -1;
@@ -288,6 +289,11 @@ var MP4Reader = (function reader() {
                     parent['error'] = true;
                     parent['error_pos'] = stream.pos;
                     parent['error_msg'] = res.error;
+
+                    this.error = {};
+                    this.error['error_pos'] = stream.pos;
+                    this.error['error_msg'] = res.error;
+
                     break;
                 }
                 var child = this.readBox(stream);

@@ -49,14 +49,18 @@ var FIRST = null;
                 var payload = protocol_id.concat(packed);
                 var res2 = {};
                 this.client.udp_proxy.socksendrecv(res.message.newsock, arr2str(payload), res2).then( _.bind(function() {
-                    var asarr = str2arr(res2.message.data);
-                    assert(asarr.length == 16);
-                    var rparts = jspack.Unpack(">II",asarr);
-                    var raction = rparts[0];
-                    var rtid = rparts[1];
-                    var connid = asarr.slice(8);
-                    assert(transaction_id == rtid);
-                    callback({connid:connid, sock:res.message.newsock});
+                    if (res2.message.error) {
+                        callback({error:res2.message.error, sock:res.message.newsock});
+                    } else {
+                        var asarr = str2arr(res2.message.data);
+                        assert(asarr.length == 16);
+                        var rparts = jspack.Unpack(">II",asarr);
+                        var raction = rparts[0];
+                        var rtid = rparts[1];
+                        var connid = asarr.slice(8);
+                        assert(transaction_id == rtid);
+                        callback({connid:connid, sock:res.message.newsock});
+                    }
                 },this));
             }, this));
         },

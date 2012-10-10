@@ -212,6 +212,8 @@
             var client = this.torrent.collection.client;
             var parser = client.get_streamparser();
             var ranges = this.get_complete_ranges();
+            // TODO -- when file has a bunch of data or is complete, try parsing from outside, not the whole file...
+
             mylog(1,'parse stream, ranges',ranges);
             if (ranges.length == 0) {
                 return

@@ -76,7 +76,13 @@
             },this));
             this.video.addEventListener('error', _.bind(this.onerror, this));
             //this.video.muted = true;
-            this.file.torrent.register_proxy_stream( this );
+
+            if (this.file.complete()) {
+                this.video.controls = true;
+                this.video.preload = 'metadata';
+            } else {
+                this.file.torrent.register_proxy_stream( this );
+            }
         },
         play: function() {
             mylog(1,'playing');
@@ -208,7 +214,9 @@
 
             this.model.on('buffered', _.bind( function() {
                 this.model.off('buffered');
-                this.model.seek( frac * this.model.file.get('mp4file').getTotalTimeInSeconds() );
+                //var duration = this.model.file.get('mp4file').getTotalTimeInSeconds();
+                var vid_duration = this.model.video.duration;
+                this.model.seek( frac * vid_duration );
                 this.update_canvas();
             },this));
             setTimeout( _.bind(function(){
@@ -241,7 +249,7 @@
     jstorrent.VideoView = Backbone.View.extend({
         initialize: function(opts) {
             this.video = this.model.video;
-            if (! this.model.file.get('mp4file')) {
+            if (! this.model.file.get('mp4file') && ! this.model.file.complete()) {
                 this.model.file.parse_stream();
             }
             this.template = _.template( $('#video_view_template').html() );

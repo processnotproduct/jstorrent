@@ -369,8 +369,10 @@ var FileTableView = SuperTableView.extend({
                                                   data.torrent.hash_hex + '\',' + data.num
                                                   + ')"><i class="icon-play"></i>Stream</a> ' ) : '') +
 
-                            '<a href="' + data.filesystem_entry.toURL() + '" target="_blank"><i class="icon-folder-open"></i>Open</a>' + 
-                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
+                            '<a href="' + data.filesystem_entry.toURL() + '" target="_blank"><i class="icon-folder-open"></i>Open</a>' 
+                                    + 
+                            (data.complete() ? (
+                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>' ) : '')
                                                   //' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '"><i class="icon-play"></i>Play</a>'
                                                 );
                     } else if (data.filesystem_entry && data.filesystem_entry.error) {

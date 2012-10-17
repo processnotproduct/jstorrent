@@ -79,8 +79,11 @@
         notify({state:'canplay'});
         //vm.play();
     }
-
+    var _entered_onentry = false;
     function onentry() {
+        if (_entered_onentry) { return; }
+        _entered_onentry = true;
+
         notify({state:'entry'});
         var entry = file.filesystem_entry
         window.vm = new jstorrent.FileSystemVideoModel( {entry: entry, file: file} );

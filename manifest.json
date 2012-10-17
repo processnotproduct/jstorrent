@@ -1,0 +1,42 @@
+{
+    "name": "JSTorrent",
+    "description": "Javascript Torrent Client",
+    "version": "0.0.3",
+    "manifest_version": 2,
+    "permissions": [
+        "experimental",
+        {"fileSystem":["write"]},
+
+        {"socket":[
+            "tcp-connect",
+            "udp-bind::",
+            "tcp-listen::",
+            "udp-send-to::"
+        ]},
+        "storage",
+        "http://*/",
+        "https://*/"
+    ],
+    "intents": {
+        "http://webintents.org/view" : [{
+            "title" : "BitTorrent File Viewing, Streaming and Downloading",
+            "type" : ["application/x-bittorrent"]
+        }],
+        "http://webintents.org/share" : [{
+            "title" : "BitTorrent File Sharing",
+//            "href" : "examples/intentshare.html",
+//            "disposition": "window",
+            "type" : ["image/*","video/*","*"]
+        }]
+    },
+/*
+    "container" : "GOOGLE_DRIVE",
+    "api_console_project_id" : "jstorrentdotcom",
+*/
+    "app": {
+        "background": {
+            "scripts": ["background.js"]
+        }
+    },
+    "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" }
+}

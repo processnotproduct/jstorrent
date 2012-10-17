@@ -29,7 +29,7 @@
             if (info.added) {
                 var itermax = info.added.length/6;
                 for (var i=0; i<itermax; i++) {
-                    var peerdata = jstorrent.decode_peer( info.added.slice( i*6, (i+1)*6 ) );
+                    var peerdata = jstorrent.decode_peer( info.added.slice( i*6, (i+1)*6 ), {isstr:true} );
                     decodedpeers.push(peerdata);
                     var added = this.torrent.handle_new_peer(peerdata);
                     if (added) {

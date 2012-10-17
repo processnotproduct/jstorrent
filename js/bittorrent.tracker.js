@@ -1,8 +1,14 @@
 (function() {
-    jstorrent.decode_peer = function(str) {
+    jstorrent.decode_peer = function(str, opts) {
         assert(str.length == 6);
-        var ip = str.charCodeAt(0) + '.' + str.charCodeAt(1) + '.' + str.charCodeAt(2) + '.' + str.charCodeAt(3)
-        var port = 256 * str.charCodeAt(4) + str.charCodeAt(5);
+        if (opts && opts.isstr) {
+            var ip = str.charCodeAt(0) + '.' + str.charCodeAt(1) + '.' + str.charCodeAt(2) + '.' + str.charCodeAt(3)
+            var port = 256 * str.charCodeAt(4) + str.charCodeAt(5);
+        } else {
+            var ip = str[0] + '.' + str[1] + '.' + str[2] + '.' + str[3]
+            var port = 256 * str[4] + str[5];
+        }
+
         return { ip: ip, port: port };
     }
 
@@ -28,6 +34,7 @@
             this.set('announces',0);
             this.set('responses',0);
             this.set('errors',0);
+            this.set('timeouts',0);
             this.set('peers',0);
             if (this.is_udp()) {
                 this.use_proxy = true;
@@ -50,7 +57,7 @@
             this._last_announce = null;
             this.announce();
         },
-        announce: function() {
+        announce: function() {          
             if (! this.can_announce()) {
                 return;
             }
@@ -79,7 +86,10 @@
 
             var ajax_opts = { url: this.get_url(params),
                               success: _.bind(this.on_success,this),
-
+                              ontimeout: _.bind(function(msg) {
+                                  this.set('timeouts',this.get('timeouts')+1);
+                                  this.set('state','xhr error');
+                              },this),
                               beforeSend: function(xhr) {
                                   //xhr.overrideMimeType('text/plain; charset=x-user-defined');
                                   xhr.responseType = 'arraybuffer';
@@ -103,10 +113,19 @@
             xhr.responseType = 'arraybuffer'
             xhr.onload = ajax_opts.success;
             xhr.onerror = ajax_opts.error;
+            //xhr.timeout = 1000;
+            xhr.on_timeout = ajax_opts.ontimeout;
+            setTimeout( _.bind(this.check_timeout,this,xhr), 4000 );
             xhr.send();
             //ajax_opts.data = params;
             ajax_opts.type = "GET";
             //jQuery.ajax(ajax_opts);
+        },
+        check_timeout: function(xhr) {
+            if (xhr.readyState == 1) {
+                xhr.abort();
+                xhr.on_timeout();
+            }
         },
         is_udp: function() {
             return this.url.slice(0,4) == 'udp:';
@@ -136,13 +155,13 @@
                         // pick a single peer, for debugging
                         for (j=0;j<numpeers;j++){
                             var i = Math.floor( Math.random() * itermax );
-                            var peerdata = jstorrent.decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                            var peerdata = jstorrent.decode_peer( peers.slice( i*6, (i+1)*6 ), {isstr:true} );
                             decodedpeers.push(peerdata);
                             this.trigger('newpeer',peerdata);
                         }
                     } else {
                         for (var i=0; i<itermax; i++) {
-                            var peerdata = jstorrent.decode_peer( peers.slice( i*6, (i+1)*6 ) );
+                            var peerdata = jstorrent.decode_peer( peers.slice( i*6, (i+1)*6 ), {isstr:true} );
                             decodedpeers.push(peerdata);
                             this.trigger('newpeer',peerdata);
                         }
@@ -158,7 +177,6 @@
                 this.set('state','active');
                 mylog(LOGMASK.tracker, 'decoded peers',decodedpeers);
                 this.set('peers', this.get('peers') + decodedpeers.length);
-
             } else if (decoded.error) {
                 this.set('active','error');
                 mylog(LOGMASK.error, 'tracker connection error', decoded.error, decoded);

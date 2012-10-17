@@ -1,3 +1,5 @@
+disconnect from peers who don't have pieces we're interested in (when swarm healthy enough..)
+
 Fixes
 
 - Websockets don't really send close notification. Need better detection that a connection is stale... if last packet in was say 60 seconds ago, the connection is likely bad. It seems to disconnect after about 5 minutes ok...

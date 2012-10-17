@@ -43,6 +43,8 @@
             this.entry = opts.entry;
             this.file = opts.file;
             this.video = document.createElement('video');
+            this.video.setAttribute('width', $(window).width());
+            this.video.setAttribute('height', $(window).height());
             this.video.src = this.entry.toURL();
             //this.video.src = "http://127.0.0.1:10000/proxy?hash=" + encodeURIComponent(mp4_hash);
             this.video.autoplay = false;
@@ -51,16 +53,27 @@
             //this.video.controls = true;
             setup_video(this.video);
 
+            this.file.on('change:unsupported_stream', _.bind(function(){
+                alert('unable to stream this file, ' + this.file.get('unsupported_stream'))
+                this.close();
+            },this));
 
             this.video.addEventListener("loadedmetadata", _.bind(function(evt) { 
                 mylog(1,'loaded video metadata',evt.target.buffered.start(0),evt.target.buffered.end(0))
                 this.set('width',evt.target.videoWidth);
                 this.set('height',evt.target.videoHeight);
-                this.video.setAttribute('width',this.get('width'))
-                this.video.setAttribute('height',this.get('height'))
+                if (! this.get('scalevideo')) {
+                    this.video.setAttribute('width',this.get('width'))
+                    this.video.setAttribute('height',this.get('height'))
+                }
                 this.set('has_metadata',true);
             },this));
             this.video.addEventListener("canplay", _.bind(function(evt) { 
+                if (this.get('autostart')) { 
+
+                    this.play()
+                    this.set('autostart',false);
+                }
                 if (this.get('onerrortime')) {
                     var t = this.get('onerrortime');
                     if (true) {
@@ -83,6 +96,24 @@
             } else {
                 this.file.torrent.register_proxy_stream( this );
             }
+        },
+        get_video_track: function() {
+            var mp4file = this.file.get('mp4file')
+            if (mp4file) {
+                return mp4file.tracks[1];
+            }
+        },
+        get_info: function() {
+            var track = this.get_video_track()
+            if (track) {
+                var offset = track.sampleToOffset( track.timeToSample(  track.secondsToTime(this.video.currentTime) ) );
+                //var filestartpiece = this.file.get_piece_boundaries()[0];
+                var piece = Math.floor((offset + this.file.start_byte) / this.file.torrent.piece_size);
+                return 'playing piece ' + piece;
+            } else {
+                return 'no track loaded'
+            }
+            
         },
         play: function() {
             mylog(1,'playing');
@@ -115,12 +146,9 @@
             this.opts = {
                 height: 30
             };
-            this.template = _.template( $('#video_controls_template').html() );
-            this.$el.html( this.template() );
+            this.$el.html( $('#video_controls_template').html() );
             _.bindAll(this,'onseek');
             this.bind_model_events();
-
-
         },
         setup_buttons: function() {
             this.model.video.addEventListener("pause", _.bind(function(evt) { 
@@ -130,11 +158,10 @@
                 this.$('.control-play-pause').text('Pause');
             },this));
 
-
-
             this.$('.control-play-pause').text('Play');
 
             this.$('.control-close').click( _.bind(function() {
+                clearInterval( this.update_canvas_interval );
                 this.model.close()
             }, this));
 
@@ -155,10 +182,9 @@
                 canvas.setAttribute('height',this.opts.height);
             }
             var ctx = canvas.getContext('2d');
-            ctx.fillStyle = "rgb(250,220,200)";
-            ctx.fillRect(0,0,canvas.width,canvas.height/2);
-
-
+            ctx.clearRect(0,0,canvas.width,canvas.height)
+            ctx.fillStyle = "rgba(100,100,100,0.3)";
+            ctx.fillRect(0,0,canvas.width,canvas.height);
 /*
   // only valid for http streaming
             for (var i=0; i<this.model.video.buffered.length; i++) {
@@ -168,29 +194,24 @@
                 ctx.fillRect(start, canvas.height/2, end-start, canvas.height/2);
             }
 */
-
-
-            //var carr = this.model.file.get_complete_array();
-            //var piece_boundaries = this.model.file.get_piece_boundaries();
             var torrent = this.model.file.torrent;
             var mp4file = this.model.file.get('mp4file')
             var ranges = this.model.file.get_complete_ranges();
 
             if (mp4file) {
                 var vid_track = mp4file.tracks[1];
-                ctx.fillStyle = "blue";
+                ctx.fillStyle = "rgba(255,255,255,0.3)";
                 for (var i=0; i<ranges.length; i++) {
-
                     var start = vid_track.byteToTimeInSeconds(ranges[i][0]) / this.model.video.duration * canvas.width;
                     var end = vid_track.byteToTimeInSeconds(ranges[i][1]) / this.model.video.duration * canvas.width;
-
-                    ctx.fillRect(start, 3, Math.max(2, end-start), 10);
-
+                    var pad = 7;
+                    ctx.fillRect(start, pad, Math.max(2, end-start), canvas.height-pad*2);
                 }
             }
-            ctx.fillStyle = "red";
+            ctx.fillStyle = "blue";
             var x = v.currentTime / v.duration * canvas.width;
-            ctx.fillRect(x, 0, 2, canvas.height/2);
+            ctx.fillRect(x, 0, 1, canvas.height);
+            this.$('.info').text( this.model.get_info() );
         },
         drawdot: function(x) {
             var canvas = this.$('.seekbar')[0];
@@ -199,14 +220,24 @@
             ctx.fillRect(x,canvas.height/2,1,canvas.height/3);
         },
         onseek: function(evt) {
+            var vid_duration = this.model.video.duration;
             this.drawdot(evt.offsetX);
 
             console.log('click to seek!', evt.offsetX);
             if (this.model.get('buffering')) { console.log('already buffering'); return };
-            this.model.pause();
+
+
             var frac = evt.offsetX / this.model.video.videoWidth;
 
 
+            if (this.model.file.complete()) {
+                this.model.seek( frac * vid_duration )
+                this.update_canvas();
+                return;
+            }
+
+            this.model.pause();
+            // on seek, CHECK
 
             this.model.set('seeked', frac);
             this.model.set('buffering',true);
@@ -215,7 +246,6 @@
             this.model.on('buffered', _.bind( function() {
                 this.model.off('buffered');
                 //var duration = this.model.file.get('mp4file').getTotalTimeInSeconds();
-                var vid_duration = this.model.video.duration;
                 this.model.seek( frac * vid_duration );
                 this.update_canvas();
             },this));
@@ -235,8 +265,15 @@
             },this));
 
             this.model.on('canplay', _.bind(function() {
+
                 if (this.model.get('setup')) { return; }
+
                 this.model.set('setup',true);
+/* // too slow
+                this.model.file.on('newpiece', _.bind(function(){
+                    this.update_canvas();
+                },this));
+*/
 
                 this.setup_buttons();
                 this.update_canvas();
@@ -249,11 +286,18 @@
     jstorrent.VideoView = Backbone.View.extend({
         initialize: function(opts) {
             this.video = this.model.video;
-            if (! this.model.file.get('mp4file') && ! this.model.file.complete()) {
+            if (! this.model.file.get('mp4file')) {
+                // TODO -- make more efficient for completed files
+                if (this.model.file.complete()) {
+                    mylog(LOGMASK.warn,'parsing could take a while!');
+                }
                 this.model.file.parse_stream();
             }
-            this.template = _.template( $('#video_view_template').html() );
-            this.$el.html( this.template() );
+            this.$el.html( $('#video_view_template').html() );
+            this.scalevideo = opts.scalevideo;
+            this.autostart = opts.autostart;
+            this.model.set('scalevideo',this.scalevideo);
+            this.model.set('autostart',this.autostart);
             this.$('.video_container')[0].appendChild( this.model.video );
             this.controls_view = new jstorrent.VideoControlsView( { model: this.model } );
             this.$('.controls_container').append( this.controls_view.el );

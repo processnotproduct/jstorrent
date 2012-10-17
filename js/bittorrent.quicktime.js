@@ -221,7 +221,7 @@ var SparseBytestream = (function BytestreamClosure() {
     return constructor;
 })();
 
-var PARANOID = true; // Heavy-weight assertions.
+var PARANOID = false; // Heavy-weight assertions.
 
 /**
  * Reads an mp4 file and constructs a object graph that corresponds to the box/atom
@@ -807,7 +807,7 @@ var MP4Track = (function track () {
          * Gets the total time of the track.
          */
         getTotalTime: function () {
-            if (PARANOID) {
+            if (PARANOID && false) {
                 var table = this.trak.mdia.minf.stbl.stts.table;
                 var duration = 0;
                 for (var i = 0; i < table.length; i++) {

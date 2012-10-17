@@ -26,13 +26,18 @@
 
 
             this.set('state','establishing');
-            this.stream = new WebSocket(this.strurl);
-            this.stream.binaryType = "arraybuffer";
-            this.stream.onerror = this.onerror;
-            this.stream.onopen = this.onopen;
-            this.stream.onclose = this.onclose;
-            this.stream.onmessage = this.onmessage;
-            this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
+            if (config.packaged_app) {
+                this.stream = {};
+                this.trigger('established');
+            } else {
+                this.stream = new WebSocket(this.strurl);
+                this.stream.binaryType = "arraybuffer";
+                this.stream.onerror = this.onerror;
+                this.stream.onopen = this.onopen;
+                this.stream.onclose = this.onclose;
+                this.stream.onmessage = this.onmessage;
+                this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
+            }
         },
         repr: function() {
             return "<IncomingProxy " + this.id + ">";
@@ -59,7 +64,7 @@
             if (this.connect_timeout) {
                 clearTimeout( this.connect_timeout );
             }
-            mylog(1,this.repr(),'incoming conn stream close',evt, evt.reason);
+            mylog(LOGMASK.network,this.repr(),'incoming conn stream close',evt, evt.reason);
             this.collection.incoming_closed(this, evt)
         },
         onmessage: function(evt) {

@@ -107,7 +107,7 @@
                 //mylog(LOGMASK.udp,'found await req', data)
                 data.res['message'] = message
                 //assert (data.deferred.listeners_.length > 0)
-                data.deferred.resolve(true);
+                data.deferred.resolve(data.res);
                 delete this._await_reqs[message.id];
             }
         },

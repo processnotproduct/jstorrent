@@ -1,7 +1,9 @@
 (function() {
     jstorrent.Torrent = Backbone.Model.extend({
         className: "Torrent",
-        // misnomer -- not just a new torrent anymore.
+        storeName: 'torrent',
+        database: jstorrent.storage,
+
         initialize: function(opts) {
             //mylog(1,'init torrent',this.id);
             _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close', 'on_file_new_piece');
@@ -33,7 +35,7 @@
             this.files.client = this.collection.client;
             this.trackers = new jstorrent.TrackerCollection();
             this.set('bytes_received',0);
-            this.set('maxconns',20);
+            this.set('maxconns',15);
             this.set('bytes_sent',0);
             this.set('numpeers', 0);
             this.set('size',0);
@@ -54,6 +56,7 @@
                 // initialization via infohash (i.e. magnet link) {
                 this.hash_hex = opts.infohash;
                 this.hash = str2arr(hex2str(this.hash_hex));
+                this.set('id',this.hash_hex);
                 this.set('name',this.get_name());
                 return;
             } else if (opts.magnet) {
@@ -86,6 +89,7 @@
                 assert (this.hash_hex.length == 40);
                 assert (this.hash.length == 20);
                 this.magnet_info = d;
+                this.set('id',this.hash_hex);
                 this.set('name',this.get_name());
                 // set stuffs
                 return;
@@ -120,12 +124,26 @@
                 debugger;
             }
             this.set('name',this.get_name());
-
+            this.set('id',this.hash_hex);
         },
         on_file_new_piece: function(num) {
         },
         get_client: function() {
             return this.collection.client;
+        },
+        get_main_media: function() {
+            if (! this.is_multifile()) { return this.get_file(0); }
+            var files = this.get_infodict().files; // choose largest
+            var maxi = 0;
+            var curmax = 0;
+            for (var i=0; i<files.length; i++) {
+                if (files[i].length > curmax) {
+                    curmax = files[i].length;
+                    debugger;
+                    maxi = i;
+                }
+            }
+            return this.get_file(maxi);
         },
         get_storage: function(callback, area) {
             area = area || 'temporary';
@@ -241,6 +259,7 @@
             this._processing_meta_request = false;
             this.set('name',this.get_name());
             this.set('size',this.get_size());
+            this.trigger('metadata_processed');
             this.metadata_size = bencode(this.get_infodict()).length
         },
         set_metadata: function(metadata) {
@@ -356,6 +375,7 @@
                         if (! conn._choked) {
                             if (! conn._remote_bitmask) {
                                 mylog(LOGMASK.error,'not magnet only, but no remote bitmask')
+                                conn.close('no bitmask');
                                 return;
                             }
 
@@ -1207,7 +1227,9 @@
 
         //getFormatter: function(col) { debugger; },
 
-        localStorage: new Store('TorrentCollection'),
+        //localStorage: new Store('TorrentCollection'),
+        database: jstorrent.storage,
+        storeName: 'torrent',
         model: jstorrent.Torrent,
         className: 'TorrentCollection',
 

@@ -29,8 +29,8 @@ var BaseView = Backbone.View.extend({
 
 var CommandsView = BaseView.extend({
     initialize: function(opts) {
-        this.template = _.template( $('#commands_template').html() );
-        this.$el.html( this.template() );
+        //this.template = _.template( $('#commands_template').html() );
+        this.$el.html( $('#commands_template').html() );
         this.bind_actions();
     },
     update_play_action: function(selected) {
@@ -76,8 +76,8 @@ var CommandsView = BaseView.extend({
 
 var AddView = BaseView.extend({
     initialize: function(opts) {
-        this.template = _.template( $('#add_template').html() );
-        this.$el.html( this.template() );
+        //this.template = _.template( $('#add_template').html() );
+        this.$el.html( $('#add_template').html() );
         this.bind_actions();
     },
     bind_actions: function() {
@@ -123,14 +123,14 @@ var SuperTableView = Backbone.View.extend({
         this.grid.setSelectionModel(new Slick.RowSelectionModel());
         //this.grid.setSelectionModel(new Slick.CellSelectionModel());
 
+        this.model.on('flash', _.bind(this.flash_model, this));
+
         this.model.on('add', _.bind(function(m) {
             this.grid.updateRowCount(); // do other stuff to make selection work correctly...
             this.grid.invalidateAllRows();
             this.grid.render();
             if (this instanceof TorrentTableView) {
-                var idx = this.model.indexOf(m); // XXX - slow??
-                this.grid.scrollRowIntoView(idx);
-                this.grid.flashCell(idx, this.grid.getColumnIndex("name"), 400);
+                this.flash_model(m);
             }
         },this));
 
@@ -172,6 +172,11 @@ var SuperTableView = Backbone.View.extend({
         });
 
     },
+    flash_model: function(m) {
+        var idx = this.model.indexOf(m); // XXX - slow??
+        this.grid.scrollRowIntoView(idx);
+        this.grid.flashCell(idx, this.grid.getColumnIndex("name"), 400);
+    },
     destroy: function() {
         this.model.off('add');
         this.model.off('change');
@@ -199,7 +204,8 @@ var TorrentTableView = SuperTableView.extend({
         ];
         this.default_height = 200;
         this.options.el.height(this.default_height);
-        var progress_template = jstorrent.tmpl("progress_template");
+        //var progress_template = jstorrent.tmpl("progress_template");
+        var progress_template = $('#progress_template')
         this.dependentAttributes = { 'bytes_sent': ['send_rate'],
                                      'bytes_received': ['receive_rate']
                                    };
@@ -240,6 +246,7 @@ var TorrentTableView = SuperTableView.extend({
                         if (val > 0) {
                             return to_file_size(val) + '/s';
                         }
+                        return '';
                     }
                 } else if (column.field == 'receive_rate') {
                     return function(row,cell,value,col,data) { 
@@ -247,6 +254,7 @@ var TorrentTableView = SuperTableView.extend({
                         if (val > 0) {
                             return to_file_size(val) + '/s';
                         }
+                        return '';
                     }
                 } else if (column.unit == 'bytes') {
                     return function(row,cell,value,col,data) { 
@@ -259,9 +267,10 @@ var TorrentTableView = SuperTableView.extend({
                     }
                 } else if (column.field == 'complete') {
                     return function(row,cell,value,col,data) {
-                        return progress_template({'percent':data.get('complete')/10,
-                                                  'isactive':(data.get('state') == 'started')?'active':''
-                                                 });
+                        var isactive = (data.get('state') == 'started')?'active':'';
+                        var percent = data.get('complete')/10;
+                        if (isactive) $('.js-isactive', progress_template).addClass('active');
+                        $('.js-percent', progress_template).width(percent+'%');
                     }
                 } else {
                     return function(row,cell,value,col,data) {
@@ -361,24 +370,58 @@ var FileTableView = SuperTableView.extend({
             if (jsclient.get_filesystem().unsupported) {
                 return 'no filesystem';
             } else {
+                $(cellNode).empty()
                 data.get_filesystem_entry( function() {
                     if (data.filesystem_entry && ! data.filesystem_entry.error) {
-                        $(cellNode).empty().html( 
-                                                  (data.stream_parseable_type() ? (
-                                                  '<a href="javascript:jsclient.stream(\'' + 
-                                                  data.torrent.hash_hex + '\',' + data.num
-                                                  + ')"><i class="icon-play"></i>Stream</a> ' ) : '') +
+                        if (data.stream_parseable_type() && ! data.complete()) {
+                            $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
+                            $('.stream', cellNode).click( function(evt) {
+                                jsclient.stream(data.torrent.hash_hex, data.num);
+                            });
+                        } else {
 
-                            '<a href="' + data.filesystem_entry.toURL() + '" target="_blank"><i class="icon-folder-open"></i>Open</a>' 
-                                    + 
-                            (data.complete() ? (
-                                                  ' <a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>' ) : '')
-                                                  //' <a href="player.html?url=' + encodeURIComponent(data.filesystem_entry.toURL()) + '"><i class="icon-play"></i>Play</a>'
-                                                );
+
+                            $(cellNode).empty().html(
+                                                  '<a class="js-download" href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
+                                                      +
+                                                  '<a class="js-newwin" href="#"><i class="icon-arrow-down"></i>Open</a>'
+                            )
+
+                            $('.js-download', cellNode).click( function(evt) {
+                                data.save_as();
+                                //jsclient.stream(data.torrent.hash_hex, data.num);
+                            });
+
+
+                            $('.js-newwin', cellNode).click( function(evt) {
+                                chrome.app.window.create( data.filesystem_entry.toURL(), {frame:'none'}, function(r){
+                                    console.log('open windown result',r);
+                                    evt.preventDefault();
+                                    evt.stopPropagation();
+                                });
+
+                            });
+
+
+
+                        }
                     } else if (data.filesystem_entry && data.filesystem_entry.error) {
                         $(cellNode).text(data.filesystem_entry.error);
                     } else {
-                        $(cellNode).empty();
+                        if (data.complete()) {
+                            $(cellNode).empty().html(
+                                                  '<a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
+                                                      +
+                                                  '<a href="' + data.filesystem_entry.toURL() + '"><i class="icon-arrow-down"></i>Open</a>'
+                            )
+                        } else if (data.stream_parseable_type()) {
+                            $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
+                            $('.stream', cellNode).click( function(evt) {
+                                jsclient.stream(data.torrent.hash_hex, data.num);
+                            });
+                        } else {
+                            $(cellNode).empty()
+                        }
                     }
                 }, {create:false});
             }
@@ -402,7 +445,8 @@ var FileTableView = SuperTableView.extend({
             {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false },
             {id: "priority", name: "priority", field: "priority", sortable: true, editor: editor, options:'Normal,Skip' }
         ];
-        var progress_template = jstorrent.tmpl("progress_template");
+        //var progress_template = jstorrent.tmpl("progress_template");
+        var progress_template = $('#progress_template')
         opts.makeformatter = {
             getFormatter: function(column) {
                 if (column.field == 'pathaoeu') {
@@ -420,9 +464,8 @@ var FileTableView = SuperTableView.extend({
                     }
                 } else if (column.field == 'complete') {
                     return function(row,cell,value,col,data) {
-                        return progress_template({'percent':data.get_percent_complete()*100,
-                                                  'isactive':(data.torrent.get('state') == 'started' && data.get_percent_complete() != 1)?'active':''
-                                                 });
+                        var isactive = (data.torrent.get('state') == 'started' && data.get_percent_complete() != 1)?'active':''
+                        return data.get_percent_complete()*100 + '%';
                     };
                 } else {
                     return function(row,cell,value,col,data) {
@@ -638,6 +681,7 @@ var PieceTableView = SuperTableView.extend({
             {id: "sz", name: "Size", field: "sz", type:'attr' },
             {id: "numchunks", name: "Chunks", field: "numchunks", type:'attr' },
             {id: "hashed", name: "hashed", field: "hashed" },
+            {id: "complete", name: "complete", field: "complete" },
             {id: "current_request", name: "current_request", field: "current_request" },
             {id: "requests_out", name: "requests_out", field: "requests_out" },
             {id: "responses_in", name: "responses_in", field: "responses_in" },
@@ -662,6 +706,10 @@ var PieceTableView = SuperTableView.extend({
                         var req = data.get(col.field)
                         if (req) { return req.piece + ',' + req.original[0]; } else { return ''; }
                     };
+                } else if (column.field == 'complete') {
+                    return function(row,cell,value,col,data) {
+                        return data.complete() ? true : '';
+                    };
                 } else {
                     return function(row,cell,value,col,data) {
                         return data.get(col.field);
@@ -675,6 +723,7 @@ var PieceTableView = SuperTableView.extend({
     bind_events: function() {
         this.grid.onDblClick.subscribe( _.bind(function(evt, data,c) {
             var piece = this.grid.getDataItem(data.row);
+            piece.cancel_all_requests();
             mylog(LOGMASK.ui,'click thing!!!!!',piece);
         },this));
     }
@@ -722,8 +771,7 @@ var TrackerTableView = SuperTableView.extend({
 
 var TabsView = BaseView.extend({
     initialize: function(opts) {
-        this.template = _.template( $('#tabs_template').html() );
-        this.$el.html( this.template() );
+        this.$el.html( $('#tabs_template').html() );
         this.bind_actions();
     },
     bind_actions: function() {
@@ -737,8 +785,7 @@ var TabsView = BaseView.extend({
 
 var GeneralDetailView = BaseView.extend({
     initialize: function(opts) {
-        this.template = _.template( $('#general_detail_template').html() );
-        this.$el.html( this.template() );
+        this.$el.html( $('#general_detail_template').html() );
         this.bind_actions();
         this.render();
     },
@@ -756,7 +803,9 @@ var GeneralDetailView = BaseView.extend({
 });
 
 var JSTorrentClientViewSettings = Backbone.Model.extend({
-    localStorage: new Store('JSTorrentClientViewSettings'),
+    //localStorage: new Store('JSTorrentClientViewSettings'),
+    database: jstorrent.storage,
+    storeName: 'setting',
     initialize: function() {
     }
     
@@ -765,10 +814,10 @@ var JSTorrentClientViewSettings = Backbone.Model.extend({
 var JSTorrentClientView = BaseView.extend({
     initialize: function(opts) {
         this.settings = new JSTorrentClientViewSettings();
-        this.settings.id = 'client';
+        this.settings.set('id','client');
         this.settings.fetch();
-        this.template = _.template( $('#client_template').html() );
-        this.$el.html( this.template() );
+        //this.template = _.template( $('#client_template').html() );
+        this.$el.html( $('#client_template').html() );
         this.addview = new AddView({el:this.$('.addview')});
         this.torrenttable = new TorrentTableView({ model: jsclient.torrents, el: this.$('.torrentGrid') });
         this.detailview = null;
@@ -1064,10 +1113,21 @@ function main() {
         window.location = 'http://www.google.com/chrome';
     });
 
-
+    $('#js-add_example').click( function() { jsclient.add_example_torrent(); } );
     //jsclient.add_random_torrent();
+
 }
 
 
 jQuery(document).ready( main );
 
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-35025483-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = (('https:' == document.location.protocol || window.chrome) ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();

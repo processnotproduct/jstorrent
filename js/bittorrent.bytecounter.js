@@ -18,6 +18,7 @@
         this.numsamples = opts.samples || 10;
         this.sampsize = opts.sampsize || 1;
         this.parent = opts.parent;
+        this.nodate = opts.nodate;
         this.totalbytes = 0;
         this.cbuf = [];
         this.cpos = 0;
@@ -30,19 +31,26 @@
             this.parent = parent;
         },
         sample: function(bytes, t, s, opts) {
-            return;
             this.totalbytes += bytes;
             // takes a sample at time t of some bytes
-            t = t || new Date();
+            if (this.nodate && t === undefined) {
+                assert(false);
+            } else {
+                t = t || new Date();
+            }
             var s = s || Math.floor(t/1000);
-
-            if (this.last_sample) {
+            if (this.last_sample !== null) {
                 var time_elapsed = s - this.last_sample;
                 var buckets_elapsed = time_elapsed / this.sampsize;
+/*
+                assert( buckets_elapsed < Math.pow(2,8), { throw: true } ) // bug !!
                 assert( isInteger(time_elapsed), {throw:true} );
                 assert( isInteger(buckets_elapsed), {throw:true} );
+*/
 
-                for (var i=0; i<buckets_elapsed-1; i++) {
+                var maxiter = Math.max( this.numsamples, buckets_elapsed-1 );
+                //assert(maxiter > 0);
+                for (var i=0; i<maxiter; i++) {
                     var zeroat = (this.cpos+1+i)%this.numsamples;
                     this.cbuf[zeroat] = 0;
                 }
@@ -68,6 +76,8 @@
         recent: function(t, s, opts) {
             this.sample(0, t, s, opts);
             var sum = 0;
+            assert( isInteger(this.numsamples), {throw:true} );
+
             for (var i=0; i<this.numsamples; i++) {
                 sum += this.cbuf[(this.cpos + 1 + i)%this.numsamples];
             }
@@ -75,7 +85,8 @@
         },
         avg: function(opts) {
             // TODO -- take into account first sample (cant average unless connection is at least numsamples*sampsize old)
-            var sum = this.recent(null, null, opts);
+            var sum = this.recent(undefined, undefined, opts);
+            //if (this._expect_nonzero && sum == 0) { debugger; }
             return sum/(this.numsamples * this.sampsize);
         }
 
@@ -94,18 +105,20 @@
         return false;
     }
 
-    if (false && config.unit_tests) {
-        var bc = new jstorrent.ByteCounter({samples:4});
 
+
+    if (config.unit_tests) {
+        var bc = new jstorrent.ByteCounter({samples:4, nodate:true});
         bc.sample(1, 1000);
         assert(arrayEq(bc.cbuf, [1,0,0,0]));
-        assert(bc.recent() == 1);
+        assert(bc.recent(1000) == 1);
+
         bc.sample(1, 1000);
         assert(arrayEq(bc.cbuf, [2,0,0,0]));
-        assert(bc.recent() == 2);
+        assert(bc.recent(1000) == 2);
         bc.sample(1, 2000);
         assert(arrayEq(bc.cbuf, [2,1,0,0]));
-        assert(bc.recent() == 3);
+        assert(bc.recent(2000) == 3);
         bc.sample(1, 2000);
         assert(arrayEq(bc.cbuf, [2,2,0,0]));
         bc.sample(3, 4000);
@@ -114,12 +127,12 @@
         assert(arrayEq(bc.cbuf, [0,2,0,4]));
         bc.sample(7, 5000);
         assert(arrayEq(bc.cbuf, [7,0,0,4]));
-        assert(bc.recent() == 11);
+        assert(bc.recent(5000) == 11);
 
-        bc = new jstorrent.ByteCounter({samples:6});
-        bc.sample(1, 0);
+        bc = new jstorrent.ByteCounter({samples:6, nodate:true});
+        bc.sample(1, 1);
         assert(arrayEq(bc.cbuf, [1,0,0,0,0,0]));
-        bc.sample(1, 0);
+        bc.sample(2, 1);
         assert(arrayEq(bc.cbuf, [3,0,0,0,0,0]));
         
     }

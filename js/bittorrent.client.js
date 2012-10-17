@@ -1,23 +1,27 @@
 (function() {
     jstorrent.JSTorrentClient = Backbone.Model.extend({
-        localStorage: new Store('JSTorrentSettings'),
+        database: jstorrent.storage,
+        storeName: 'client',
         initialize: function() {
             window.jspack = new JSPack();
             this.filesystem = new jstorrent.FileSystem();
             this.threadhasher = new jstorrent.ThreadHasher();
             this.streamparser = null;
             //this.worker.postMessage();
-            this.id = "DefaultClient";
+            this.set('id',"DefaultClient");
             this.fetch();
             //this.torrents = {};
             this.bytecounters = { sent: new jstorrent.ByteCounter({}),
                                   received: new jstorrent.ByteCounter({}) };
             this.torrents = new jstorrent.TorrentCollection();
-
+            this.incoming_connections = null;
 
             this.incoming_connections = new jstorrent.IncomingConnectionProxyCollection();
-
-            this.udp_proxy = new jstorrent.UDPProxy({client:this});
+            if (!config.packaged_app) {
+                this.udp_proxy = new jstorrent.UDPProxy({client:this});
+            } else {
+                this.incoming_connections = new jstorrent.TCPSocketServer();
+            }
             this.incoming_connections.client = this;
             this.incoming_connections.establish();
 
@@ -45,22 +49,29 @@
                     
                     mylog(LOGMASK.error,'filesystem init error');
                 }
+                this.torrents.fetch({success:_.bind(function(){
 
-                this.torrents.fetch();
-
-                this.incoming_connections.on('established', _.bind(function() {
-                    this.incoming_connections.current().on('change:remote_port', _.bind(function(){
-                        for (var i=0; i<this.torrents.models.length; i++) {
-                            var torrent = this.torrents.models[i];
-                            if (torrent.started()) {
-                                this.torrents.models[i].announce(); // move announce into .tick()
+                    this.incoming_connections.on('established', _.bind(function() {
+                        this.incoming_connections.current().on('change:remote_port', _.bind(function(){
+                            for (var i=0; i<this.torrents.models.length; i++) {
+                                var torrent = this.torrents.models[i];
+                                if (torrent.started()) {
+                                    this.torrents.models[i].announce(); // move announce into .tick()
+                                }
                             }
-                        }
+                        },this));
                     },this));
-                },this));
-                this.trigger('ready');
-                this.tick();
-                this.long_tick();
+                    this.set('ready',true);
+                    this.trigger('ready');
+                    this.tick();
+                    this.long_tick();
+
+                    
+                },this),
+                                     error:function(a,b,c){debugger;}});
+
+
+
             }
             /*
               this.filesystem.on('initialized', _.bind(ready, this));
@@ -142,8 +153,8 @@
             }
             if (! this.torrents.contains(torrent)) {
                 this.torrents.add(torrent);
-                torrent.save(); // have to save so that id gets set
-                assert( this.torrents._byId[torrent.id] );
+                //torrent.save(); // have to save so that id gets set
+                //assert( this.torrents._byId[torrent.id] );
                 if (opts && opts.dontstart) {
                 } else {
                     torrent.start();
@@ -151,6 +162,8 @@
                 torrent.save();
                 //torrent.announce();
             } else {
+                var existing_torrent = this.torrents.get_by_hash(torrent.hash_hex);
+                existing_torrent.trigger('flash', existing_torrent);
                 mylog(1,'already had this torrent');
             }
         },
@@ -166,14 +179,17 @@
             } else if (str.slice(0,'web+magnet:'.length) == 'web+magnet:') {
                 this.add_torrent({magnet:str}, opts);
             } else if (str.slice(0,'http://'.length) == 'http://') {
-                debugger; // use a proxy service to download and serve back
+                //debugger; // use a proxy service to download and serve back
+                alert('Please download the torrent and drag it into the window.');
+                window.location = str;
             } else if (str.length == 40) {
                 this.add_torrent({infohash:str}, opts);
             } else {
                 debugger;
             }
 
-            assert( _.keys(this.torrents._byId).length == this.torrents.models.length );
+            // asynchronous now
+            //assert( _.keys(this.torrents._byId).length == this.torrents.models.length );
         },
         add_consec_torrent: function(num) {
             num = num | 1;
@@ -261,7 +277,9 @@
         run_tests: function() {
         },
         add_example_torrent: function() {
-            this.add_unknown("magnet:?xt=urn:btih:3HDQCCOLAXAYD6PMSNZ35B3KBVAMJV5Q&tr=http://tracker.vodo.net:6970/announce")
+            var example = "magnet:?xt=urn:btih:7165F4B29DCEFA4715D34D5CF000287022A5EA60&dn=bones+brigade+bundle" // bones brigade
+            //var example = "magnet:?xt=urn:btih:3HDQCCOLAXAYD6PMSNZ35B3KBVAMJV5Q&tr=http://tracker.vodo.net:6970/announce";
+            this.add_unknown(example)
         },
         tick: function() {
             var now = (new Date()).getTime();
@@ -315,7 +333,7 @@
                 lowest = null;
                 for (var j=0; j<torrent.connections.models.length; j++) {
                     conn = torrent.connections.models[j];
-                    if (conn.get('state') == 'connecting' || conn.get('state') == 'handshaking') {
+                    if (conn._remote_interested || conn.get('state') == 'connecting' || conn.get('state') == 'handshaking') {
                         continue;
                     }
                     conn.compute_max_rates();

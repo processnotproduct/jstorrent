@@ -90,6 +90,11 @@
             assert(this.start_byte >= 0)
             assert(this.end_byte >= 0)
         },
+        cancel_all_requests: function() {
+            this._outbound_request_offsets = {};
+            this._chunk_responses = [];
+            this.try_free('user cleared');
+        },
         try_free: function(reason) {
             // what are the possible ways a piece can be used?
 
@@ -208,6 +213,7 @@
             }
             return true;
         },
+        // make_chunk_requests
         create_chunk_requests: function(conn, num) {
             // piecenum, offset, sz
             var requests = [];
@@ -222,7 +228,7 @@
                         var sz = constants.chunk_size;
                     }
 
-                    var data = [this.num, offset, sz];
+                    var data = [this.num, offset, sz]; // TODO -- store which connection done this
                     this._outbound_request_offsets[offset] = data;
                     this.set('requests_out', this.get('requests_out')+1);
                     requests.push(data);

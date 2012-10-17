@@ -163,13 +163,15 @@
         stream_parseable_type: function() {
             var parts = this.get_name().split('.');
             if (parts.length > 1) {
-                return parts[parts.length-1].toLowerCase() == 'mp4';
+                var ext = parts[parts.length-1].toLowerCase()
+                return _.contains(['mp4','mp3'], ext);
             }
         },
         try_parse_stream_metadata: function(piecenum, piece) {
             if (! this.stream_parseable_type()) {
                 return;
             }
+            if (! this.torrent.has_proxy_stream()) return; // TODO -- && specific to this file
             if (! this.get('parsed_stream_metadata')) {
                 var mybounds = this.get_piece_boundaries();
                 // check if the new piece "fills in" from the outside edges of the file (left or right)
@@ -231,7 +233,11 @@
             parser.parse( this, storage_area, this.get_path().join('/'), ranges, _.bind(function(res) {
                 this._stream_parsing = false;
                 if (res && res.error) {
-                    mylog(LOGMASK.error,'error in stream parser',res);
+                    if (res.error == 'unable to parse this type') {
+                        this.set('unsupported_stream', res.error);
+                    } else {
+                        mylog(LOGMASK.error,'error in stream parser',res);
+                    }
                 } else if (res.file.error) {
                     mylog(1,'metadata not yet parsed',res);
                     if (res.file.error_msg == 'no data' && res.file.error_pos) {
@@ -315,6 +321,14 @@
                     entry.remove( onremove )
                 }
             },this), {create:false});
+        },
+        get_loading_state: function() {
+            var d = {
+                received: this.torrent.bytecounters.received.total(),
+                sent: this.torrent.bytecounters.sent.total()
+                
+            }
+            return JSON.stringify( d );
         },
         get_filesystem_entry: function(callback, opts) {
             if (this.filesystem_entry) {
@@ -453,6 +467,22 @@
                 return {length: this.get_size(),
                         path: [this.torrent.get_infodict().name]};
             }
+        },
+        save_as: function() {
+            function errorHandler(){}
+            var _this = this;
+            chrome.fileSystem.chooseEntry({type: 'saveFile', suggestedName: this.get_name()}, function(writableFileEntry) {
+                writableFileEntry.createWriter(function(writer) {
+                    writer.onerror = errorHandler;
+                    writer.onwriteend = function(e) {
+                        console.log('write complete');
+                    };
+                    _this.filesystem_entry.file( function(f) {
+                        writer.write(f);
+                    });
+
+                }, errorHandler);
+            });
         }
     });
 

@@ -117,7 +117,81 @@
         return parts
     }
 
-    
+    function IOStream(host, port) {
+        this.host = host;
+        this.port = port;
+        this.sockno = null;
+        this._closed = null;
+        this._connected = false;
+        this._created = false;
+
+        chrome.socket.create('tcp', {}, _.bind(this.oncreate, this));
+
+
+/*
+        this.stream.onerror = this.onerror;
+        this.stream.onopen = this.onopen;
+        this.stream.onclose = this.onclose;
+        this.stream.onmessage = this.onmessage;
+*/
+    }
+    IOStream.prototype = {
+        oncreate: function(data) {
+            this.sockno = data.socketId;
+            _.bindAll(this, 'onconnect','do_read','send','onsend','got_read');
+            chrome.socket.connect( this.sockno, this.host, this.port, this.onconnect );
+        },
+        onconnect: function(data) {
+            if (this._closed) {
+                return;
+                // BUG in implementation
+            } else {
+                this.onopen(data);
+                this.do_read();
+            }
+        },
+        do_read: function() {
+            assert(! this._closed)
+            assert(! this._connecting);
+            chrome.socket.read( this.sockno, 4096, this.got_read );
+        },
+        got_read: function(data) {
+            if (this._closed) {
+                return;
+                // BUG in implementation
+            } else if (data.resultCode < 0) {
+                this.doclose();
+            } else {
+                this.onmessage({data:data.data});
+                // somehow onmessage can close the connection... (bad data?)
+                if (! this._closed) {
+                    this.do_read();
+                }
+            }
+        },
+        send: function(data) {
+            chrome.socket.write( this.sockno, data, this.onsend );
+        },
+        onsend: function(result) {
+            if (result.bytesWritten > 0) {
+            } else {
+                this.doclose('did not write all data');
+            }
+        },
+        doclose: function(reason) {
+            this.onclose({});
+            if (this._connected) {
+                chrome.socket.disconnect(this.sockno);
+            }
+            chrome.socket.destroy(this.sockno);
+        },
+        close: function(reason) {
+            this._closed = true;
+            // cancel pending read?
+            this.doclose('called close');
+        },
+    }
+
 
     jstorrent.WSPeerConnection = Backbone.Model.extend({
         className: 'WSPeerConnection',
@@ -154,7 +228,7 @@
 
             if (config.bittorrent_proxy) {
                 var uri = '/wsproxy';
-                var strurl = 'ws://' + config.bittorrent_proxy + uri + '?target=' + encodeURIComponent(usehost+':'+this._port) + '&username=' + encodeURIComponent(this.torrent.collection.client.get_username());
+                var strurl = 'ws://' + config.bittorrent_proxy + uri + '?target=' + encodeURIComponent(usehost+':'+this._port) + '&username=' + encodeURIComponent(this.torrent.collection.client.get_username()) + '&timeout=' + encodeURIComponent(this.connect_timeout_ms);
                 if (this.using_flash()) {
                     this.torrent.set('maxconns',1);
                     strurl += '&flash=1';
@@ -174,13 +248,14 @@
         reconnect: function() {
             this.strurl = this.get_host();
             this.inittime = new Date();
-            try {
+
+            if (config.packaged_app) {
+                this.stream = new IOStream(this._host, this._port);
+            } else {
                 this.stream = new WebSocket(this.strurl);
-            } catch(e) {
-                mylog(1,'error creating websocket!');
-                debugger;
             }
-            mylog(LOGMASK.network,'initializing stream to',this.strurl);
+
+            mylog(LOGMASK.network,'initializing stream to',this._host + ':' + this._port);
             if (this.using_flash()) {
                 // this.stream.binaryType = "array";
                 // send string mofo b64 encoded
@@ -219,6 +294,8 @@
             //mylog(LOGMASK.network,'initialize wspeerconn');
             this._host = opts.host;
             this._port = opts.port;
+            this.connect_timeout_ms = config.packaged_app ? 8000 : 2000;
+            this.connect_timeout_ms = 10000;
 
             if (opts && opts.incoming) {
                 // incoming connection
@@ -244,7 +321,7 @@
                 this._connecting = true;
 
                 this._was_incoming = false;
-                this.connect_timeout = setTimeout( this.on_connect_timeout, 2000 );
+                this.connect_timeout = setTimeout( this.on_connect_timeout, this.connect_timeout_ms );
                 this.set('state','connecting');
                 assert(opts.peer);
                 this.peer = opts.peer;
@@ -354,9 +431,13 @@
         send_extension_handshake: function() {
             if (this._sent_extension_handshake) { debugger; return; }
             // woo!!
+            var ext_port = this.torrent.collection.client.get_external_port();
             var resp = {'v': constants.client_version,
-                        'm': {},
-                        'p': this.torrent.collection.client.get_external_port()}; // we don't have a port to connect to :-(
+                        'm': {}}
+            if (ext_port) {
+                resp.p = ext_port;
+            }
+
             if (! this.torrent.magnet_only()) {
                 resp['metadata_size'] = this.torrent.metadata_size;
             }
@@ -821,6 +902,7 @@
         send: function(msg) {
             this._last_message_out = new Date().getTime();
             this.bytecounters.sent.sample(msg.byteLength);
+            this.bytecounters.sent._expect_nonzero=true;
             this.set('bytes_sent', this.get('bytes_sent') + msg.byteLength);
             if (this.torrent) {
                 this.torrent.set('bytes_sent', this.torrent.get('bytes_sent') + msg.byteLength);
@@ -847,10 +929,14 @@
                 if (this.peer) {
                     this.peer.set('closereason',reason);
                 }
-                mylog(LOGMASK.general,'close connection',this.repr(),reason);
+                mylog(LOGMASK.network,'close connection',this.repr(),reason);
             }
             // cleanup shizzzz!
-            this.stream.close()
+            if (config.packaged_app) {
+                this.stream.close(reason)
+            } else {
+                this.stream.close()
+            }
         },
         handle_message: function(msg_len) {
             var msg = this.read_buffer_consume(msg_len);
@@ -927,7 +1013,7 @@
                 }
                 this.check_more_messages_in_buffer();
             } else {
-                this.close('invalid handshake ' + data.protocol);
+                this.close('invalid handshake ' + escape(data.protocol));
             }
         },
         read_buffer_consume: function(bytes, peek) {
@@ -1029,7 +1115,7 @@
                 var handshake_len = 1 + protocol_str_len + 8 + 20 +20;
                 if (bufsz < handshake_len) {
                     // can't handshake yet... need to read more data
-                    mylog(1,'cant handshake yet',bufsz, handshake_len);
+                    mylog(LOGMASK.network,'cant handshake yet',bufsz, handshake_len);
                 } else {
                     this.handle_handshake(handshake_len);
                 }
@@ -1039,7 +1125,7 @@
         },
         repr: function() {
             var client = this._remote_extension_handshake ? this._remote_extension_handshake['v'] : '';
-            return '<Conn:' + this.strurl +', '+client+', '+ (this.peer?this.peer.repr():'nopeer') + '>';
+            return '<Conn:' + this._host+':'+this._port +', '+client+', '+ (this.peer?this.peer.repr():'nopeer') + '>';
         },
         onclose: function(evt) {
             // websocket is closed.

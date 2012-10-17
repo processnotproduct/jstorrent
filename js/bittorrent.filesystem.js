@@ -48,7 +48,7 @@
     });
 
     jstorrent.FileEntryCollection = Backbone.Collection.extend({
-        localStorage: new Store('FileSystemEntryCollection'),
+        //localStorage: new Store('FileSystemEntryCollection'),
         initialize: function() {
             if (this.models.length == 0) {
 

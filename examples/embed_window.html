@@ -1,0 +1,81 @@
+<html>
+<head>
+    <script src="../js/deps/jquery-1.7.2.min.js"></script>
+    <script src="../js/deps/underscore.js"></script> 
+    <script src="../js/deps/backbone.js"></script>  
+    <script src="../js/deps/backbone-indexeddb.js"></script>  
+    <script src="../js/deps/digest.js"></script>
+    <script src="../js/deps/jspack.js"></script>
+    <script src="../js/bittorrent.common.js"></script>  
+<script>
+  //curlogmask = LOGMASK.all
+</script>
+    <script src="../js/bittorrent.storage.js"></script>  
+    <script src="../js/bittorrent.threadhasher.js"></script>  
+    <script src="../js/bittorrent.streamparser.js"></script>  
+    <script src="../js/bittorrent.dnd.js"></script>  
+    <script src="../js/bittorrent.helpers.js"></script>  
+    <script src="../js/bittorrent.tracker.js"></script>  
+    <script src="../js/bittorrent.file.js"></script>  
+    <script src="../js/bittorrent.filesystem.js"></script>  
+    <script src="../js/bittorrent.client.js"></script>  
+    <script src="../js/bittorrent.piece.js"></script>  
+    <script src="../js/bittorrent.peer.js"></script>  
+    <script src="../js/bittorrent.swarm.js"></script>  
+    <script src="../js/bittorrent.bytecounter.js"></script>  
+    <script src="../js/bittorrent.incoming.proxy.js"></script>  
+    <script src="../js/bittorrent.tcpsocketserver.js"></script>  
+    <script src="../js/bittorrent.torrent.js"></script>  
+    <script src="../js/bittorrent.js"></script>  
+    <script src="../js/bittorrent.udp.proxy.js"></script>  
+    <script src="../js/bittorrent.udptracker.js"></script>  
+    <script src="../js/bittorrent.quicktime.js"></script>
+    <script src="../js/bittorrent.video.js"></script>
+    <script src="../js/bittorrent.video.embed.js"></script>
+
+    <script type="text/template" id="video_view_template">
+      <div style="position:relative">
+        <div class="video_container"></div>
+        <div style="position:absolute; bottom:0" class="controls_container"></div>
+      </div>
+    </script>
+
+    <script type="text/template" id="file_loading_template">
+      <canvas class="canvas"></canvas><br />
+      <div class="info"></div>
+    </script>
+
+
+    <script type="text/template" id="video_controls_template">
+      <canvas class="seekbar"></canvas>
+<p>
+      <div>
+        <span class="control-play-pause">Play</span>
+        <span class="control-close">Close</span>
+      </div>
+      <span class="info">Info</span>
+</p>
+    </script>
+
+</head>
+<body style="color:#fff; border:0px;margin:0px; background:#000; overflow:hidden">
+  <div id="js-video_embed">
+
+
+    <div style="position:absolute; background:#ddd"></div>
+
+    <div style="background:rgba(100,100,100,0.3); width:100%">
+      <span style="margin:5px; font-family:Arial,Helvetica,sans-serif; font-size:90%" id="js-video_name">Video name</span>
+    </div>
+    <div class="js-start" style="display:none"><h1>Load Video</h1></div>
+
+
+
+    <div id="file_loading_view"></div>
+    <div id="video_view">
+
+    </div>
+
+  </div>
+</body>
+</html>

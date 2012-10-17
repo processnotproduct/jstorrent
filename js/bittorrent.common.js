@@ -14,6 +14,7 @@ window.config = {
 //    external_ip: '38.99.42.130', // HARD CODED IP AT WORK
     bittorrent_incoming_proxy: '192.168.56.1:8030',
     udp_proxy: '192.168.56.1:8030',
+    //udp_proxy: '127.0.0.1:8030',
     packaged_app: window.chrome && window.chrome.app && window.chrome.app.window,
     //ip_aliases: { '38.99.42.130': '127.0.0.1' },
     default_tracker: 'http://192.168.56.1:6969/announce',

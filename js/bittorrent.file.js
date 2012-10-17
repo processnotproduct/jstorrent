@@ -553,15 +553,18 @@
                 TorrentFile.process_write_queue();
             }
             sz = infile - file_metadata.size;
-            if (sz > Math.pow(2,25)) {
-                mylog(LOGMASK.error,'WARNING -- filling with',sz,'zeros',file);
+
+            var zerofill = Math.min( Math.pow(2,25), sz )
+            if (sz > Math.pow(2,24)) {
+                mylog(LOGMASK.error,'WARNING -- need to fill',sz,'zeros',file,'filling',zerofill);
+                // XXX -- do in steps!!!
                 // filling too many zeroes!
                 if (config.debug_asserts) {
                     debugger;
                 }
             }
-            var zeroes = new Uint8Array( sz );
-            mylog(LOGMASK.disk,'writing',sz,'zeros to',file.repr());
+            var zeroes = new Uint8Array( zerofill );
+            mylog(LOGMASK.disk,'writing',zerofill,'zeros to',file.repr());
             writer.write( new Blob([zeroes]) );
         } else {
 

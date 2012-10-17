@@ -43,7 +43,7 @@
 
                 var start = ranges[i][0] / file.get_size() * canvas.width;
                 var end = ranges[i][1] / file.get_size() * canvas.width;
-                console.log('fill',i,start,end);
+                //console.log('fill',i,start,end);
                 ctx.fillRect(start, 0, Math.max(2, end-start), h);
             }
 
@@ -94,7 +94,7 @@
                    });
         });
         //torrent._chunk_request_timeout = 10; // reduce timeout for chunk requests
-        torrent.set('maxconns',4);
+        //torrent.set('maxconns',4);
         torrent.announce();
     }
 
@@ -138,7 +138,7 @@
 
     window.addEventListener('message', function(msg) {
         console.log('msg',msg.data,msg.origin);
-        debugger;
+        //debugger;
     });
 
 

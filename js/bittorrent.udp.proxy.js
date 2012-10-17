@@ -76,7 +76,7 @@
                 mylog(LOGMASK.error,'udp cannot send, not connected');
                 return;
             }
-            //mylog(LOGMASK.udp,'sending payload to websocket',payload);
+            mylog(LOGMASK.udp,'sending payload to websocket',payload);
             this.stream.send(payload)
         },
         recv: function(sock) {
@@ -104,7 +104,7 @@
             mylog(LOGMASK.udp,'got udpsock msg',evt, message);
             if (message.id !== undefined) {
                 var data = this._await_reqs[message.id];
-                //mylog(LOGMASK.udp,'found await req', data)
+                mylog(LOGMASK.udp,'found await req', data)
                 data.res['message'] = message
                 //assert (data.deferred.listeners_.length > 0)
                 data.deferred.resolve(data.res);

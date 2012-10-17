@@ -144,7 +144,7 @@ var FIRST = null;
         },
         announce: function() {
             //this.trigger('newpeer', {ip:'67.180.11.105',port:14098});
-            if (this.torrent.hash_hex == '3797389d4797c10ff318374ec2de5b54491ec279' && window.location.pathname.indexOf('grid.html') == -1) {
+            if (false && this.torrent.hash_hex == '3797389d4797c10ff318374ec2de5b54491ec279' && window.location.pathname.indexOf('grid.html') == -1) {
                 this.trigger('newpeer', {ip:'127.0.0.1',port:8030});
                 return;
             }

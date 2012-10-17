@@ -40,7 +40,7 @@
 
             function ready(data) {
                 if (data && data.error) {
-                    if (! window.WebSocket && ! window.ArrayBuffer) {
+                    if (! window.WebSocket || ! window.ArrayBuffer || ! window.indexedDB) {
                         this.trigger('unsupported');
                         return;
                     } else {

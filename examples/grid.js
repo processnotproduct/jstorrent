@@ -1110,7 +1110,7 @@ function main() {
     });
 
     jsclient.on('unsupported', function() {
-        alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays). Please try again after installing one.')
+        alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays, IndexedDB). Please try again after installing one.')
         window.location = 'http://www.google.com/chrome';
     });
 
@@ -1122,6 +1122,19 @@ function main() {
 
 jQuery(document).ready( main );
 
+document.addEventListener('visibilitychange', function(e) {
+  console.log('hidden:' + document.hidden,
+              'state:' + document.visibilityState)
+}, false);
+window.addEventListener('online', function(e) {
+  // Re-sync data with server.
+    console.log('online')
+}, false);
+
+window.addEventListener('offline', function(e) {
+  // Queue up events for server.
+    console.log('offline')
+}, false);
 
   var _gaq = _gaq || [];
   _gaq.push(['_setAccount', 'UA-35025483-1']);

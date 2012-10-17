@@ -289,6 +289,12 @@
             //return window.location.origin + window.location.pathname + '#hash=' + this.hash_hex;
             return window.location.origin + window.location.pathname + '#q=' + encodeURIComponent(this.get_magnet_link());
         },
+        get_embed_link: function() {
+            //return window.location.origin + window.location.pathname + '#hash=' + this.hash_hex;
+            var parts = window.location.pathname.split('/');
+            var uri = parts.slice(0, parts.length-1).concat('embed_window.html').join('/');
+            return window.location.origin + uri + '#hash=' + encodeURIComponent(this.hash_hex);
+        },
         get_magnet_link: function() {
             if (this.container && ! this.hash_hex) {
                 var s = 'magnet:?xt=urn:alth:' + this.althash_hex;

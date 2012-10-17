@@ -164,7 +164,7 @@
             var parts = this.get_name().split('.');
             if (parts.length > 1) {
                 var ext = parts[parts.length-1].toLowerCase()
-                return _.contains(['mp4','mp3'], ext);
+                return _.contains(['mp4','mp3','3gp'], ext);
             }
         },
         try_parse_stream_metadata: function(piecenum, piece) {

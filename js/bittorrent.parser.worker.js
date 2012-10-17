@@ -37,7 +37,7 @@ ParserWorker.prototype = {
 
 
             var parts = file_path.split('.');
-            if (parts.length > 0 && parts[parts.length-1].toLowerCase() == 'mp4') {
+            if (parts.length > 0 && parts[parts.length-1].toLowerCase() == 'mp4' || parts[parts.length-1].toLowerCase() == '3gp') {
 
                 var reader = new FileReaderSync;
                 var file = entry.file();

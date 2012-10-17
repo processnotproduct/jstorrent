@@ -793,6 +793,7 @@ var GeneralDetailView = BaseView.extend({
         this.$('.infohash').text( this.model.hash_hex );
         this.$('.magnet').val( this.model.get_magnet_link() );
         this.$('.jstorrent').html( '<a href="'+this.model.get_jstorrent_link()+'">jstorrent web link</a>' );
+        this.$('.js-embed').html( '<a href="'+this.model.get_embed_link()+'">embedded player link</a>' );
 
 
 

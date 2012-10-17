@@ -99,6 +99,7 @@
     }
 
     function onmetadata() {
+        $('.js-start').hide();
         notify({state:'metadata'});
         var file = torrent.get_main_media(); // OR if optional file argument, use that.
         $('#js-video_name').text( file.get_name() );
@@ -159,7 +160,8 @@
         $(document).ready( function() {
             $('.js-start').show();
             $('.js-start').click( function() {
-                $('.js-start').hide();
+                $('.js-start').html('<h2>getting video metadata... (this could take a bit)</h2>');
+                //$('.js-start').hide();
                 if (client.get('ready')) {
                     go()
                 } else {

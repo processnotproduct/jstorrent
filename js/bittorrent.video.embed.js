@@ -159,7 +159,8 @@
     } else {
         $(document).ready( function() {
             $('.js-start').show();
-            $('.js-start').click( function() {
+            $('.js-start').click( function(evt) {
+                evt.preventDefault();
                 $('.js-start').html('<h2>getting video metadata... (this could take a bit)</h2>');
                 //$('.js-start').hide();
                 if (client.get('ready')) {

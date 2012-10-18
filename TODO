@@ -1,8 +1,4 @@
-disconnect from peers who don't have pieces we're interested in (when swarm healthy enough..)
-
 Fixes
-
-- Websockets don't really send close notification. Need better detection that a connection is stale... if last packet in was say 60 seconds ago, the connection is likely bad. It seems to disconnect after about 5 minutes ok...
 
 - adjust number of outbound requests based on history/bitrate. Always have at least 1 outbound request per connected peer.
 
@@ -20,38 +16,15 @@ TESTING
 - small torrent with several files. variable chunk sizes.
 
 
-UI
+AUDIO
 
-- "add torrent" view
-
-- switch detail tabs
-
-- displaying images/videos
-
-- integrate sortable infinite scroll data table view
-
-
-IDEAS
-
-- support incoming connections via single long lived connection
- 
-
-VIDEO
-
-- download last few chunks of an mp4 and attempt to parse the metadata (html5 video player need last chunk typically)
-
-
-ETC
-
-- file priorities
-
-
+- parse id3 and seek in fixed bitrate mp3s
 
 PROTOCOL
 
-- implement PEX (peer exchange protocol)
+- disconnect from peers who don't have pieces we're interested in (when swarm healthy enough..)
 
-- upnp (can't see a way to make this work -- no way to discover devices or configure them)
+- upnp, use node-upnp (chrome packaged app)
 
 - fix althash handling (symlink althash to actual hash and handle downloading under actual hash)
 
@@ -61,15 +34,3 @@ Interface/Usability
 
 - create view for torrentcreate/upload session
 
-- have view for javascript torrent client. show whether files are
-  backed by drag and drop. allow re-initialization of torrents/files
-  by dragging in. store torrent metadata in persistent storage.
-
-
-Demo
-
-- fix up ktorrent piece requesting (keep track of outbound bytes)
-
-Tracker
-
-- write simply proxying tracker so web client can connect to peers

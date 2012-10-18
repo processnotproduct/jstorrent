@@ -1,19 +1,27 @@
-JSTorrent (javascript torrent client)
+JSTorrent (JavaScript torrent client)
 
 http://jstorrent.com
 
-provides "JSTorrentClient", which stores a list of torrent files in
-the browser's localStorage. Torrent data is backed by the HTML5 filesystem API.
+provides "JSTorrentClient", which stores a list of torrent files in a
+local storage mechanism. The actual torrent data is backed by the
+HTML5 filesystem API.
 
 requires:
-- FileSystem API (included in Chrome)
-- WebSocket API (most browsers have this)
+- FileSystem API (included in Chrome, other browsers still have no implementations!)
+- Web Workers (for CPU intensive sha1 hashing in the background)
+- WebSockets (most browsers have this)
   - with ArrayBuffer binary frame support (also most browsers have)
 
-While web browsers still cannot listen for incoming connections, they
-are now perfectly capable of creating client socket connections to
-other BitTorrent clients. Alpha versions of uTorrent support peer
-connections that are initiated via a websocket handshake.
 
-Trackers will need to support CORS cross site requests. 
-For now official a proxy is available.
+While web browsers still cannot listen for incoming connections, they
+are now perfectly capable of creating websocket connections to other
+BitTorrent clients. Alpha versions of uTorrent know how to talk
+bittorrent over websocket frames (Thanks to Art -
+https://github.com/prozacchiwawa)
+
+Trackers will need to support CORS cross site requests. For now an
+official proxy is available. There is also a proxy for UDP Trackers.
+
+This project can also be loaded as a "packaged app" in Chrome Canary
+(essentially, like an extension), and it will make use of the Chrome
+networking APIs (basically, gives access to raw UDP/TCP sockets)

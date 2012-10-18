@@ -268,9 +268,17 @@ var TorrentTableView = SuperTableView.extend({
                 } else if (column.field == 'complete') {
                     return function(row,cell,value,col,data) {
                         var isactive = (data.get('state') == 'started')?'active':'';
-                        var percent = data.get('complete')/10;
+                        if (data.get('complete') !== undefined) {
+                            var percent = data.get('complete')/10;
+/*
                         if (isactive) $('.js-isactive', progress_template).addClass('active');
                         $('.js-percent', progress_template).width(percent+'%');
+*/
+
+                            return percent + '%';
+                        } else {
+                            return ''
+                        }
                     }
                 } else {
                     return function(row,cell,value,col,data) {
@@ -388,7 +396,11 @@ var FileTableView = SuperTableView.extend({
                             )
 
                             $('.js-download', cellNode).click( function(evt) {
-                                data.save_as();
+                                if (config.packaged_app) {
+                                    data.save_as();
+                                    evt.preventDefault();
+                                }
+
                                 //jsclient.stream(data.torrent.hash_hex, data.num);
                             });
 
@@ -464,7 +476,7 @@ var FileTableView = SuperTableView.extend({
                     }
                 } else if (column.field == 'complete') {
                     return function(row,cell,value,col,data) {
-                        var isactive = (data.torrent.get('state') == 'started' && data.get_percent_complete() != 1)?'active':''
+                        //var isactive = (data.torrent.get('state') == 'started' && data.get_percent_complete() != 1)?'active':''
                         return data.get_percent_complete()*100 + '%';
                     };
                 } else {

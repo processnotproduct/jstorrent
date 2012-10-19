@@ -5,7 +5,7 @@
         this.elid = this.opts.elid;
         this.el = $('#' + this.opts.elid);
         var iframe = document.createElement('iframe')
-        iframe.src = 'http://192.168.56.1:9090/static/kzahel/jstorrent/examples/publish_window.html';
+        iframe.src = 'publish_window.html';
         iframe.setAttribute('width',200);
         iframe.setAttribute('height',200);
         iframe.setAttribute('style','border: 1px solid red');

@@ -226,7 +226,7 @@
                 var usehost = this._host
             }
 
-            if (config.bittorrent_proxy) {
+            if (! this.peer.get('disable_proxy') && config.bittorrent_proxy) {
                 var uri = '/wsproxy';
                 var strurl = 'ws://' + config.bittorrent_proxy + uri + '?target=' + encodeURIComponent(usehost+':'+this._port) + '&username=' + encodeURIComponent(this.torrent.collection.client.get_username()) + '&timeout=' + encodeURIComponent(this.connect_timeout_ms);
                 if (this.using_flash()) {

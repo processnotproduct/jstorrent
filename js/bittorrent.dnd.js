@@ -37,6 +37,9 @@
             mylog(1,'please garbage collect me, uploadsession');
         },
         ready: function(container) {
+            this.trigger('ready');
+            console.log('READY!');
+            return;
 /*
             window.onbeforeunload = function() {
                 return "Still uploading... If you leave, your upload will be canceled.";
@@ -418,11 +421,11 @@
 
                         if (item.isDirectory) {
                             // need this to happen recursively...
-                            var dir = new jstorrent.Directory({entry:item});
+                            var dir = new jstorrent.DNDDirectoryEntry({entry:item});
                             // this.entries.push(dir);
                             this.container.directories.push(dir);
                         } else {
-                            var file = new jstorrent.File({entry:item, directory:null}); // XXX DNDFile?
+                            var file = new jstorrent.DNDFileEntry({entry:item, directory:null}); // XXX DNDFile?
                             this.container.files.push(file);
                         }
 

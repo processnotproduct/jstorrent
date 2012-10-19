@@ -634,6 +634,7 @@
         },
         handle_new_peer: function(data) {
             //mylog(LOGMASK.network,this.repr(),'handle new peer',data);
+            assert(data.ip);
             if (data.port && data.port > 0) {
                 var key = data.ip + ':' + data.port;
                 var is_self = false;
@@ -647,7 +648,7 @@
                 // XXX -- id is NOT ip/port, it's the peer's (handshake) id...
                 // well, kind of?
                 if (! this.swarm.get(key)) {
-                    var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this, incoming:data.incoming?data.incoming:false, is_self:is_self});
+                    var peer = new jstorrent.Peer({id: key, host:data.ip, port:data.port, hash:this.get_infohash(), torrent:this, incoming:data.incoming?data.incoming:false, is_self:is_self, disable_proxy:data.disable_proxy});
                     this.swarm.add(peer);
                     return true;
                 }
@@ -1005,7 +1006,7 @@
         get_by_path: function(spath, callback) {
             var path = _.clone(spath); // don't accidentally modify our argument
 
-            if (this.container && false ) { // it was already copied to the filesystem
+            if (this.container && this._disable_filesystem) { // it was already copied to the filesystem
                 var entries = this.container.items();
                 for (var i=0; i<entries.length; i++) {
                     if (entries[i].entry.isDirectory) {
@@ -1157,7 +1158,7 @@
             if (this.container.entry) {
                 return this.container.entry.name; // each folder gets its own torrent now
             } else if (this.container.files.length == 1) {
-                debugger;
+                // assert( false ) ; //some problem here?
                 return this.container.files[0].get_name();
             } else {
                 debugger;

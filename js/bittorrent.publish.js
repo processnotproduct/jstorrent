@@ -34,9 +34,10 @@
             assert( this.curcontainer );
             if (msg.data.command == 'create') {
                 // hash this torrent YO!
+debugger;
                 var torrent = new jstorrent.Torrent( { container: this.curcontainer }, { collection: jsclient.torrents } );
                 jsclient.torrents.add(torrent);
-                torrent.save = function(){}
+                torrent.save = function(){} // disable storage?
                 torrent._disable_filesystem = true;
                 torrent.hash_all_pieces( _.bind(function() {
                     torrent.container = null;

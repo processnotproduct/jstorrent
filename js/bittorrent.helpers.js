@@ -600,6 +600,7 @@ function b642arr(inp) {
         }
         return country;
     }
+
         
     jstorrent.Collection = Backbone.Collection.extend({
         setSort: function(params) {
@@ -607,7 +608,6 @@ function b642arr(inp) {
         },
         getLength: function() { return this.models.length; },
         getItem: function(i) { return this.models[i]; }
-
     });
 
 

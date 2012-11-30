@@ -337,8 +337,8 @@
 
             var store = deleteTransaction.objectStore(storeName);
             var json = object.toJSON();
-
             var deleteRequest = store.delete(json.id);
+
             deleteRequest.onsuccess = function (event) {
                 options.success(null);
             };
@@ -419,7 +419,7 @@
                             // nothing!
                             // We need to indicate that we're done. But, how?
                             collection.trigger("reset");
-                        } else {
+                        } else {debugger;
                             options.success(elements); // We're done. No more elements.
                         }
                     }

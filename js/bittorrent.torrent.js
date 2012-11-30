@@ -106,6 +106,8 @@
                 this.process_post_metadata();
             } else if (opts.fake_info) {
                 mylog(LOGMASK.error,'torrent didnt finish hashing!... (but have fake info---continue...)');
+                this.destroy();
+                return; // delete me?
                 this.piece_size = constants.new_torrent_piece_size;
                 this.fake_info = this.get('fake_info');
                 this.unset('fake_info');
@@ -121,7 +123,7 @@
                 debugger;
             } else {
                 mylog(LOGMASK.error,'unrecognized initialization options',opts);
-                debugger;
+                //debugger;
             }
             this.set('name',this.get_name());
             this.set('id',this.hash_hex);
@@ -205,6 +207,7 @@
                     if (dir instanceof FileError) {
                         if (callback) callback({error:true,fileerror:dir});
                         log_file_error(dir);
+                        if (callback) callback();
                         return; // TODO -- remove
                     }
                     dir.removeRecursively(function() {
@@ -869,6 +872,7 @@
             this.process_metadata();
             this.process_post_metadata();
             this.fake_info = null;
+            this.newid = this.hash_hex;
             this.save();
             callback();
         },
@@ -1161,38 +1165,34 @@
                 // assert( false ) ; //some problem here?
                 return this.container.files[0].get_name();
             } else {
-                debugger;
-                return 'bundle ... etc files';
-            }
-            
-            
-            var entries = this.container.items();
-            if (entries.length > 1) {
-                var s = 'Bundle, ';
-                var files = 0;
-                var folders = 0;
-                for (var i=0; i<entries.length; i++) {
-                    if (entries[i].entry.isDirectory) {
-                        folders++;
-                    } else {
-                        files++;
+                var entries = this.container.items();
+                if (entries.length > 1) {
+                    var s = 'Bundle, ';
+                    var files = 0;
+                    var folders = 0;
+                    for (var i=0; i<entries.length; i++) {
+                        if (entries[i].entry.isDirectory) {
+                            folders++;
+                        } else {
+                            files++;
+                        }
                     }
-                }
 
-                if (files > 0) {
-                    s += (files + ' files');
-                }
-                if (folders > 0) {
-                    s += (files>0?', ':'') + (folders + ' folders.');
+                    if (files > 0) {
+                        s += (files + ' files');
+                    }
+                    if (folders > 0) {
+                        s += (files>0?', ':'') + (folders + ' folders.');
+                    } else {
+                        s += '.'
+                    }
+                    s += ' ';
+                    s += new Date();
+                    return s;
+
                 } else {
-                    s += '.'
+                    return entries[0].get_name(); // TODO -- improve this!
                 }
-                s += ' ';
-                s += new Date();
-                return s;
-
-            } else {
-                return entries[0].get_name(); // TODO -- improve this!
             }
         },
         get_size: function() {
@@ -1233,7 +1233,6 @@
     jstorrent.TorrentCollection = jstorrent.Collection.extend({
 
         //getFormatter: function(col) { debugger; },
-
         //localStorage: new Store('TorrentCollection'),
         database: jstorrent.storage,
         storeName: 'torrent',

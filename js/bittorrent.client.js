@@ -4,12 +4,14 @@
         storeName: 'client',
         initialize: function() {
             window.jspack = new JSPack();
+
+
             this.filesystem = new jstorrent.FileSystem();
             this.threadhasher = new jstorrent.ThreadHasher();
             this.streamparser = null;
             //this.worker.postMessage();
             this.set('id',"DefaultClient");
-            this.fetch();
+            //this.fetch();
             //this.torrents = {};
             this.bytecounters = { sent: new jstorrent.ByteCounter({}),
                                   received: new jstorrent.ByteCounter({}) };
@@ -17,10 +19,11 @@
             this.incoming_connections = null;
 
             this.incoming_connections = new jstorrent.IncomingConnectionProxyCollection();
-            if (!config.packaged_app) {
-                this.udp_proxy = new jstorrent.UDPProxy({client:this});
-            } else {
+
+            if (config.packaged_app && chrome && chrome.socket) {
                 this.incoming_connections = new jstorrent.TCPSocketServer();
+            } else {
+                this.udp_proxy = new jstorrent.UDPProxy({client:this});
             }
             this.incoming_connections.client = this;
             this.incoming_connections.establish();
@@ -49,8 +52,8 @@
                     
                     mylog(LOGMASK.error,'filesystem init error');
                 }
-                this.torrents.fetch({success:_.bind(function(){
 
+                var onfetch = _.bind(function(){
                     this.incoming_connections.on('established', _.bind(function() {
                         this.incoming_connections.current().on('change:remote_port', _.bind(function(){
                             for (var i=0; i<this.torrents.models.length; i++) {
@@ -65,10 +68,16 @@
                     this.trigger('ready');
                     this.tick();
                     this.long_tick();
+                },this);
 
-                    
-                },this),
-                                     error:function(a,b,c){debugger;}});
+                if (true) {
+                    this.torrents.fetch({success: onfetch,
+                                         error: onfetch});
+                } else {
+                    // fetching is broooken
+                    this.set('ready',true);
+                    this.trigger('ready');
+                }
 
 
 
@@ -78,7 +87,11 @@
               this.filesystem.on('unsupported', _.bind(ready, this));
               this.filesystem.request_fs();
             */
-            this.filesystem.init_filesystems(_.bind(ready,this));
+
+            jstorrent.database.on('ready', _.bind(function(result) {
+                this.filesystem.init_filesystems(_.bind(ready,this));
+            },this));
+            jstorrent.database.open();
         },
         get_streamparser: function() {
             if (! this.streamparser) {
@@ -151,8 +164,17 @@
             } else if (args && args.magnet) {
                 var torrent = new jstorrent.Torrent( { magnet: args.magnet }, { collection: this.torrents } );
             }
+
             if (! this.torrents.contains(torrent)) {
+                torrent.newid = torrent.id;
+                torrent.id = null; // make sure backbone.Model.isNew evals to true
+                assert( ! torrent.id );
                 this.torrents.add(torrent);
+                torrent.on('change:id', function(evt) {
+                    debugger;
+                });
+                torrent.save()
+                return;
                 //torrent.save(); // have to save so that id gets set
                 //assert( this.torrents._byId[torrent.id] );
                 if (opts && opts.dontstart) {
@@ -161,6 +183,8 @@
                 }
                 torrent.save();
                 //torrent.announce();
+
+                
             } else {
                 var existing_torrent = this.torrents.get_by_hash(torrent.hash_hex);
                 existing_torrent.trigger('flash', existing_torrent);
@@ -268,10 +292,27 @@
         remove_torrent: function(torrent, callback) {
             torrent.stop({silent:true});
             torrent.cleanup();
+
             torrent.remove_files( _.bind(function() {
-                torrent.destroy();
+
+                // destroy actually calls sync delete ...
+
+                torrent.destroy( { success:
+                                   function(a,b,c) {
+                                       if (callback)callback();
+                                   },
+
+                                   error: function() {
+                                       debugger;
+                                   }
+                                 });
+/*
+                var lnow = this.torrents.models.length;
+                var lknow = _.keys(this.torrents._byId).length;
                 this.torrents.remove(torrent);
-                if (callback)callback();
+                assert( this.torrents.models.length == lnow-1 );
+*/
+
             },this));
         },
         run_tests: function() {

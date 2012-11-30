@@ -976,16 +976,21 @@ function main() {
                     assert(jsclient.torrents.models.length == l);
                     jsclient.torrents.add(torrent);
                     torrent.set('state','hashing');
-                    torrent.save();
-                    assert(torrent.id);
-                    assert( torrent.collection._byId[torrent.id] );
-                    assert(jsclient.torrents.models.length == l+1);
+
+
+                    // asynchronous save now...
+                    //assert(torrent.id);
+                    //assert( torrent.collection._byId[torrent.id] );
+                    //assert(jsclient.torrents.models.length == l+1);
 
                     torrent.hash_all_pieces( function() {
+                        torrent.start();
+                        torrent.save();
                         torrent.container = null;
                         mylog(1, 'torrent ready!');
-                        torrent.start();
+
                     });
+
                 }
             }
 
@@ -1104,6 +1109,7 @@ function main() {
     //jsclient.add_torrent({magnet:"magnet:?xt=urn:btih:88b2c9fa7d3493b45130b2907d9ca31fdb8ea7b9&dn=Big+Buck+Bunny+1080p&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"});
 
     jsclient.on('ready', function() {
+        //jstorrent.database.clean('torrent', function(k) { return k.length != 40; });
         window.jsclientview = new JSTorrentClientView({el:$('#client')});
         var url_args = decode_url_arguments('hash');
         var q_url_args = decode_url_arguments('search');

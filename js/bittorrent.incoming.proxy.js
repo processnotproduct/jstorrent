@@ -30,6 +30,7 @@
                 this.stream = {};
                 this.trigger('established');
             } else {
+                mylog(1,'establish incoming ws',this.strurl);
                 this.stream = new WebSocket(this.strurl);
                 this.stream.binaryType = "arraybuffer";
                 this.stream.onerror = this.onerror;

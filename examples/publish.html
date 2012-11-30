@@ -3,11 +3,30 @@
 <script src="../js/deps/jquery-1.7.2.min.js"></script>
 <script src="../js/deps/underscore.js"></script>
 <script src="../js/deps/backbone.js"></script>  
+
+<!--script src="http://github.com/andris9/jStorage/raw/master/jstorage.js"></script>
+<script src="https://raw.github.com/bittorrenttorque/btapp/master/plugin.btapp.js"></script>
+<script src="https://raw.github.com/bittorrenttorque/btapp/master/pairing.btapp.js"></script>
 <script src="https://raw.github.com/bittorrenttorque/btapp/master/client.btapp.js"></script>
 <script src="https://raw.github.com/bittorrenttorque/btapp/master/btapp.js"></script>
-<script src="https://raw.github.com/bittorrenttorque/backbrace/master/backbrace.js"></script>
+<script src="https://raw.github.com/bittorrenttorque/backbrace/master/backbrace.js"></script-->
 <script src="publish.js"></script>
 
+
+<script type="text/template" id="js-PostView">
+  <div style="border:1px dashed blue">
+    <div class="js-name">name of post</div>
+    <div class="js-magnet">magnet link</div>
+    <div class="js-user">user</div>
+  </div>
+</script>
+
+<script type="text/template" id="js-PostsView">
+  Posts yo!
+  <div class="js-posts-container">
+
+  </div>
+</script>
 
 
 </head>
@@ -15,7 +34,7 @@
 <h3>welcome!</h3>
 
 <div id="jspublish"></div>
-
+<div id="js-PostsCollection"></div>
 
 </body>
 </html>

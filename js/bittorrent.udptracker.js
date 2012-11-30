@@ -45,7 +45,7 @@ var FIRST = null;
             return {payload:payload, tid:transaction_id};
         },
         get_connection: function(callback) {
-            if (config.packaged_app) {
+            if (config.packaged_app && window.chrome && chrome.socket) {
                 chrome.socket.create('udp', {}, _.bind(function(info) {
                     var sockno = info.socketId;
                     var reqdata = this.create_request_connection_data();
@@ -134,7 +134,7 @@ var FIRST = null;
                 //this.client.udp_proxy.sock_close(conn.sock);
                 //payload = payload.concat(jspack.Pack(">L",params.tid));
             }
-            if (config.packaged_app) {
+            if (config.packaged_app && window.chrome && chrome.socket) {
                 chrome.socket.disconnect(sockno);
                 chrome.socket.destroy(sockno);
             } else {
@@ -205,7 +205,7 @@ var FIRST = null;
                 assert (payload.length == 100 );
                 var res3 = {};
 
-                if (config.packaged_app) {
+                if (config.packaged_app && window.chrome && chrome.socket) {
                     chrome.socket.write( conn.sock, new Uint8Array(payload).buffer, _.bind(function(result) {
                         // bother checking check result.bytesWritten ?
                         chrome.socket.read( conn.sock, null, _.bind(this.on_announce_response, this, conn.sock) );

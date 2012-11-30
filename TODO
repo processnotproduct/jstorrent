@@ -34,3 +34,16 @@ Interface/Usability
 
 - create view for torrentcreate/upload session
 
+
+-----------
+
+Awesome Stuff
+
+- Support 1,000,000 torrents (IndexedDB)
+  - index for infohash? or keyed by infohash? (auto-incrementing id would be more efficient for search index)
+  - index for # of seeds (cursor.advance for pagination)
+
+- Support searching them
+  - (create table torrent-keywords { "foobar" -> [id1, id2, id3, id4, ... ] }
+  - with multiple keywords, intersect the results
+

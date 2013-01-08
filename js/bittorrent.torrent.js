@@ -123,7 +123,7 @@
                 debugger;
             } else {
                 mylog(LOGMASK.error,'unrecognized initialization options',opts);
-                //debugger;
+                debugger;
             }
             this.set('name',this.get_name());
             this.set('id',this.hash_hex);

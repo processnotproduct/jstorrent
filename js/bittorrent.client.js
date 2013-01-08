@@ -2,7 +2,7 @@
     jstorrent.JSTorrentClient = Backbone.Model.extend({
         database: jstorrent.storage,
         storeName: 'client',
-        initialize: function() {
+        initialize: function(opts) {
             window.jspack = new JSPack();
 
 
@@ -18,15 +18,21 @@
             this.torrents = new jstorrent.TorrentCollection();
             this.incoming_connections = null;
 
-            this.incoming_connections = new jstorrent.IncomingConnectionProxyCollection();
+            if (opts && opts.incoming_proxy !== undefined && ! opts.incoming_proxy) {
+                // disabled incoming proxy activation
+            } else {
+                this.incoming_connections = new jstorrent.IncomingConnectionProxyCollection();
+                this.incoming_connections.client = this;
+                this.incoming_connections.establish();
+            }
 
             if (config.packaged_app && chrome && chrome.socket) {
                 this.incoming_connections = new jstorrent.TCPSocketServer();
+            } else if (opts && opts.udp_proxy !== undefined && ! opts.udp_proxy) {
+                this.udp_proxy = null;
             } else {
                 this.udp_proxy = new jstorrent.UDPProxy({client:this});
             }
-            this.incoming_connections.client = this;
-            this.incoming_connections.establish();
 
             this.torrents.client = this;
 
@@ -43,7 +49,7 @@
 
             function ready(data) {
                 if (data && data.error) {
-                    if (! window.WebSocket || ! window.ArrayBuffer || ! window.indexedDB) {
+                    if (! window.WebSocket || ! window.ArrayBuffer) {
                         this.trigger('unsupported');
                         return;
                     } else {
@@ -54,6 +60,8 @@
                 }
 
                 var onfetch = _.bind(function(){
+
+/*
                     this.incoming_connections.on('established', _.bind(function() {
                         this.incoming_connections.current().on('change:remote_port', _.bind(function(){
                             for (var i=0; i<this.torrents.models.length; i++) {
@@ -64,6 +72,8 @@
                             }
                         },this));
                     },this));
+*/
+
                     this.set('ready',true);
                     this.trigger('ready');
                     this.tick();
@@ -104,9 +114,9 @@
             return config.external_ip;
         },
         get_external_port: function() {
-            if (this.incoming_connections.current()) {
+            if (this.incoming_connections && this.incoming_connections.current()) {
                 return this.incoming_connections.current().get('remote_port');
-            } else if (this.incoming_connections._last) {
+            } else if (this.incoming_connections && this.incoming_connections._last) {
                 return this.incoming_connections._last.get('remote_port');
             } else {
                 return 0;
@@ -174,7 +184,7 @@
                     debugger;
                 });
                 torrent.save()
-                return;
+                return torrent;
                 //torrent.save(); // have to save so that id gets set
                 //assert( this.torrents._byId[torrent.id] );
                 if (opts && opts.dontstart) {
@@ -189,6 +199,7 @@
                 var existing_torrent = this.torrents.get_by_hash(torrent.hash_hex);
                 existing_torrent.trigger('flash', existing_torrent);
                 mylog(1,'already had this torrent');
+                return existing_torrent;
             }
         },
         add_unknown: function(str, opts) {

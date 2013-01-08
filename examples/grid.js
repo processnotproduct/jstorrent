@@ -380,6 +380,9 @@ var FileTableView = SuperTableView.extend({
             } else {
                 $(cellNode).empty()
                 data.get_filesystem_entry( function() {
+
+                    // SPAGHETTI!!!!!
+
                     if (data.filesystem_entry && ! data.filesystem_entry.error) {
                         if (data.stream_parseable_type() && ! data.complete()) {
                             $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
@@ -387,7 +390,6 @@ var FileTableView = SuperTableView.extend({
                                 jsclient.stream(data.torrent.hash_hex, data.num);
                             });
                         } else {
-
 
                             $(cellNode).empty().html(
                                                   '<a class="js-download" href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
@@ -406,11 +408,17 @@ var FileTableView = SuperTableView.extend({
 
 
                             $('.js-newwin', cellNode).click( function(evt) {
-                                chrome.app.window.create( data.filesystem_entry.toURL(), {frame:'none'}, function(r){
-                                    console.log('open windown result',r);
-                                    evt.preventDefault();
-                                    evt.stopPropagation();
-                                });
+                                if (config.packaged_app) {
+                                    chrome.app.window.create( data.filesystem_entry.toURL(), {frame:'none'}, function(r){
+                                        console.log('open windown result',r);
+                                        evt.preventDefault();
+                                        evt.stopPropagation();
+                                    });
+                                } else {
+                                    window.open( data.filesystem_entry.toURL() );
+
+                                    //mylog(1,'clicked js-newwin, but not packaged app');
+                                }
 
                             });
 
@@ -806,6 +814,7 @@ var GeneralDetailView = BaseView.extend({
         this.$('.magnet').val( this.model.get_magnet_link() );
         this.$('.jstorrent').html( '<a href="'+this.model.get_jstorrent_link()+'">jstorrent web link</a>' );
         this.$('.js-embed').html( '<a href="'+this.model.get_embed_link()+'">embedded player link</a>' );
+        //this.$('.js-torrentfile').html( '<a href="'+this.model.get_torrentfile_link()+'">embedded player link</a>' );
 
 
 
@@ -892,6 +901,7 @@ var JSTorrentClientView = BaseView.extend({
         var ctxid = this.settings.get('subview_context');
         var torrent = jsclient.torrents.get(ctxid);
         if (!torrent) {
+            console.log("init detailview couldn't get torrent");
             return; // torrent was deleted but subview_context was not saved..
         }
         assert(torrent);
@@ -1124,11 +1134,12 @@ function main() {
     });
 
     jsclient.on('slightly_supported', function() {
-        alert('This website requires a browser implementing the HTML5 FileSystem APIs. Yours does not support these features and you will not be able to view the files after downloading them. Please try using Google Chrome. Or continue with crippled functionality.')
+        var msg = 'This website requires a browser implementing the HTML5 FileSystem APIs. Yours does not support these features and you will not be able to view the files after downloading them. Please try using Google Chrome. Or continue with crippled functionality.'
+        console.warn(msg);
     });
 
     jsclient.on('unsupported', function() {
-        alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays, IndexedDB). Please try again after installing one.')
+        alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays). Please try again after installing one.')
         window.location = 'http://www.google.com/chrome';
     });
 

@@ -4,7 +4,7 @@ window.jstorrent = {
 window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8030},
     //debug_torrent_client: {ip:'192.168.56.1', port:8030},
-    //debug_torrent_client: {ip:'192.168.56.101', port:64399},
+    //debug_torrent_client: {ip:'192.168.56.101', port:25094},
     unit_tests: false, // run unit tests
     debug_asserts: false,
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
@@ -87,16 +87,16 @@ function to_file_size(size) {
   size /= 1024;
 */
 
-  while ((size >= 1024) && (unit < szmax)) {
-    size /= 1024;
-    unit++;
-  }
+    while ((size >= 1024) && (unit < szmax)) {
+        size /= 1024;
+        unit++;
+    }
     if (unit == 0) {
         precision = 0;
     } else if (unit > 1) {
         precision = 2;
     }
-        return (size.toFixed(precision) + " " + sz[unit]);
+    return (size.toFixed(precision) + " " + sz[unit]);
 
 }
 
@@ -104,11 +104,16 @@ function to_file_size(size) {
 //var curlogmask = LOGMASK.general | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.ui;
-var curlogmask = LOGMASK.general;
-//var curlogmask = LOGMASK.all;
+//var curlogmask = LOGMASK.general;
+var curlogmask = LOGMASK.all;
+
+//curlogmask = LOGMASK.all & (  (Math.pow(2,20) - 1) ^ LOGMASK.udp  )
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;
 //var curlogmask = LOGMASK.general | LOGMASK.disk | LOGMASK.hash | LOGMASK.ui;
 
+
+// remove specific logging flags
+curlogmask &= (Math.pow(2,20) - 1) ^ LOGMASK.udp
 
 var _log_fixed = false;
 window.mylog = function(level) {

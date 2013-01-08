@@ -12,7 +12,7 @@
     FLAGS[7] = LAST_BYTE;
 
     window.constants = {
-        client_version: 'jstorrent 0.0.3',
+        client_version: 'jstorrent 0.4.0',
         protocol_name: 'BitTorrent protocol',
         handshake_length: 1 + 'BitTorrent protocol'.length + 8 + 20 + 20,
         std_piece_size: Math.pow(2,14),
@@ -649,7 +649,7 @@
                                 // this.bind('close', function() { this.torrent.register_disconnect(metapiece) } );
                             } else {
                                 // simply serve from the already completed infodict
-                                var bencoded = this.torrent.get_infodict('bencoded'); // TODO -- store bencoded version
+                                var bencoded = this.torrent.get_infodict('bencoded');
 
                                 var sliced = bencoded.slice( metapiece * constants.metadata_request_piece_size,
                                                              (metapiece + 1) * constants.metadata_request_piece_size );

@@ -2,6 +2,9 @@ JSTorrent (JavaScript torrent client)
 
 http://jstorrent.com
 
+(Also a Chrome OS Web app)
+https://groups.google.com/forum/#!topic/chromebook-central/DXJmD1ZUK2Q
+
 provides "JSTorrentClient", which stores a list of torrent files in a
 local storage mechanism. The actual torrent data is backed by the
 HTML5 filesystem API.

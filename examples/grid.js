@@ -141,12 +141,16 @@ var SuperTableView = Backbone.View.extend({
         },this));
 
 
-        this.model.bind('change',_.bind(function(model,attributes) {
+        this.model.bind('change:state', _.bind(function(model, attributes) {
             var idx = this.model.indexOf(model); // XXX - slow??
-
             if (_.contains(this.grid.getSelectedRows(),idx)) {
                 jsclientview.commands.update_play_action(this.grid.getSelectedRows());
             }
+        }, this));
+            
+
+        this.model.bind('change',_.bind(function(model,attributes) {
+            var idx = this.model.indexOf(model); // XXX - slow??
 
             for (var key in attributes.changes) {
 
@@ -303,7 +307,7 @@ var TorrentTableView = SuperTableView.extend({
             for (var i=0; i<selected.length; i++) {
                 var torrent = this.grid.getDataItem(selected[i]);
                 torrents.push(torrent);
-                if (torrent.get('state') == 'stopped') {
+                if (torrent.get('state') == 'stopped' || ! torrent.get('state')) {
                     action = 'start';
                 }
             }
@@ -384,17 +388,23 @@ var FileTableView = SuperTableView.extend({
                     // SPAGHETTI!!!!!
 
                     if (data.filesystem_entry && ! data.filesystem_entry.error) {
-                        if (data.stream_parseable_type() && ! data.complete()) {
+                        if (data.stream_parseable_type() && ! data.complete() && ! config.packaged_app) {// broken for packaged apps for some reason...
                             $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
                             $('.stream', cellNode).click( function(evt) {
                                 jsclient.stream(data.torrent.hash_hex, data.num);
                             });
                         } else {
+                            if (config.packaged_app) {
+                                var openstr = '';
+                            } else {
+                                var openstr = '<a class="js-newwin" href="#"><i class="icon-arrow-down"></i>Open</a>';
+                            }
+
 
                             $(cellNode).empty().html(
                                                   '<a class="js-download" href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
-                                                      +
-                                                  '<a class="js-newwin" href="#"><i class="icon-arrow-down"></i>Open</a>'
+                                                      + openstr
+
                             )
 
                             $('.js-download', cellNode).click( function(evt) {
@@ -409,6 +419,7 @@ var FileTableView = SuperTableView.extend({
 
                             $('.js-newwin', cellNode).click( function(evt) {
                                 if (config.packaged_app) {
+                                    debugger;
                                     chrome.app.window.create( data.filesystem_entry.toURL(), {frame:'none'}, function(r){
                                         console.log('open windown result',r);
                                         evt.preventDefault();
@@ -434,7 +445,7 @@ var FileTableView = SuperTableView.extend({
                                                       +
                                                   '<a href="' + data.filesystem_entry.toURL() + '"><i class="icon-arrow-down"></i>Open</a>'
                             )
-                        } else if (data.stream_parseable_type()) {
+                        } else if (data.stream_parseable_type() && ! config.packaged_app) {
                             $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
                             $('.stream', cellNode).click( function(evt) {
                                 jsclient.stream(data.torrent.hash_hex, data.num);
@@ -840,11 +851,19 @@ var JSTorrentClientView = BaseView.extend({
         this.settings.fetch();
         //this.template = _.template( $('#client_template').html() );
         this.$el.html( $('#client_template').html() );
+        setup_drive_action(); // setup click for setup cloud drive storage
         this.addview = new AddView({el:this.$('.addview')});
         this.torrenttable = new TorrentTableView({ model: jsclient.torrents, el: this.$('.torrentGrid') });
         this.detailview = null;
         this.commands = new CommandsView({el:this.$('.commands'), table:this.torrenttable});
         this.tabs = new TabsView({el:this.$('.tabs')});
+
+        $('#js-add-example-torrent').click( _.bind(function(evt) {
+            jsclient.add_unknown(
+"magnet:?xt=urn:btih:f463bfded35ef84c06b5d51df51856076b97059b&dn=DJ+Shadow+-+Hidden+Transmissions+Bundle+BitTorrent+Edition&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"
+            );
+
+        },this));
 
         this.$('.dragbar').mousedown(_.bind(function(e){
             e.preventDefault();
@@ -886,6 +905,13 @@ var JSTorrentClientView = BaseView.extend({
         $('#magnet').click( function() {
             try_register_protocol();
         });
+
+/*
+        $('#setup-storage').click( function() {
+            debugger;
+        });
+*/
+
         this.init_detailview();
     },
     get_dim: function(elt) {
@@ -1165,6 +1191,7 @@ window.addEventListener('offline', function(e) {
     console.log('offline')
 }, false);
 
+if (! config.packaged_app) {
   var _gaq = _gaq || [];
   _gaq.push(['_setAccount', 'UA-35025483-1']);
   _gaq.push(['_trackPageview']);
@@ -1174,3 +1201,4 @@ window.addEventListener('offline', function(e) {
     ga.src = (('https:' == document.location.protocol || window.chrome) ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
     var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
   })();
+}

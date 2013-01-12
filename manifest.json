@@ -1,15 +1,11 @@
 {
     "name": "JSTorrent",
     "description": "Javascript Torrent Client",
-    "version": "0.0.3",
+    "version": "0.2.4",
     "manifest_version": 2,
     "offline_enabled": true,
-    "background_page": "http://127.0.0.1:4224",
     "permissions": [
-//        "fileBrowserHandle",
-        "experimental",
         {"fileSystem":["write"]},
-
         {"socket":[
             "tcp-connect",
             "udp-bind::",
@@ -20,6 +16,10 @@
         "http://*/",
         "https://*/"
     ],
+    "oauth2": {
+        "client_id": "432934632994.apps.googleusercontent.com",
+        "scopes": ["https://www.googleapis.com/auth/drive.file"]
+    },
     "intents": {
         "http://webintents.org/view" : [{
             "title" : "BitTorrent File Viewing, Streaming and Downloading",
@@ -27,15 +27,9 @@
         }],
         "http://webintents.org/share" : [{
             "title" : "BitTorrent File Sharing",
-//            "href" : "examples/intentshare.html",
-//            "disposition": "window",
             "type" : ["image/*","video/*","*"]
         }]
     },
-/*
-    "container" : "GOOGLE_DRIVE",
-    "api_console_project_id" : "jstorrentdotcom",
-*/
     "app": {
         "background": {
             "scripts": ["background.js"]

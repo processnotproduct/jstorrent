@@ -67,7 +67,7 @@
             _.bindAll(this, 'read_entries','on_read_entries');
         },
         init_filesystems: function(callback) {
-            if (window.webkitRequestFileSystem) {
+            if (window.webkitRequestFileSystem && ! config.disable_filesystem) {
 
                 var types = ['persistent','temporary'];
 
@@ -112,6 +112,10 @@
 
         },
         get_file_by_path: function(path, callback, area, opts) {
+            if (config.disable_filesystem) {
+                callback({error:'filesystem disabled'});
+                return;
+            }
             opts = opts || { create: true };
             //mylog(1,'get file by path',JSON.stringify(opts));
             // XXX -- want create:false option (some consumers dont want to create...)
@@ -134,6 +138,8 @@
                     callback({error:'error getting file by path'});
                 }
             }
+
+
             next(this.fss[area].root);
         },
         read_entries: function(area) {

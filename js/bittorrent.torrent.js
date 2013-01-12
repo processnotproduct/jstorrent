@@ -7,6 +7,7 @@
         initialize: function(opts) {
             //mylog(1,'init torrent',this.id);
             _.bindAll(this, 'process_meta_request', 'handle_new_peer', 'on_connection_close', 'on_file_new_piece');
+            assert(this.collection);
 
             this.availability = []; // sits alongside the bitmask, stores how many distributed copies of each piece for connected peers.
 
@@ -118,6 +119,9 @@
                     this.start();
                     // woo hoo!
                 },this));
+            } else if (opts.web_url) {
+                this.web_url = opts.web_url;
+                this.download_from_web_url();
             } else if (opts.state == 'hashing') {
                 mylog(LOGMASK.error,'torrent didnt finish hashing!... eeeeeee');
                 debugger;
@@ -127,6 +131,24 @@
             }
             this.set('name',this.get_name());
             this.set('id',this.hash_hex);
+        },
+        download_from_web_url: function() {
+            var str = this.web_url
+            var xhr = new XMLHttpRequest;
+            var _this = this;
+            xhr.responseType = 'arraybuffer';
+            xhr.onload = function() {
+                var data = xhr.response;
+                var meta = bdecode( arr2str( new Uint8Array(data) ) );
+                _this.metadata_download_complete_fromtorrent( meta );
+                // now add to collection n stuff ?
+                _this.collection.client.add_torrent_to_collection(_this);
+            }
+            xhr.onerror = function() {
+                debugger;
+            }
+            xhr.open( "GET", str, true);
+            xhr.send();
         },
         on_file_new_piece: function(num) {
         },
@@ -933,6 +955,12 @@
                 }
             }
             return bitmask;
+        },
+        metadata_download_complete_fromtorrent: function(metadata) {
+            this.set_metadata(metadata);
+            this.set('id',this.get_infohash('hex'));
+            this.save();
+            this.trigger('got_metadata');
         },
         metadata_download_complete: function(infodict) {
             var metadata = {'info':infodict};

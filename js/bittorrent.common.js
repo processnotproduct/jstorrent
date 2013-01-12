@@ -9,7 +9,9 @@ window.config = {
     debug_asserts: false,
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
-    bittorrent_proxy: '192.168.56.1:8030',
+    bittorrent_proxy: false,
+    //bittorrent_proxy: '192.168.56.1:8030',
+    //bittorrent_proxy:'kzahel.dyndns.org:8030', // use home computer
     home_computer: 'kzahel.dyndns.org:14098',
 //    external_ip: '38.99.42.130', // HARD CODED IP AT WORK
     bittorrent_incoming_proxy: '192.168.56.1:8030',
@@ -19,10 +21,15 @@ window.config = {
     //ip_aliases: { '38.99.42.130': '127.0.0.1' },
     default_tracker: 'http://192.168.56.1:6969/announce',
     kyle_ut_home: 'kzahel.dyndns.org:38028',
+    disable_filesystem: true,
     public_trackers: ["udp://tracker.openbittorrent.com:80/announce",
                       "udp://tracker.publicbt.com:80/announce"]
     //bittorrent_proxy: 'kzahel.dyndns.org:8030' // torrent proxy service
 }
+if (config.packaged_app) {
+    config.disable_filesystem = false;
+}
+
 if (window.location.host.match('jstorrent.com')) {
     config.default_tracker = "udp://tracker.openbittorrent.com:80/announce";
     config.tracker_proxy = 'http://kzahel.dyndns.org:6969/proxy';
@@ -101,11 +108,11 @@ function to_file_size(size) {
 }
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
-//var curlogmask = LOGMASK.general | LOGMASK.hash;
+var curlogmask = LOGMASK.general | LOGMASK.hash | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.ui;
 //var curlogmask = LOGMASK.general;
-var curlogmask = LOGMASK.all;
+//var curlogmask = LOGMASK.all;
 
 //curlogmask = LOGMASK.all & (  (Math.pow(2,20) - 1) ^ LOGMASK.udp  )
 //var curlogmask = LOGMASK.general | LOGMASK.ui | LOGMASK.peer | LOGMASK.hash;

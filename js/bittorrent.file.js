@@ -284,10 +284,15 @@
         remove_from_disk: function(callback) {
             this.torrent.set('first_incomplete',null);
             this.get_filesystem_entry( function(entry) {
-                entry.remove( function() {
-                    mylog(1,'removed from disk!')
-                    if (callback) callback();
-                });
+                if (entry.error) {
+                    mylog(LOGMASK.error, 'unable to remove file (error)',entry);
+                    if (callback) callback(entry);
+                } else {
+                    entry.remove( function() {
+                        mylog(1,'removed from disk!')
+                        if (callback) callback();
+                    });
+                }
             });
         },
         open: function() {
@@ -469,19 +474,22 @@
             }
         },
         save_as: function() {
-            function errorHandler(){}
+            function errorHandler(){console.error('saveas error handler')}
             var _this = this;
             chrome.fileSystem.chooseEntry({type: 'saveFile', suggestedName: this.get_name()}, function(writableFileEntry) {
-                writableFileEntry.createWriter(function(writer) {
-                    writer.onerror = errorHandler;
-                    writer.onwriteend = function(e) {
-                        console.log('write complete');
-                    };
-                    _this.filesystem_entry.file( function(f) {
-                        writer.write(f);
-                    });
-
-                }, errorHandler);
+                if (writableFileEntry) {
+                    writableFileEntry.createWriter(function(writer) {
+                        writer.onerror = errorHandler;
+                        writer.onwriteend = function(e) {
+                            console.log('write complete');
+                        };
+                        _this.filesystem_entry.file( function(f) {
+                            writer.write(f);
+                        });
+                    }, errorHandler);
+                } else {
+                    console.warn('user canceled save as dialog');
+                }
             });
         }
     });

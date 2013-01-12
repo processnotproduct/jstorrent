@@ -57,6 +57,11 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     <script src="../js/bittorrent.udptracker.js"></script>  
     <script src="../js/bittorrent.quicktime.js"></script>
     <script src="../js/bittorrent.video.js"></script>
+    <script src="../js/bittorrent.drive.js"></script>
+    <script src="../js/bittorrent.clouddrive.js"></script>
+
+    <!--script type="text/javascript" src="https://apis.google.com/js/client.js?onload=handleClientLoad"></script-->
+
 
     <script type="text/javascript" src="grid.js"></script>
 
@@ -173,6 +178,7 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
         <h1>jstorrent</h1>
         <p class="text-info" style="float:right; margin-right:8px;">Welcome to jstorrent! Drag in files to create torrents. Drag in a torrent to start downloading!</p>
 
+<a id="setup-storage" href="#" style="display:none">setup storage</a>
 
         <div class="pane-top">
           <div style="position:relative; height:50px;">
@@ -181,7 +187,6 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
           </div>
           <div class="torrentGrid" style="font-size:13px; background:#eef;"></div>
         </div>
-
         <div class="dragbar" style="background:#eee; border-color: black; border-top:1px; border-bottom:1px; height:10px; cursor: row-resize; width:100%"></div>
 
         <!-- bottom resizey area -->
@@ -189,7 +194,14 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
           <div class="tabs" style=""></div>
           <div class="fileGrid" style="font-size:13px; background:#ffe;height:350px;">
 
-<h4>Welcome! You have not selected anything above. If you want some example content, click below<h4>
+<h4>Welcome! Please find a torrent link from an external site and paste it into the "Paste a URL Here" box<h4>
+
+
+
+    <a href="#" id="js-add-example-torrent">add example torrent</a>
+
+
+<!--h4>Welcome! You have not selected anything above. If you want some example content, click below<h4>
 
 <ul>
 
@@ -197,7 +209,7 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     <intent action="http://webintents.org/view" type="application/x-bittorrent" />
   </li-->
 
-  <li>
+  <!--li>
     <a href="web+magnet:?xt=urn:btih:2be808c54b33c17ed6a2f8396404a52152bf3047">add by protocol handler</a>
   </li>
 
@@ -213,7 +225,7 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
 <li>
             <a id="magnet" href="#">register "web+magnet" protocol handler!</a>
 </li>
-</ul>
+</ul-->
           </div>
         </div>
         <!-- end -->

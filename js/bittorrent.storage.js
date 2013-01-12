@@ -1,4 +1,4 @@
-if (window.indexedDB) {
+if (false && window.indexedDB) {
     jstorrent.storage = {
         id: "jstorrent",
         description: "The database for client sessions",
@@ -300,6 +300,37 @@ if (window.indexedDB) {
 } else {
 
 
+    window.asyncLocalStorage = {
+        getItem: function(k, callback) {
+            //console.log('getitem',k);
+            if (config.packaged_app) {
+                chrome.storage.local.get(k, function(res) {
+                    callback(res[k]);
+                });
+            } else {
+                callback( localStorage.getItem(k) );
+            }
+        },
+        setItem: function(k, v, callback) {
+            //console.log('setitem',k,v);
+            if (config.packaged_app) {
+                var obj = {};
+                obj[k] = v;
+                chrome.storage.local.set(obj,callback);
+            } else {
+                callback( localStorage.setItem(k, v) );
+            }
+        },
+        removeItem: function(k, callback) {
+            //console.log('removeitem',k);
+            if (config.packaged_app) {
+                chrome.storage.local.remove(k, callback);
+            } else {
+                callback( localStorage.removeItem(k) );
+            }
+        }
+    }
+
     /*
 
       the indexeddb database backend is too buggy to work
@@ -324,49 +355,71 @@ if (window.indexedDB) {
         if (model instanceof jstorrent.Collection) {
 
             if (method == 'read') {
-                var items = localStorage.getItem( model.storeName )
-                if (items) {
-                    items = JSON.parse( items );
-                    // for each, read
-                    var respitems = _.map( items, function(h) { return JSON.parse(localStorage.getItem( model.storeName + '-' + h )) } );
+                asyncLocalStorage.getItem( model.storeName, function(items) {
+                    if (items) {
+                        items = JSON.parse( items );
+                        // for each, read
 
-                    // what is record does not exist for some reason?
-                    respitems = _.filter( respitems, function(item) { return item != null; } );
+                        var fns = [];
+                        for (var i=0; i<items.length; i++) {
+                            var h = items[i];
+                            fns.push( { fn: asyncLocalStorage.getItem, arguments: [model.storeName + '-' + h], callbacks: [1] } );
+                        }
 
-                    opts.success( respitems );
-                } else {
-                    items = [];
-                    opts.success( items );
-                }
+                        new Multi(fns).sequential( function(respitemsraw) {
 
 
+                            var respitems = _.map( respitemsraw.called, function(data) { return JSON.parse(data.data[0]) } );
+
+                            // what is record does not exist for some reason?
+                            respitems = _.filter( respitems, function(item) { return item != null; } );
+
+                            opts.success( respitems );
+
+                        });
+
+                    } else {
+                        items = [];
+                        opts.success( items );
+                    }
+                });
             } else {
                 debugger;
             }
             
         } else {
+            assert(model.get('id') || model.newid || model.id);
             var key = model.storeName + '-' + (model.get('id') || model.newid || model.id);
             
             if (method == 'read') {
-                var item = localStorage.getItem( key );
-                var parsed = JSON.parse( item );
-                opts.success( parsed );
+                asyncLocalStorage.getItem( key, function(item) {
+                    if (item) {
+                        var parsed = JSON.parse( item );
+                        opts.success( parsed );
+                    } else {
+                        opts.success( item );
+                    }
+                } );
             } else if (method == 'create') {
-                localStorage.setItem( key, JSON.stringify(model.toJSON()) );
+                asyncLocalStorage.setItem( key, JSON.stringify(model.toJSON()), function(){} );
                 model.id = model.newid;
                 model.collection._byId[ model.id ] = model; // W T F, when is this supposed to happen...
                 // update collection
                 var torrents = _.map( model.collection.models, function(m) { return m.id } );
-                localStorage.setItem( model.collection.storeName, JSON.stringify( torrents ) );
+                asyncLocalStorage.setItem( model.collection.storeName, JSON.stringify( torrents ), function(){} );
                 opts.success();
             } else if (method == 'update') {
-                localStorage.setItem( key, JSON.stringify(model.toJSON()) );
+                asyncLocalStorage.setItem( key, JSON.stringify(model.toJSON()), function(){} );
                 opts.success();
             } else if (method == 'delete') {
-                localStorage.removeItem( key );
-                var torrents = _.map(_.reject( model.collection.models, function(m) { return m.id == model.id } ), function(m) { return m.id } );
-                localStorage.setItem( model.collection.storeName, JSON.stringify( torrents ) );
-                model.collection.remove( model );
+                asyncLocalStorage.removeItem( key, function(){} );
+                if (! model.collection) {
+                    debugger; // why no collection??
+                } else {
+                    var torrents = _.map(_.reject( model.collection.models, function(m) { return m.id == model.id } ), function(m) { return m.id } );
+                    asyncLocalStorage.setItem( model.collection.storeName, JSON.stringify( torrents ), function(){} );
+                    model.collection.remove( model );
+                }
                 opts.success();
             } else {
                 debugger;

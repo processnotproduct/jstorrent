@@ -169,7 +169,15 @@
                         }
                         this.set('hashed',true);
                         if (this.torrent.collection.client.get_filesystem().unsupported) {
-                            this.torrent.notify_have_piece(this);
+
+                            // this.torrent.notify_have_piece(this); // TODO -- don't actually want to be able to serve these piece requests from cloud storage. Or do we? I suppose a range request couldnt hurt...
+
+                            var cloudstore = this.torrent.collection.client.get_cloud_storage();
+                            cloudstore.write_torrent_piece(this);
+
+                            // XXX - WHEN DONE -- mark as "have"
+
+
                         } else {
                         //mylog(1,'downloaded piece hash match!')
                             this.write_data_to_filesystem();

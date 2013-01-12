@@ -7,6 +7,7 @@
 
 
             this.filesystem = new jstorrent.FileSystem();
+            this.cloudstorage = null;
             this.threadhasher = new jstorrent.ThreadHasher();
             this.streamparser = null;
             //this.worker.postMessage();
@@ -150,6 +151,12 @@
             var conn = new jstorrent.WSPeerConnection({incoming: incoming, client:this, host:address[0], port:address[1]});
             return conn;
         },
+        get_cloud_storage: function() {
+            if (! this.cloudstorage) {
+                this.cloudstorage = new jstorrent.CloudDrive;
+            }
+            return this.cloudstorage;
+        },
         get_filesystem: function() {
             return this.filesystem;
         },
@@ -175,6 +182,9 @@
                 var torrent = new jstorrent.Torrent( { magnet: args.magnet }, { collection: this.torrents } );
             }
 
+            this.add_torrent_to_collection(torrent);
+        },
+        add_torrent_to_collection: function(torrent) {
             if (! this.torrents.contains(torrent)) {
                 torrent.newid = torrent.id;
                 torrent.id = null; // make sure backbone.Model.isNew evals to true
@@ -203,20 +213,23 @@
             }
         },
         add_unknown: function(str, opts) {
-
             assert( _.keys(this.torrents._byId).length == this.torrents.models.length );
 
             if (str.slice(0,'magnet:'.length) == 'magnet:') {
                 this.add_torrent({magnet:str}, opts);
-            } else if (str.slice(0,'http://'.length) == 'http://') {
-                // also checks endswith
-                window.location = str;
             } else if (str.slice(0,'web+magnet:'.length) == 'web+magnet:') {
                 this.add_torrent({magnet:str}, opts);
-            } else if (str.slice(0,'http://'.length) == 'http://') {
-                //debugger; // use a proxy service to download and serve back
-                alert('Please download the torrent and drag it into the window.');
-                window.location = str;
+            } else if (str.slice(0,'http://'.length) == 'http://'
+                       ||
+                       str.slice(0,'https://'.length) == 'https://'
+                      ) {
+                if (config.packaged_app) {
+                    var torrent = new jstorrent.Torrent( { web_url: str }, { collection: this.torrents } );
+                } else {
+                    //debugger; // use a proxy service to download and serve back
+                    alert('Please download the torrent and drag it into the window.');
+                    window.location = str;
+                }
             } else if (str.length == 40) {
                 this.add_torrent({infohash:str}, opts);
             } else {

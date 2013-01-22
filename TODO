@@ -1,27 +1,25 @@
+NOTE: This TODO list is not being kept up to date really.
+
 REARCHITECT
 
-- torrents live in their own world. separate out code that handles a
-  specific torrent from code that handles collections of
-  torrents. allow for use case of simple embedding of
-  single-torrent/single-file websites.
+- separate out code that handles a specific torrent from code that
+  handles collections of torrents. allow for use case of simple
+  embedding of single-torrent/single-file websites.
 
-- use dead simple storage mechanism (key/value, no indexes, etc)
-  back with localStorage, but make it seem async
-
-- support writing to filesystem without seek support (i.e. dropbox)
-
-- shared web worker? (still bad support -- need some other kind of locking)
-
-- support NOT saving -- playing from blob URI (i.e. MP3 file)
+- shared web worker? (still bad support -- need some other kind of
+  locking for multiple tabs open)
 
 
 Fixes
 
-- adjust number of outbound requests based on history/bitrate. Always have at least 1 outbound request per connected peer.
+- adjust number of outbound requests based on history/bitrate. Always
+  have at least 1 outbound request per connected peer.
 
-- store more states for peers. for instance, if connected to a peer that seems to be snubbing me, try out another one...
+- store more states for peers. for instance, if connected to a peer
+  that seems to be snubbing me, try out another one...
 
-- ENDGAME - all piece requests pending. simply get from "best" peer... or perhaps just decrease chunk timeouts
+- ENDGAME - all piece requests pending. simply get from "best"
+  peer... or perhaps just decrease chunk timeouts
 
 
 TESTING
@@ -39,11 +37,13 @@ AUDIO
 
 PROTOCOL
 
-- disconnect from peers who don't have pieces we're interested in (when swarm healthy enough..)
+- disconnect from peers who don't have pieces we're interested in
+  (when swarm healthy enough..)
 
 - upnp, use node-upnp (chrome packaged app)
 
-- fix althash handling (symlink althash to actual hash and handle downloading under actual hash)
+- fix althash handling (symlink althash to actual hash and handle
+  downloading under actual hash)
 
 Interface/Usability
 
@@ -57,10 +57,16 @@ Interface/Usability
 Awesome Stuff
 
 - Support 1,000,000 torrents (IndexedDB)
-  - index for infohash? or keyed by infohash? (auto-incrementing id would be more efficient for search index)
+
+  - index for infohash? or keyed by infohash? (auto-incrementing id
+    would be more efficient for search index)
+
   - index for # of seeds (cursor.advance for pagination)
 
 - Support searching them
-  - (create table torrent-keywords { "foobar" -> [id1, id2, id3, id4, ... ] }
+
+  - (create table torrent-keywords { "foobar" -> [id1, id2, id3, id4,
+    ... ] }
+
   - with multiple keywords, intersect the results
 

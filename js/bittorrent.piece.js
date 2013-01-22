@@ -86,6 +86,8 @@
             this._outbound_request_offsets = {}; // holds just the offset, for testing containment
             this._chunk_responses = [];
 
+            this._file_consumers = {};
+
             assert(this.num < this.torrent.get_num_pieces());
             assert(this.start_byte >= 0)
             assert(this.end_byte >= 0)
@@ -94,6 +96,15 @@
             this._outbound_request_offsets = {};
             this._chunk_responses = [];
             this.try_free('user cleared');
+        },
+        register_consumer: function(file) {
+            // called to mark that this piece is being used by a file (for cloud uploading)
+            assert(! this._file_consumers[file.num] );
+            this._file_consumers[file.num] = true;
+        },
+        unregister_consumer: function(file) {
+            assert(this._file_consumers[file.num] );
+            delete this._file_consumers[file.num];
         },
         try_free: function(reason) {
             // what are the possible ways a piece can be used?
@@ -176,6 +187,16 @@
                             cloudstore.write_torrent_piece(this);
 
                             // XXX - WHEN DONE -- mark as "have"
+
+                            /*
+                              for skipped files, don't send
+                              HAVE. however, utorrent seems to stop
+                              giving us data if we don't send HAVE
+                              messages. ?
+
+                              file.torrent.notify_have_piece(piece, {skipped:true});
+                            */
+                            //this.torrent.notify_have_piece(this);
 
 
                         } else {
@@ -291,6 +312,7 @@
             return skip;
         },
         get_file_info: function(offset, size) {
+            assert(size !== undefined);
             // returns file objects + offsets needed to serially read from them
             var info = [];
             var my_range = [ this.start_byte + offset, this.start_byte + offset + size - 1]; // ranges are endpoint-inclusive, so subtract one!
@@ -315,6 +337,100 @@
                 }
             }
             return info
+        },
+        get_response_data_bounds: function(file) {
+            /*
+              annoying intersections, tricky to get right.
+
+              file        |---------|-|--|-----|-------------------------------------
+              piece       |---------------|---------------|---------------|---------------
+              chunk_resp  |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+              i           0123012301230123...
+
+            */
+            assert( this._chunk_responses.length );
+            var check_intersection = intersect( [file.start_byte, file.end_byte],
+                                                [this.start_byte, this.end_byte] );
+            assert( check_intersection );
+
+            var left_bound; // chunknum, chunkoffset
+            var right_bound;
+
+            if (file.start_byte <= this.start_byte) {
+                left_bound = [0,0];
+            } else {
+                var fileinbytes = file.start_byte - this.start_byte;
+                var chunknum = Math.floor( fileinbytes / constants.chunk_size );
+                left_bound = [chunknum, 
+                              fileinbytes - chunknum * constants.chunk_size];
+            }
+
+
+            if (file.end_byte >= this.end_byte) {
+                right_bound = [ this._chunk_responses.length - 1, 
+                                this._chunk_responses[this._chunk_responses.length-1].length - 1 ];
+            } else {
+                var fileinbytes = file.end_byte - this.start_byte;
+                var chunknum = Math.floor( fileinbytes / constants.chunk_size );
+
+                right_bound = [chunknum,
+                               fileinbytes - chunknum * constants.chunk_size ];
+            }
+
+            return [left_bound, right_bound];
+        },
+        get_response_data: function(file) {
+            // returns a subset of _chunk_responses specific to this file.
+            assert( this._chunk_responses.length );
+
+            var arr = [];
+
+            var bounds = this.get_response_data_bounds(file);
+            var left_bound = bounds[0];
+            var right_bound = bounds[1];
+            var sz;
+            var offset;
+            var chunkdata;
+
+            var a;
+            var b;
+
+
+
+            if (left_bound[0] == right_bound[0]) {
+                // file sits in a single chunk response
+                chunkdata = this._chunk_responses[ left_bound[0] ];
+                offset = left_bound[1];
+                sz = right_bound[1] - left_bound[1] + 1;
+
+                arr.push(
+                    new Uint8Array( chunkdata.buffer, offset + chunkdata.byteOffset, sz )
+                )
+            } else {
+                for (var i=left_bound[0]; i<=right_bound[0]; i++) {
+                    chunkdata = this._chunk_responses[i];
+
+                    if (i==left_bound[0]) {
+                        a = left_bound[1]
+                    } else {
+                        a = 0;
+                    }
+
+                    if (i==right_bound[0]) {
+                        b = right_bound[1]
+                    } else {
+                        b = chunkdata.length - 1;
+                    }
+
+                    offset = a;
+                    sz = b - a + 1;
+
+                    arr.push(
+                        new Uint8Array( chunkdata.buffer, offset, sz )
+                    );
+                }
+            }
+            return arr
         },
         get_data: function(offset, size, callback, opts) {
             // gives data needed to service piece requests

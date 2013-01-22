@@ -3,11 +3,14 @@
         database: jstorrent.storage,
         storeName: 'client',
         initialize: function(opts) {
+
             window.jspack = new JSPack();
-
-
+            jstorrent.JSTorrentClient.instance = this;
+            if (config.packaged_app) {
+                _.defer( function() {gdriveloaded();} );
+            }
+            this.cloudstorage = new jstorrent.CloudDrive;
             this.filesystem = new jstorrent.FileSystem();
-            this.cloudstorage = null;
             this.threadhasher = new jstorrent.ThreadHasher();
             this.streamparser = null;
             //this.worker.postMessage();
@@ -50,7 +53,14 @@
 
             function ready(data) {
                 if (data && data.error) {
-                    if (! window.WebSocket || ! window.ArrayBuffer) {
+                    //var blobcheck = new Blob( [new Uint8Array([1,1,1])] ).size == 3;
+                    var blobcheck = new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3;
+
+                    if ( ! blobcheck ) {
+                        alert('Your safari is buggy (Blob constructor. Please upgrade)');
+                        this.trigger('unsupported');
+                        return;
+                    } else if (! window.WebSocket || ! window.ArrayBuffer) {
                         this.trigger('unsupported');
                         return;
                     } else {
@@ -152,9 +162,6 @@
             return conn;
         },
         get_cloud_storage: function() {
-            if (! this.cloudstorage) {
-                this.cloudstorage = new jstorrent.CloudDrive;
-            }
             return this.cloudstorage;
         },
         get_filesystem: function() {

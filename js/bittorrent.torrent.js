@@ -224,6 +224,9 @@
         remove_files: function(callback) {
             if (this.magnet_only()) {
                 if (callback){callback()}
+            } else if (this.collection.client.get_filesystem().unsupported) {
+                // TODO -- remove from cloud storage or whatever
+                if (callback){callback()}
             } else if (this.is_multifile()) {
                 this.get_directory( _.bind(function(dir) {
                     if (dir instanceof FileError) {
@@ -744,7 +747,7 @@
                     }
                 }
             }
-            //piece.free(); // cannot free yet!
+            //piece.free(); // cannot free yet! (why not?)
             this.save();
         },
         is_multifile: function() {

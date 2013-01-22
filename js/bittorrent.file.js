@@ -491,6 +491,13 @@
                     console.warn('user canceled save as dialog');
                 }
             });
+        },
+        get_cloud_upload_session: function() {
+            var key = this.torrent.get_infohash('hex') + '-' + this.num;
+            var store = this.torrent.collection.client.get_cloud_storage();
+            if (! store._uploads[key]) {
+                return store._uploads[key];
+            }
         }
     });
 
@@ -535,8 +542,8 @@
 
     TorrentFile.handle_write_piece_data = function(piece, entry, file_metadata, writer, file_byte_range, file) {
         /* TODO -- clean this up. write in a single pass (create blob of all data to be written to file from chunks) */
-
         // write the data, when done process the queue
+        // TODO -- at same time, merge this with cloud upload code
         assert(file_metadata.size <= file.get_size()); // file on disk is too large!
         var _this = file;
         writer.onerror = function(evt) {
@@ -632,6 +639,7 @@
                 // writing to disk would probably be much faster if we
                 // concatenated these buffers together and THEN wrote
                 // the larger blob.
+                // thus TODO: create blob and write it instead
                 var chunk = piece._chunk_responses[i];
                 assert(chunk);
                 var chunk_a = piece.start_byte + constants.chunk_size * i;

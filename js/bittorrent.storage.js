@@ -350,7 +350,7 @@ if (false && window.indexedDB) {
     jstorrent.database = new jstorrent.Database();
 
     Backbone.sync = function(method, model, opts) {
-        mylog(1,'call sync',model.storeName,method,model,opts);
+        //mylog(1,'call sync',model.storeName,method,model,opts);
 
         if (model instanceof jstorrent.Collection) {
 

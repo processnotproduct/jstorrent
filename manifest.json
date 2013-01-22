@@ -3,6 +3,7 @@
     "description": "Javascript Torrent Client",
     "version": "0.2.4",
     "manifest_version": 2,
+    "minimum_chrome_version": "24",
     "offline_enabled": true,
     "permissions": [
         {"fileSystem":["write"]},
@@ -13,11 +14,13 @@
             "udp-send-to::"
         ]},
         "storage",
+        "experimental",
         "http://*/",
-        "https://*/"
+        "https://*/",
+        "https://www.googleapis.com/"
     ],
     "oauth2": {
-        "client_id": "432934632994.apps.googleusercontent.com",
+        "client_id": "432934632994-7if8sp8g5mc0gojarmeq8aaet04494hj.apps.googleusercontent.com",
         "scopes": ["https://www.googleapis.com/auth/drive.file"]
     },
     "intents": {
@@ -35,5 +38,9 @@
             "scripts": ["background.js"]
         }
     },
-    "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" }
+    "icons": { 
+        "16": "icon16.png", 
+        "48": "icon48.png", 
+        "128": "icon128.png" 
+    }
 }

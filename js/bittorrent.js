@@ -818,6 +818,7 @@
                 return;
             }
             var payload = jspack.Pack('>II', [piece.num, request.original[0]]);
+            // use blob builder?
             for (var i=0; i<responses.length; i++) {
                 var response = new Uint8Array(responses[i]);
                 for (var j=0; j<response.byteLength; j++) {

@@ -22,6 +22,25 @@ window.base64 = {
 
 
 (function() {
+    assert( window.mime_data );
+    window.mime_map = function(s) {
+        var ext, parts;
+        if (s.indexOf('.') != -1) {
+            parts = s.split('.')
+            ext = parts[parts.length - 1].toLowerCase();
+        }
+
+        if (ext) {
+            if (mime_data[ext]) {
+                return mime_data[ext];
+            } else {
+                return 'text/plain';
+            }
+        } else {
+            return 'text/plain';
+        }
+    }
+
     window.utf8 = {}
     // simpler version
     utf8.toByteArray = function(str) {

@@ -98,6 +98,7 @@ Conn.prototype = {
     },
     onnegotiationneeded: function(evt) {
         console.log('onnegotiationneeded');
+return;
         this.pc.createOffer( _.bind(function(desc) {
             this.offers.push(desc);
             this.pc.setLocalDescription(desc);
@@ -131,7 +132,8 @@ Conn.prototype = {
         console.log('onopen!');
 
         if (this.initiating && this.pc.localStreams.length == 0) {
-            window.dc = this.pc.createDataChannel("test",{reliable:false});
+            //window.dc = this.pc.createDataChannel("test",{reliable:false});
+            window.dc = this.pc.createDataChannel("test",{});
             debugger;
             //navigator.webkitGetUserMedia( { video: true, audio: true }, this.onmedia, this.onmedia );
         }

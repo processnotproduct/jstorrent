@@ -1,16 +1,17 @@
 window.jstorrent = {
+    state: {}
 };
 
 window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8030},
     //debug_torrent_client: {ip:'192.168.56.1', port:8030},
-    //debug_torrent_client: {ip:'192.168.56.101', port:25094},
+    debug_torrent_client: {ip:'192.168.56.101', port:25094},
     unit_tests: false, // run unit tests
     debug_asserts: false,
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
-    bittorrent_proxy: false,
-    //bittorrent_proxy: '192.168.56.1:8030',
+    //bittorrent_proxy: false,
+    bittorrent_proxy: '192.168.56.1:8030',
     //bittorrent_proxy:'kzahel.dyndns.org:8030', // use home computer
     home_computer: 'kzahel.dyndns.org:14098',
 //    external_ip: '38.99.42.130', // HARD CODED IP AT WORK
@@ -27,7 +28,8 @@ window.config = {
     //bittorrent_proxy: 'kzahel.dyndns.org:8030' // torrent proxy service
 }
 if (config.packaged_app) {
-    config.disable_filesystem = false;
+    //config.disable_filesystem = false;
+    //config.debug_torrent_client = null;
 }
 
 if (window.location.host.match('jstorrent.com')) {
@@ -37,6 +39,14 @@ if (window.location.host.match('jstorrent.com')) {
     config.bittorrent_proxy = 'kzahel.dyndns.org:8030';
     config.udp_proxy = 'kzahel.dyndns.org:8030';
     config.bittorrent_incoming_proxy = 'kzahel.dyndns.org:8030';
+}
+
+window.gdriveloaded = function() {
+    jstorrent.state.gdriveloaded = true;
+    if (jstorrent.JSTorrentClient.instance) {
+        jstorrent.JSTorrentClient.instance.get_cloud_storage().authorize();
+        // debugger;
+    }
 }
 
 window.assert = function(v) {
@@ -54,6 +64,8 @@ window.assert = function(v) {
 
     }
 }
+
+
 
 var loglevel = 1;
 
@@ -108,10 +120,10 @@ function to_file_size(size) {
 }
 
 //var curlogmask = LOGMASK.network | LOGMASK.general
-var curlogmask = LOGMASK.general | LOGMASK.hash | LOGMASK.disk;
+//var curlogmask = LOGMASK.general | LOGMASK.hash | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.ui;
-//var curlogmask = LOGMASK.general;
+var curlogmask = LOGMASK.general;
 //var curlogmask = LOGMASK.all;
 
 //curlogmask = LOGMASK.all & (  (Math.pow(2,20) - 1) ^ LOGMASK.udp  )

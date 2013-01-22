@@ -41,7 +41,8 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     <script src="../js/bittorrent.streamparser.js"></script>  
     <script src="../js/bittorrent.dnd.js"></script>  
     <script src="../js/bittorrent.helpers.js"></script>  
-    <script src="../js/bittorrent.tracker.js"></script>  
+    <script src="../js/bittorrent.tracker.js"></script>
+    <script src="../js/bittorrent.mime.js"></script>
     <script src="../js/bittorrent.file.js"></script>  
     <script src="../js/bittorrent.filesystem.js"></script>  
     <script src="../js/bittorrent.client.js"></script>  
@@ -57,10 +58,15 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
     <script src="../js/bittorrent.udptracker.js"></script>  
     <script src="../js/bittorrent.quicktime.js"></script>
     <script src="../js/bittorrent.video.js"></script>
-    <script src="../js/bittorrent.drive.js"></script>
+
     <script src="../js/bittorrent.clouddrive.js"></script>
 
-    <!--script type="text/javascript" src="https://apis.google.com/js/client.js?onload=handleClientLoad"></script-->
+    <script src="https://apis.google.com/js/client.js"></script>
+    <!--script src="https://apis.google.com/js/api.js"></script-->
+    <script>
+      gapi.load('auth', gdriveloaded);
+    </script>
+    <!--script type="text/javascript" src="https://apis.google.com/js/client.js?onload=gdriveloaded"></script-->
 
 
     <script type="text/javascript" src="grid.js"></script>
@@ -178,7 +184,7 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
         <h1>jstorrent</h1>
         <p class="text-info" style="float:right; margin-right:8px;">Welcome to jstorrent! Drag in files to create torrents. Drag in a torrent to start downloading!</p>
 
-<a id="setup-storage" href="#" style="display:none">setup storage</a>
+<a id="setup-storage" href="#">setup storage</a>
 
         <div class="pane-top">
           <div style="position:relative; height:50px;">

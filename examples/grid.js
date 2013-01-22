@@ -461,6 +461,9 @@ var FileTableView = SuperTableView.extend({
             return 'loading...';
         }
 
+        function showupload(cellNode, row, data, colDef) {
+        }
+
         this.torrent = opts.torrent;
         //var editor = Slick.Editors.YesNoSelectEditor;
         var editor = Slick.Editors.SelectCellEditor;
@@ -468,6 +471,9 @@ var FileTableView = SuperTableView.extend({
         opts.columns = [
             {id: "#", name: "num", field: "num", sortable:true, width:30 },
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
+
+            {id: "upload", name: "upload", field: "upload", sortable: false, width:500 },
+
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
             {id: "first_piece", name: "first_piece", field: "first_piece", sortable: true},
@@ -484,6 +490,15 @@ var FileTableView = SuperTableView.extend({
                     return function(row,cell,value,col,data) {
                         return '<a href="' + data.filesystem_entry + '">open</a>';
                     };
+                } else if (column.field == 'upload') {
+                    return function(row,cell,value,col,data) { 
+                        var session = data.get_cloud_upload_session()
+                        if (session) {
+                            return 'have session!';
+                        } else {
+                            return '';
+                        }
+                    }
                 } else if (column.unit == 'bytes') {
                     return function(row,cell,value,col,data) { 
                         var val = data.get(col.field)
@@ -1165,8 +1180,13 @@ function main() {
     });
 
     jsclient.on('unsupported', function() {
-        alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays). Please try again after installing one.')
-        window.location = 'http://www.google.com/chrome';
+        if (navigator.userAgent.match('iPad')) {
+            alert('Sorry. Your iPad is not compatible. Please upgrade your Safari browser, if possible.');
+        } else {
+            alert('This website requires a modern web browser (WebSockets, Filesystem API, Binary arrays). Please try again after installing one.')
+            window.location = 'http://www.google.com/chrome';
+        }
+
     });
 
     $('#js-add_example').click( function() { jsclient.add_example_torrent(); } );

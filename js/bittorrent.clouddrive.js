@@ -25,8 +25,8 @@
         initialize: function(opts) {
             this.file = opts.file;
             this.drive = opts.drive;
+            //this.url_base = "https://www.googleapis.com";
             this.url_base = "https://www.googleapis.com";
-            this.url = "https://www.googleapis.com/upload/drive/v2/files?uploadType=resumable"
             /*
               Chunk size restriction: There are some chunk size restrictions based on the size of the file you are uploading. Files larger than 256 KB (256 x 1024 bytes) must have chunk sizes that are multiples of 256 KB.  For files smaller than 256 KB, there are no restrictions. In either case, the final chunk has no limitations; you can simply transfer the remaining bytes. If you use chunking, it is important to keep the chunk size as large as possible to keep the upload efficient.
             */
@@ -40,6 +40,11 @@
             this.error = null;
             this._pieces = [];
             this._bytes_written = 0; // file bytes uploaded
+            this.on('chunkuploaderror', _.bind( this.on_chunk_upload_error, this ) );
+        },
+        on_chunk_upload_error: function() {
+            // start exponential fallback, etc, detect unrecoverable errors
+            this.error = true;
         },
         get_current_piece_uploading: function() {
             // returns piece index with respect to this._uploaded_bytes
@@ -81,9 +86,12 @@
                 xhr.setRequestHeader('Content-Type','application/json');
                 xhr.onload = _.bind(this.oncreated, this, true, {error:false});
                 xhr.onerror = _.bind(this.oncreated, this, true, {error:true});
-                xhr.send( JSON.stringify({ 'title': filename,
-                                           'mimeType': mime_map(filename)
-                                         }) );
+                var data = { 'title': filename,
+                             'description': 'from torrent ' + this.file.torrent.get_infohash('hex'),
+                             'mimeType': mime_map(filename)
+                           };
+                console.log('create session with data',data);
+                xhr.send( JSON.stringify(data) );
             } else {
                 // RAW xhr not working, get a 403 on the OPTIONS preflight
                 var req = gapi.client.request({
@@ -121,16 +129,17 @@
                 var callback = this._create_callback;
                 this._create_callback = null;
                 callback(true);
-
             } else {
                 callback(false);
             }
         },
         check_status: function(callback) {
+            // not working?
+
             this._checking_status = true;
             var token = this.drive.get_token();
             var xhr = new XMLHttpRequest;
-            xhr.withCredentials=true;
+            //xhr.withCredentials=true;
             var url = this.loc_raw;
             xhr.open("PUT", url, true)
             xhr.setRequestHeader( 'Content-Range', 'bytes ' + '*' + '/' + this.file.size );
@@ -142,15 +151,19 @@
         },
         checked_status: function(info,callback,evt) {
             this._checking_status = false;
+            var headers = evt.target.getAllResponseHeaders();
             var range = evt.target.getResponseHeader('range')
             console.log('STATUS', range);
             var parts = range.split('=')[1].split('-')
             var last_byte = parseInt( parts[1] );
             this._uploaded_bytes = last_byte - 1;
-
-            callback();
+            callback(range, headers);
         },
         upload_chunk: function(blob) {
+            assert( blob.size == this._chunk_size ||
+                    this._uploaded_bytes + blob.size == this.file.size
+                  );
+
             var _this = this;
             assert(! this._current_upload);
             this._current_upload = true;
@@ -193,16 +206,25 @@
                 var token = _this.drive.get_token();
                 //var token = gapi.auth.getToken();
                 var xhr = new XMLHttpRequest;
-                xhr.withCredentials=true;
+                //xhr.withCredentials=true;
                 //var url = this.loc_raw + '&access_token=' + encodeURIComponent(token.access_token);
                 var url = this.loc_raw;
+
                 xhr.open("PUT", url, true)
                 xhr.setRequestHeader( 'Content-Range', 'bytes ' + this._uploaded_bytes + '-' + (this._uploaded_bytes + blob.size-1) + '/' + this.file.size );
                 xhr.setRequestHeader('Authorization',
                                      'Bearer ' + token);
                 xhr.onload = _.bind(this.uploaded_chunk, this, {error:false}, blob.size);
                 xhr.onerror = _.bind(this.uploaded_chunk, this, {error:true}, blob.size);
-                xhr.send( ab );
+                // firefox only likes ArrayBuffer, not views
+                try {
+                    xhr.send( ab );
+                } catch(e) {
+                    // firefox doesn't understand xhr send arraybufferview ?
+                    xhr.send( ab.buffer );
+                }
+
+                
                 
 
 /*
@@ -230,24 +252,43 @@
             // status-check API call to see how many bytes were
             // uploaded...
 
-            if (req && req.error) { 
+            var haderr = false;
+            if (! _.contains([200,308], a.target.status) ) {
+                haderr = true;
+            }
+
+            if ((req && req.error) || haderr) { 
                 //console.error('error uploading chunk?');
+                console.error('upload chunk failed');
+                // chrome returning status code 0, firefox seems to get the 503. on 503 we're supposed to re-try.
+                analyze_xhr_event( a );
+                this.trigger('chunkuploaderror');
+
+                this.check_status( _.bind( function(a,b,c) {
+                    debugger;
+                },this) );
+
+                return;
+                // failed
+
                 if (navigator.vendor.match('Apple Computer')) {
                 }
             }
             this._uploaded_bytes += size;
             this._current_upload = null;
+
             console.log('uploaded chunk!',req,size,a,b, this.file.get('name'));
 
             if (this._uploaded_bytes == this.file.size) {
-                console.error(this.file.get('name'), 'upload done!');
+                mylog(LOGMASK.cloud, this.file.get('name'), 'upload done!');
             } else if (this._uploaded_bytes > this.file.size) {
                 console.error('huh? uploaded too much stuffs');
                 debugger;
             } else {
-                this.check_status( _.bind(function() {
+                this.try_write();
+//                this.check_status( _.bind(function() {
                     this.try_write();
-                }, this));
+//                }, this));
             }
         },
         creating_session: function() {
@@ -257,12 +298,13 @@
             if (this._current_upload) { return true; }
         },
         enqueue_write: function(piece, byterange) {
+            if (this.error) { return true; }
             //this.files_first_piece = this.get_piece_for_filebytes(0);
             this._pieces[piece.num] = [ piece, byterange ];
-
             this.try_write();
         },
         try_write: function() {
+            if (this.error) { return; }
             if (this.uploading()) { return; }
             if (this._checking_status) { return; }
 
@@ -299,7 +341,7 @@
             // [this._uploaded_bytes, this._uploaded_bytes + sz]
 
             var piece_a = this.get_piece_for_filebytes( this._uploaded_bytes );
-            var piece_b = this.get_piece_for_filebytes( Math.min(this._uploaded_bytes + sz, this.file.size) );
+            var piece_b = this.get_piece_for_filebytes( Math.min(this._uploaded_bytes + sz - 1, this.file.size) );
 
             for (var i=piece_a; i<=piece_b; i++) {
                 if (! this._pieces[i]) {
@@ -313,19 +355,59 @@
             var arr = [];
 
             var piece_a = this.get_piece_for_filebytes( this._uploaded_bytes );
-            var piece_b = this.get_piece_for_filebytes( Math.min(this._uploaded_bytes + sz, this.file.size) );
+            var piece_b = this.get_piece_for_filebytes( Math.min(this._uploaded_bytes + sz - 1, this.file.size) );
+
+            var pp;
+            var sliced;
             var piece;
             var piecerange;
 
             var ab;
+            var consumed = 0;
 
             for (var i=piece_a; i<=piece_b; i++) {
-                piece = this._pieces[i][0];
-                var data = piece.get_response_data(this.file);
+
+                /*
+
+                  more index nonsense to sort out. torrent piece sizes
+                  could actually be larger than upload chunk sizes,
+                  though the diagram shows the opposite.
+
+                  |---|---|---|---|---|---|---|---|---|---| torrent pieces
+                                          |                 _uploaded_bytes                   
+                  |------------------|------------------|   files
+                  |-------|-------|-------|-------|-----|   upload_chunk_size
+
+                 */
+                pp = this._pieces[i];
+                assert( pp[0] );
+                piece = pp[0];
+
+                var data = piece.get_response_data(this.file, { from: this.file.start_byte + this._uploaded_bytes });
+                // gives us all file data that intersects with this
+                // piece. we may need to omit from the beginning based
+                // on _uploaded_bytes, and omit from the end based on
+                // the amount we are consuming (sz)
+
+                //console.log('piecenum',piece.num, 'get resp data',data);
+
                 for (var j=0; j<data.length; j++) {
-                    arr.push( data[j] );
+                    if (data[j].length + consumed > sz) {
+                        assert( sz - consumed > 0 );
+                        // need to splice off
+                        sliced = new Uint8Array(data[j].buffer, data[j].byteOffset, sz - consumed);
+                        arr.push( sliced )
+                        //console.log('too big; sliced to len',sliced.length)
+                        consumed += sliced.length;
+                    } else {
+                        arr.push( data[j] );
+                        consumed += data[j].length;
+                    }
+                    assert( consumed <= sz );
                 }
             }
+
+
             return arr;
         }
         
@@ -401,6 +483,7 @@
         },
         write_torrent_piece: function(piece) {
             var torrent = piece.torrent;
+            var haderr;
 
             // don't actually need/want actual filebyterange
             var files_info = piece.get_file_info(0, piece.sz);
@@ -408,8 +491,9 @@
                 var filenum = files_info[i].filenum;
                 var filebyterange = files_info[i].filerange;
                 var file = torrent.get_file(filenum);
-                this.enqueue_write_file_piece( file, piece, filebyterange )
+                haderr = haderr || this.enqueue_write_file_piece( file, piece, filebyterange )
             }
+            return haderr;
         },
         enqueue_write_file_piece: function(file, piece, byterange) {
             // the write queue in bittorrent.file.js has complicated
@@ -431,7 +515,8 @@
                 filesession = this._uploads[key];
             }
 
-            filesession.enqueue_write( piece, byterange );
+            var haderr = filesession.enqueue_write( piece, byterange );
+            return haderr;
         }
     });
 

@@ -15,10 +15,10 @@ window.base64 = {
 
 
 
-
-
-
-
+function analyze_xhr_event(evt) {
+    var xhr = evt.target;
+    console.log('xhr event',evt,'of type',evt.type, 'for xhr',xhr, xhr.status, xhr.statusText);
+}
 
 
 (function() {

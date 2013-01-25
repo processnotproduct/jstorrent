@@ -367,13 +367,16 @@ if (false && window.indexedDB) {
                         }
 
                         new Multi(fns).sequential( function(respitemsraw) {
+                            var respitems = [];
+                            for (var i=0; i<respitemsraw.called.length; i++) {
+                                var s = respitemsraw.called[i].data[0];
 
-
-                            var respitems = _.map( respitemsraw.called, function(data) { return JSON.parse(data.data[0]) } );
-
-                            // what is record does not exist for some reason?
-                            respitems = _.filter( respitems, function(item) { return item != null; } );
-
+                                if (s !== null && typeof s == "string") {
+                                    respitems.push( JSON.parse(s) );
+                                } else {
+                                    debugger;
+                                }
+                            }
                             opts.success( respitems );
 
                         });
@@ -409,7 +412,9 @@ if (false && window.indexedDB) {
                 asyncLocalStorage.setItem( model.collection.storeName, JSON.stringify( torrents ), function(){} );
                 opts.success();
             } else if (method == 'update') {
-                asyncLocalStorage.setItem( key, JSON.stringify(model.toJSON()), function(){} );
+                var val = JSON.stringify(model.toJSON());
+                assert(val);
+                asyncLocalStorage.setItem( key, val, function(){} );
                 opts.success();
             } else if (method == 'delete') {
                 asyncLocalStorage.removeItem( key, function(){} );

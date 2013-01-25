@@ -81,6 +81,7 @@ window.LOGMASK = {'general':1,
                   'udp': Math.pow(2,10),
                   'warn': Math.pow(2,11),
                   'mem': Math.pow(2,12),
+                  'cloud': Math.pow(2,13)
                  };
 LOGMASK_R = {}
 for (var name in LOGMASK) {
@@ -123,7 +124,7 @@ function to_file_size(size) {
 //var curlogmask = LOGMASK.general | LOGMASK.hash | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.ui;
-var curlogmask = LOGMASK.general;
+var curlogmask = LOGMASK.general | LOGMASK.cloud;
 //var curlogmask = LOGMASK.all;
 
 //curlogmask = LOGMASK.all & (  (Math.pow(2,20) - 1) ^ LOGMASK.udp  )

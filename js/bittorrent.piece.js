@@ -184,7 +184,12 @@
                             // this.torrent.notify_have_piece(this); // TODO -- don't actually want to be able to serve these piece requests from cloud storage. Or do we? I suppose a range request couldnt hurt...
 
                             var cloudstore = this.torrent.collection.client.get_cloud_storage();
-                            cloudstore.write_torrent_piece(this);
+                            var haderr = cloudstore.write_torrent_piece(this);
+                            if (haderr) {
+                                this.torrent.stop();
+                                this.torrent.set('state','error');
+                                this.torrent.set('state_description','error uploading chunk to gdrive');
+                            }
 
                             // XXX - WHEN DONE -- mark as "have"
 
@@ -338,8 +343,11 @@
             }
             return info
         },
-        get_response_data_bounds: function(file) {
+        get_response_data_bounds: function(file, opts) {
             /*
+              for a given file, returns two bounds of the form (chunk,
+              offsetinchunk) that intersect with the file
+
               annoying intersections, tricky to get right.
 
               file        |---------|-|--|-----|-------------------------------------
@@ -356,10 +364,16 @@
             var left_bound; // chunknum, chunkoffset
             var right_bound;
 
-            if (file.start_byte <= this.start_byte) {
+            var file_start_byte = file.start_byte;
+
+            if (opts && opts.from) {
+                file_start_byte = opts.from;
+            }
+
+            if (file_start_byte <= this.start_byte) {
                 left_bound = [0,0];
             } else {
-                var fileinbytes = file.start_byte - this.start_byte;
+                var fileinbytes = file_start_byte - this.start_byte;
                 var chunknum = Math.floor( fileinbytes / constants.chunk_size );
                 left_bound = [chunknum, 
                               fileinbytes - chunknum * constants.chunk_size];
@@ -379,13 +393,15 @@
 
             return [left_bound, right_bound];
         },
-        get_response_data: function(file) {
-            // returns a subset of _chunk_responses specific to this file.
+        get_response_data: function(file, opts) {
+            // returns a subset of _chunk_responses specific to this
+            // file (will only return binary data that is actually in
+            // this file)
             assert( this._chunk_responses.length );
 
             var arr = [];
 
-            var bounds = this.get_response_data_bounds(file);
+            var bounds = this.get_response_data_bounds(file, opts);
             var left_bound = bounds[0];
             var right_bound = bounds[1];
             var sz;
@@ -394,8 +410,6 @@
 
             var a;
             var b;
-
-
 
             if (left_bound[0] == right_bound[0]) {
                 // file sits in a single chunk response
@@ -407,6 +421,7 @@
                     new Uint8Array( chunkdata.buffer, offset + chunkdata.byteOffset, sz )
                 )
             } else {
+                // need to collect data from separate chunk responses.
                 for (var i=left_bound[0]; i<=right_bound[0]; i++) {
                     chunkdata = this._chunk_responses[i];
 

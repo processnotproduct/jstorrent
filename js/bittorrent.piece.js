@@ -97,14 +97,22 @@
             this._chunk_responses = [];
             this.try_free('user cleared');
         },
-        register_consumer: function(file) {
+        register_consumer: function(con) {
+            var file = con.file;
             // called to mark that this piece is being used by a file (for cloud uploading)
             assert(! this._file_consumers[file.num] );
-            this._file_consumers[file.num] = true;
+            this._file_consumers[file.num] = con;
         },
-        unregister_consumer: function(file) {
-            assert(this._file_consumers[file.num] );
-            delete this._file_consumers[file.num];
+        unregister_consumer: function(con) {
+            var file = con.file;
+            if (this._file_consumers[file.num] ) {
+                delete this._file_consumers[file.num];
+
+                if (_.keys(this._file_consumers).length == 0) {
+                    // can clean!
+                    this.free('released by upload');
+                }
+            }
         },
         try_free: function(reason) {
             // what are the possible ways a piece can be used?
@@ -179,10 +187,8 @@
                             }
                         }
                         this.set('hashed',true);
-                        if (this.torrent.collection.client.get_filesystem().unsupported) {
-
+                        if (this.torrent.get_storage_area() == 'gdrive') {
                             // this.torrent.notify_have_piece(this); // TODO -- don't actually want to be able to serve these piece requests from cloud storage. Or do we? I suppose a range request couldnt hurt...
-
                             var cloudstore = this.torrent.collection.client.get_cloud_storage();
                             var haderr = cloudstore.write_torrent_piece(this);
                             if (haderr) {
@@ -190,33 +196,16 @@
                                 this.torrent.set('state','error');
                                 this.torrent.set('state_description','error uploading chunk to gdrive');
                             }
-
-                            // XXX - WHEN DONE -- mark as "have"
-
-                            /*
-                              for skipped files, don't send
-                              HAVE. however, utorrent seems to stop
-                              giving us data if we don't send HAVE
-                              messages. ?
-
-                              file.torrent.notify_have_piece(piece, {skipped:true});
-                            */
-                            //this.torrent.notify_have_piece(this);
-
-
+                            this.torrent.notify_have_piece(this, {cloud:true});
                         } else {
-                        //mylog(1,'downloaded piece hash match!')
                             this.write_data_to_filesystem();
                         }
-
                     },this));
-
                 }
                 return true;
             } else {
-                mylog(1, "didn't ask for this piece!", this.num,offset)
+                mylog(1, "didn't ask for this piece!", this.num,offset) // probably piece request timeout
                 return false;
-                //debugger; // didn't ask for this data!
             }
         },
         cleanup: function(reason) {

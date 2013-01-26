@@ -1,6 +1,8 @@
 (function() {
     TorrentFile = Backbone.Model.extend({
         initialize: function(opts) {
+            // TODO -- persist "save" for files (for storing cloud drive data about file ids and such)
+
             this.torrent = opts.torrent;
             this.num = opts.num;
             this.size = this.get_size();
@@ -491,6 +493,17 @@
                     console.warn('user canceled save as dialog');
                 }
             });
+        },
+        get_cloud_filesystem_entry: function(callback) {
+            var drive = this.torrent.collection.client.get_cloud_storage();
+            if (this.get('gdrivedata')) {
+                var data = this.get('gdrivedata');
+                drive.get( '/drive/v2/files/' + data.id, function(resp) {
+                    callback(resp);
+                } );
+            } else {
+                callback({})
+            }
         },
         get_cloud_upload_session: function() {
             var key = this.torrent.get_infohash('hex') + '-' + this.num;

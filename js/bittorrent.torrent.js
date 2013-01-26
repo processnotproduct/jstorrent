@@ -638,10 +638,20 @@
             }
         },
         get_storage_area: function() {
-            return this.get('storage_area') || 'temporary';
+            /*
+              returns the area where files for this torrent are to be stored.
+
+              future storage areas:
+               - memory only (suitable for playing small videos or the like)
+               - dropbox
+             */
+            if (this.collection.client.get_filesystem().unsupported) {
+                return 'gdrive';
+            } else {
+                return this.get('storage_area') || 'temporary';
+            }
         },
         try_add_peers: function() {
-
             //&& this.get('complete') != 1000 // try to seed!
 
             if (this.connections.models.length < this.get('maxconns')) {
@@ -729,7 +739,6 @@
                 var file = this.get_file(filenum);
                 file.write_piece_data( piece, filebyterange );
             }
-
         },
         notify_have_piece: function(piece, opts) {
             if (opts && opts.skipped) {
@@ -737,6 +746,11 @@
                 skip[piece.num] = 1;
                 this.set('bitmask_skip',skip);
             } else {
+                if (opts && opts.cloud) {
+                    // need special handling for pieces to be stored
+                    // in the cloud (extra cost for servign the piece
+                    // data)
+                }
                 this.get('bitmask')[piece.num] = 1;
                 var complete = Math.floor(this.get_complete()*1000);
                 this.set('complete',complete);
@@ -772,17 +786,20 @@
                 return file;
             }
         },
-        get_piece: function(n) {
+        get_piece: function(n, opts) {
             var piece = this.pieces.get(n);
             if (piece) {
                 assert (piece.num == n)
                 return piece
             } else {
-                var piece = new jstorrent.Piece({id:n, torrent:this, num:n});
-                assert(piece.num == n);
-                this.pieces.add(piece);
-                assert(this.pieces.get(n) == piece);
-                return piece;
+                if (opts && opts.nocreate) {
+                } else {
+                    var piece = new jstorrent.Piece({id:n, torrent:this, num:n});
+                    assert(piece.num == n);
+                    this.pieces.add(piece);
+                    assert(this.pieces.get(n) == piece);
+                    return piece;
+                }
             }
 /*
             if (this.pieces[n]) {

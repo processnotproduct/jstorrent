@@ -53,10 +53,13 @@ var FIRST = null;
                         chrome.socket.write( sockno, new Uint8Array(reqdata.payload).buffer, _.bind(function(result) {
                             chrome.socket.read( sockno, null, _.bind(function(response) {
                                 var rdata = this.parse_connection_response(reqdata.tid, ab2arr(new Uint8Array(response.data)));
-                                callback({connid:rdata.connid, sock:sockno});
+                                if (rdata) {
+                                    callback({connid:rdata.connid, sock:sockno});
+                                } else {
+                                    callback({error:'error establishing connection'});
+                                }
                             },this));
                         },this));
-
                     },this));
                 },this));
             } else {
@@ -64,13 +67,17 @@ var FIRST = null;
             }
         },
         parse_connection_response: function(intid, asarr) {
-            assert(asarr.length == 16);
-            var parts = jspack.Unpack(">II",asarr);
-            var action = parts[0];
-            var tid = parts[1];
-            var connid = asarr.slice(8);
-            assert(intid == tid);
-            return {action:action,tid:tid,connid:connid};
+            if (asarr.length == 16) {
+                var parts = jspack.Unpack(">II",asarr);
+                var action = parts[0];
+                var tid = parts[1];
+                var connid = asarr.slice(8);
+                assert(intid == tid);
+                return {action:action,tid:tid,connid:connid};
+            } else {
+                mylog(LOGMASK.udp,'udp tracker connection response invalid');
+                return null;
+            }
         },
         proxy_get_connection: function(callback) {
             var addr = [this.host, this.port];

@@ -74,6 +74,12 @@
                 filename = 'nonchrome-' + filename;
             }
 
+
+            var bodydata = { 'title': filename,
+                             'description': 'from torrent ' + this.file.torrent.get_infohash('hex'),
+                             'mimeType': mime_map(filename)
+                           };
+
             if (config.packaged_app) {
                 var token = this.drive.get_token();
                 var xhr = new XMLHttpRequest;
@@ -86,23 +92,19 @@
                 xhr.setRequestHeader('Content-Type','application/json');
                 xhr.onload = _.bind(this.oncreated, this, true, {error:false});
                 xhr.onerror = _.bind(this.oncreated, this, true, {error:true});
-                var data = { 'title': filename,
-                             'description': 'from torrent ' + this.file.torrent.get_infohash('hex'),
-                             'mimeType': mime_map(filename)
-                           };
-                console.log('create session with data',data);
-                xhr.send( JSON.stringify(data) );
+                console.log('create session with data',bodydata);
+                xhr.send( JSON.stringify(bodydata) );
             } else {
                 // RAW xhr not working, get a 403 on the OPTIONS preflight
                 var req = gapi.client.request({
                     'path': '/upload/drive/v2/files',
                     'method': 'POST',
-                    'headers': {
-                        'X-Upload-Content-Type': 'text/plain',
-                        'X-Upload-Content-Length': this.file.size
-                    },
+//                    'headers': {
+//                        'X-Upload-Content-Type': 'text/plain',
+//                        'X-Upload-Content-Length': this.file.size
+//                    },
                     'params': {'uploadType': 'resumable'},
-                    'body': { "title": filename }
+                    'body': bodydata
                 });
                 req.execute( _.bind(this.oncreated, this, false, req) );
             }
@@ -111,7 +113,8 @@
             // got lazy with function argument names because gapi
             // essentially gives me random crap anyway
 
-            console.log('created session!',req,a,b,this.file.get('name'));
+            //console.log('created session!',req,a,b,this.file.get('name'));
+            console.log('created session!',this.file.get('name'));
             this._creating_session = false;
             var loc;
 
@@ -134,30 +137,48 @@
             }
         },
         check_status: function(callback) {
-            // not working?
+            console.log('check status!');
 
-            this._checking_status = true;
-            var token = this.drive.get_token();
-            var xhr = new XMLHttpRequest;
-            //xhr.withCredentials=true;
-            var url = this.loc_raw;
-            xhr.open("PUT", url, true)
-            xhr.setRequestHeader( 'Content-Range', 'bytes ' + '*' + '/' + this.file.size );
-            xhr.setRequestHeader('Authorization',
-                                 'Bearer ' + token);
-            xhr.onload = _.bind(this.checked_status, this, {error:false}, callback);
-            xhr.onerror = _.bind(this.checked_status, this, {error:true}, callback);
-            xhr.send();
+            if (config.packaged_app) {
+                // not working?
+                this._checking_status = true;
+                var token = this.drive.get_token();
+                var xhr = new XMLHttpRequest;
+                //xhr.withCredentials=true;
+                var url = this.loc_raw;
+                xhr.open("POST", url, true)
+                xhr.setRequestHeader( 'Content-Range', 'bytes ' + '*' + '/' + this.file.size );
+                xhr.setRequestHeader('Authorization',
+                                     'Bearer ' + token);
+                xhr.onload = _.bind(this.checked_status, this, {error:false}, callback);
+                xhr.onerror = _.bind(this.checked_status, this, {error:true}, callback);
+                xhr.send();
+            } else {
+                var req = gapi.client.request({
+                    'path': this.loc,
+                    'method': 'POST',
+                    'headers': {
+                        'Content-Range': 'bytes ' + '*' + '/' + this.file.size,
+                    }
+                });
+                req.execute( _.bind(this.checked_status, this, {gapiclient:true}, callback) );
+            }
         },
-        checked_status: function(info,callback,evt) {
+        checked_status: function(info,callback,evt,x,y) {
             this._checking_status = false;
-            var headers = evt.target.getAllResponseHeaders();
-            var range = evt.target.getResponseHeader('range')
-            console.log('STATUS', range);
-            var parts = range.split('=')[1].split('-')
-            var last_byte = parseInt( parts[1] );
-            this._uploaded_bytes = last_byte - 1;
-            callback(range, headers);
+            if (info && info.gapiclient) {
+                if (evt.fileSize == this.file.size) {
+                    callback( { finished: true }, null, evt )
+                }
+            } else {
+                var headers = evt.target.getAllResponseHeaders();
+                var range = evt.target.getResponseHeader('range');
+                //console.log('STATUS', range);
+                var parts = range.split('=')[1].split('-')
+                var last_byte = parseInt( parts[1] );
+                this._uploaded_bytes = last_byte - 1;
+                callback({range:range}, headers);
+            }
         },
         upload_chunk: function(blob) {
             assert( blob.size == this._chunk_size ||
@@ -169,12 +190,6 @@
             this._current_upload = true;
 
             assert(this.loc);
-
-/*
-            this.uploaded_chunk({}, blob.size, true, true);
-            return;
-*/
-
             var _this = this;
 
             if (! this.fr) {
@@ -223,10 +238,6 @@
                     // firefox doesn't understand xhr send arraybufferview ?
                     xhr.send( ab.buffer );
                 }
-
-                
-                
-
 /*
                 var req = gapi.client.request({
                     'path': this.loc,
@@ -262,33 +273,64 @@
                 console.error('upload chunk failed');
                 // chrome returning status code 0, firefox seems to get the 503. on 503 we're supposed to re-try.
                 analyze_xhr_event( a );
-                this.trigger('chunkuploaderror');
 
-                this.check_status( _.bind( function(a,b,c) {
+                // if 503 error code, do something totally different...
+                if (a.target.status == 503) {
                     debugger;
+                }
+
+                this.check_status( _.bind( function(info,h,evt) {
+                    if (info && info.finished) {
+                        // CORS issue, but file did indeed finish uploading.
+                    } else {
+                        debugger;
+                        this.trigger('chunkuploaderror');
+                    }
                 },this) );
 
                 return;
                 // failed
 
-                if (navigator.vendor.match('Apple Computer')) {
-                }
+                //if (navigator.vendor.match('Apple Computer')) {
+                //}
             }
             this._uploaded_bytes += size;
             this._current_upload = null;
 
-            console.log('uploaded chunk!',req,size,a,b, this.file.get('name'));
+            //console.log('uploaded chunk!',req,size,a,b, this.file.get('name'));
+            console.log('uploaded chunk!',this.file.get('name'), this._uploaded_bytes);
 
             if (this._uploaded_bytes == this.file.size) {
                 mylog(LOGMASK.cloud, this.file.get('name'), 'upload done!');
+                // parse meta info
+                var gdrivedata = JSON.parse( a.target.responseText )
+                this.file.set('gdrivedata',gdrivedata);
+                this.uploaded_chunk_success(this._uploaded_bytes, true);
             } else if (this._uploaded_bytes > this.file.size) {
                 console.error('huh? uploaded too much stuffs');
                 debugger;
             } else {
+                this.uploaded_chunk_success(this._uploaded_bytes);
+
                 this.try_write();
 //                this.check_status( _.bind(function() {
                     this.try_write();
 //                }, this));
+            }
+        },
+        uploaded_chunk_success: function(bytesnow, done) {
+            // call piece.unregister_consumer for any piece below this range so that these pieces can be freed from memory
+            var bounds = this.file.get_piece_boundaries();
+            var piece_a = bounds[0];
+            var piece_b = bounds[1];
+            var piece;
+
+            for (var i=piece_a; i<=piece_b; i++) {
+                piece = this.file.torrent.get_piece(i, {nocreate:true});
+                if (piece && (done || piece.end_byte < bytesnow)) {
+                    //console.log('unregistering piece',piece.num,'consumer',this.file.num);
+                    piece.unregister_consumer( this );
+                }
             }
         },
         creating_session: function() {
@@ -301,6 +343,8 @@
             if (this.error) { return true; }
             //this.files_first_piece = this.get_piece_for_filebytes(0);
             this._pieces[piece.num] = [ piece, byterange ];
+            //console.log('piece',piece.num,'register consumer',this.file.num);
+            piece.register_consumer( this );
             this.try_write();
         },
         try_write: function() {
@@ -419,6 +463,7 @@
             this._uploads = {}; // list of file upload sessions
             // keys look like {infohash}-{file index}
             this.CLIENT_ID = '432934632994.apps.googleusercontent.com';
+            this.url_base = 'https://www.googleapis.com';
             this.SCOPES = [
                 'https://www.googleapis.com/auth/drive.file',
             ];
@@ -432,6 +477,20 @@
                 // tracking)
                 this.authorize();
             }
+        },
+        get: function(path, callback) {
+            // do basic get with auth
+            var xhrurl = this.url_base + path;
+            var xhr = new XMLHttpRequest;
+            xhr.open('GET', xhrurl);
+            xhr.setRequestHeader('Authorization', 'Bearer ' + this.get_token());
+            xhr.onload = function(evt) {
+                callback(JSON.parse(xhr.responseText));
+            };
+            xhr.onerror = function(evt) {
+                callback({error:true});
+            };
+            xhr.send();
         },
         process_after_auth_queue: function() {
             for (var i=0; i<this._after_auth_queue.length; i++) {
@@ -484,8 +543,7 @@
         write_torrent_piece: function(piece) {
             var torrent = piece.torrent;
             var haderr;
-
-            // don't actually need/want actual filebyterange
+            // don't actually need actual filebyterange
             var files_info = piece.get_file_info(0, piece.sz);
             for (var i=0; i<files_info.length; i++) {
                 var filenum = files_info[i].filenum;

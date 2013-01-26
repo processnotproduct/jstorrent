@@ -376,87 +376,89 @@ var TorrentTableView = SuperTableView.extend({
 });
 
 
+
+function renderFileDownload(cellNode, row, data, colDef) {
+    var file = data;
+    var torrent = file.torrent;
+
+    if (torrent.get_storage_area() == 'gdrive') {
+        file.get_cloud_filesystem_entry( function(fe) {
+            if (fe.downloadUrl) {
+                $(cellNode).html( '<a href="' + fe.downloadURL + '" download="'+file.get('name')+'">Download</a>' );
+            } else {
+                $(cellNode).text( JSON.stringify(fe) );
+            }
+        });
+    } else if (jsclient.get_filesystem().unsupported) {
+        return 'no filesystem';
+    } else {
+        $(cellNode).empty()
+        data.get_filesystem_entry( function() {
+            // SPAGHETTI!!!!!
+            if (data.filesystem_entry && ! data.filesystem_entry.error) {
+                if (data.stream_parseable_type() && ! data.complete() && ! config.packaged_app) {// broken for packaged apps for some reason...
+                    $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
+                    $('.stream', cellNode).click( function(evt) {
+                        jsclient.stream(data.torrent.hash_hex, data.num);
+                    });
+                } else {
+                    if (config.packaged_app) {
+                        var openstr = '';
+                    } else {
+                        var openstr = '<a class="js-newwin" href="#"><i class="icon-arrow-down"></i>Open</a>';
+                    }
+                    $(cellNode).empty().html(
+                        '<a class="js-download" href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
+                            + openstr
+                    )
+                    $('.js-download', cellNode).click( function(evt) {
+                        if (config.packaged_app) {
+                            data.save_as();
+                            evt.preventDefault();
+                        }
+                        //jsclient.stream(data.torrent.hash_hex, data.num);
+                    });
+                    $('.js-newwin', cellNode).click( function(evt) {
+                        if (config.packaged_app) {
+                            debugger;
+                            chrome.app.window.create( data.filesystem_entry.toURL(), {frame:'none'}, function(r){
+                                console.log('open windown result',r);
+                                evt.preventDefault();
+                                evt.stopPropagation();
+                            });
+                        } else {
+                            window.open( data.filesystem_entry.toURL() );
+                            //mylog(1,'clicked js-newwin, but not packaged app');
+                        }
+                    });
+                }
+            } else if (data.filesystem_entry && data.filesystem_entry.error) {
+                $(cellNode).text(data.filesystem_entry.error);
+            } else {
+                if (data.complete()) {
+                    $(cellNode).empty().html(
+                        '<a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
+                            +
+                            '<a href="' + data.filesystem_entry.toURL() + '"><i class="icon-arrow-down"></i>Open</a>'
+                    )
+                } else if (data.stream_parseable_type() && ! config.packaged_app) {
+                    $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
+                    $('.stream', cellNode).click( function(evt) {
+                        jsclient.stream(data.torrent.hash_hex, data.num);
+                    });
+                } else {
+                    $(cellNode).empty()
+                }
+            }
+        }, {create:false});
+    }
+}
+
+
+
+
 var FileTableView = SuperTableView.extend({
     initialize: function(opts) {
-        function renderLink(cellNode, row, data, colDef) {
-            if (jsclient.get_filesystem().unsupported) {
-                return 'no filesystem';
-            } else {
-                $(cellNode).empty()
-                data.get_filesystem_entry( function() {
-
-                    // SPAGHETTI!!!!!
-
-                    if (data.filesystem_entry && ! data.filesystem_entry.error) {
-                        if (data.stream_parseable_type() && ! data.complete() && ! config.packaged_app) {// broken for packaged apps for some reason...
-                            $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
-                            $('.stream', cellNode).click( function(evt) {
-                                jsclient.stream(data.torrent.hash_hex, data.num);
-                            });
-                        } else {
-                            if (config.packaged_app) {
-                                var openstr = '';
-                            } else {
-                                var openstr = '<a class="js-newwin" href="#"><i class="icon-arrow-down"></i>Open</a>';
-                            }
-
-
-                            $(cellNode).empty().html(
-                                                  '<a class="js-download" href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
-                                                      + openstr
-
-                            )
-
-                            $('.js-download', cellNode).click( function(evt) {
-                                if (config.packaged_app) {
-                                    data.save_as();
-                                    evt.preventDefault();
-                                }
-
-                                //jsclient.stream(data.torrent.hash_hex, data.num);
-                            });
-
-
-                            $('.js-newwin', cellNode).click( function(evt) {
-                                if (config.packaged_app) {
-                                    debugger;
-                                    chrome.app.window.create( data.filesystem_entry.toURL(), {frame:'none'}, function(r){
-                                        console.log('open windown result',r);
-                                        evt.preventDefault();
-                                        evt.stopPropagation();
-                                    });
-                                } else {
-                                    window.open( data.filesystem_entry.toURL() );
-
-                                    //mylog(1,'clicked js-newwin, but not packaged app');
-                                }
-
-                            });
-
-
-
-                        }
-                    } else if (data.filesystem_entry && data.filesystem_entry.error) {
-                        $(cellNode).text(data.filesystem_entry.error);
-                    } else {
-                        if (data.complete()) {
-                            $(cellNode).empty().html(
-                                                  '<a href="' + data.filesystem_entry.toURL() + '" download="'+data.filesystem_entry.name+'"><i class="icon-arrow-down"></i>Download</a>'
-                                                      +
-                                                  '<a href="' + data.filesystem_entry.toURL() + '"><i class="icon-arrow-down"></i>Open</a>'
-                            )
-                        } else if (data.stream_parseable_type() && ! config.packaged_app) {
-                            $(cellNode).empty().html('<a class="stream" href="#"><i class="icon-play"></i>Stream</a>');
-                            $('.stream', cellNode).click( function(evt) {
-                                jsclient.stream(data.torrent.hash_hex, data.num);
-                            });
-                        } else {
-                            $(cellNode).empty()
-                        }
-                    }
-                }, {create:false});
-            }
-        }
         function waitingFormatter() {
             return 'loading...';
         }
@@ -472,13 +474,13 @@ var FileTableView = SuperTableView.extend({
             {id: "#", name: "num", field: "num", sortable:true, width:30 },
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
 
-            {id: "upload", name: "upload", field: "upload", sortable: false, width:500 },
+//            {id: "upload", name: "upload", field: "upload", sortable: false, width:500 },
 
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
             {id: "first_piece", name: "first_piece", field: "first_piece", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
-            {id:'actions', name:'actions', field:'actions', width:320, asyncPostRender: renderLink, formatter: waitingFormatter },
+            {id:'actions', name:'actions', field:'actions', width:320, asyncPostRender: renderFileDownload, formatter: waitingFormatter },
             {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false },
             {id: "priority", name: "priority", field: "priority", sortable: true, editor: editor, options:'Normal,Skip' }
         ];
@@ -539,6 +541,7 @@ var PeerTableView = SuperTableView.extend({
         opts.columns = [
             {id: "client", name: "client", field: "client", sortable: true, width:140 },
             {id: "country", name: "country", field: "country", sortable: true, width:140 },
+            {name: "strurl", field: "conntype", width:30 },
             {id: "host", name: "host", field: "host", sortable: true, width:130 },
             {id: "port", name: "port", field: "port", sortable: true, width:60 },
             {id: "eport", name: "eport", field: "eport", sortable: true, width:60 },
@@ -574,6 +577,10 @@ var PeerTableView = SuperTableView.extend({
                         if (data._remote_extension_handshake) {
                             return data._remote_extension_handshake['v'];
                         }
+                    };
+                } else if (column.field == 'conntype') {
+                    return function(row,cell,value,col,data) {
+                        return data.strurl
                     };
                 } else if (column.field == 'country') {
                     return function(row,cell,value,col,data) {

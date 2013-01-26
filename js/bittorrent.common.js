@@ -120,11 +120,12 @@ function to_file_size(size) {
 
 }
 
+curlogmask = LOGMASK.general | LOGMASK.cloud;
 //var curlogmask = LOGMASK.network | LOGMASK.general
 //var curlogmask = LOGMASK.general | LOGMASK.hash | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.disk;
 //var curlogmask = LOGMASK.general | LOGMASK.ui;
-var curlogmask = LOGMASK.general | LOGMASK.cloud;
+//var curlogmask = LOGMASK.general | LOGMASK.cloud;
 //var curlogmask = LOGMASK.all;
 
 //curlogmask = LOGMASK.all & (  (Math.pow(2,20) - 1) ^ LOGMASK.udp  )

@@ -79,9 +79,11 @@
 
             var filename = utf8.parse(str2arr(this.file.get('name')));
 
+/*
             if (! navigator.vendor.match('Google')) {
                 filename = 'nonchrome-' + filename;
             }
+*/
 
 
             var bodydata = { 'title': filename,
@@ -137,12 +139,13 @@
             this.file.set('gdrive:upload_location', loc);
             this.file.save();
 
+            var callback = this._create_callback;
+            this._create_callback = null;
+
             if (loc) {
                 // safari has upper-case. motherfuckers
                 this.loc_raw = loc;
                 this.loc = loc.slice(loc.indexOf('/upload'), loc.length);
-                var callback = this._create_callback;
-                this._create_callback = null;
                 callback(true);
             } else {
                 callback(false);
@@ -214,7 +217,7 @@
 
             assert(this.loc);
             var _this = this;
-
+/*
             if (! this.fr) {
                 this.fr = new FileReader;
             }
@@ -224,9 +227,10 @@
             this.fr.onerror = function(){debugger;}
 
             this.fr.onload = _.bind(function(r) {
+*/
                 assert(this === _this);
                 //console.log(this.file.get('name'),'read blob of sz',blob.size);
-                var ab = new Uint8Array(r.target.result);
+//                var ab = new Uint8Array(r.target.result);
                 //var ab = r.target.result;
                 // XXX - "body" cannot be typed array using gapi library. Use raw XMLHTTPRequest!
 
@@ -249,13 +253,22 @@
                 //var url = this.loc_raw + '&access_token=' + encodeURIComponent(token.access_token);
                 var url = this.loc_raw;
 
+                //url = 'http://192.168.56.1:9090/drive/v2/files'; // debug
+
                 xhr.open("PUT", url, true)
                 xhr.setRequestHeader( 'Content-Range', 'bytes ' + this._uploaded_bytes + '-' + (this._uploaded_bytes + blob.size-1) + '/' + this.file.size );
                 xhr.setRequestHeader('Authorization',
                                      'Bearer ' + token);
                 xhr.onload = _.bind(this.uploaded_chunk, this, {error:false}, blob.size);
                 xhr.onerror = _.bind(this.uploaded_chunk, this, {error:true}, blob.size);
+            xhr.onreadystatechange = function(evt) {
+                console.log('chunk readystate',evt);
+            }
                 // firefox only likes ArrayBuffer, not views
+
+            mylog(LOGMASK.cloud, 'uploading chunk of sz',blob.size);
+                xhr.send(blob);
+/*
                 try {
                     console.log('xhr sending view with length', ab.length);
                     xhr.send( ab );
@@ -264,6 +277,7 @@
                     // firefox doesn't understand xhr send arraybufferview ?
                     xhr.send( ab.buffer );
                 }
+*/
 /*
                 var req = gapi.client.request({
                     'path': this.loc,
@@ -277,7 +291,7 @@
 
                 req.execute( _.bind(this.uploaded_chunk, this, req, blob.size) );
 */
-            },this);
+//            },this);
         },
         uploaded_chunk: function(req,size,a,b) {
             // note that even though OPTIONS succeeds (gives header
@@ -288,6 +302,7 @@
             // we will assume it worked? and use an out of band
             // status-check API call to see how many bytes were
             // uploaded...
+            this._current_upload = null;
 
             var haderr = false;
             if (! _.contains([200,308], a.target.status) ) {
@@ -295,6 +310,7 @@
             }
 
             if ((req && req.error) || haderr) { 
+
                 //console.error('error uploading chunk?');
                 console.error('upload chunk failed');
                 //if (config.debug_asserts) { debugger; }
@@ -323,37 +339,30 @@
                         }
                     }
                 },this) );
-
-                return;
-                // failed
-
-                //if (navigator.vendor.match('Apple Computer')) {
-                //}
-            }
-            this._uploaded_bytes += size;
-            this._current_upload = null;
-
-            //console.log('uploaded chunk!',req,size,a,b, this.file.get('name'));
-            mylog(LOGMASK.cloud, 'uploaded chunk!',this.file.get('name'), this._uploaded_bytes);
-
-            if (this._uploaded_bytes == this.file.size) {
-                mylog(LOGMASK.cloud, this.file.get('name'), 'upload done!');
-                // parse meta info
-                var gdrivedata = JSON.parse( a.target.responseText )
-                this.file.set('gdrive:fileId',gdrivedata.id);
-                this.file.save();
-
-                this.uploaded_chunk_success(this._uploaded_bytes, true);
-            } else if (this._uploaded_bytes > this.file.size) {
-                console.error('huh? uploaded too much stuffs');
-                debugger;
             } else {
-                this.uploaded_chunk_success(this._uploaded_bytes);
+                this._uploaded_bytes += size;
 
-                this.try_write();
-//                this.check_status( _.bind(function() {
-//                    this.try_write();
-//                }, this));
+
+                //console.log('uploaded chunk!',req,size,a,b, this.file.get('name'));
+                mylog(LOGMASK.cloud, 'uploaded chunk!',this.file.get('name'), this._uploaded_bytes);
+
+                if (this._uploaded_bytes == this.file.size) {
+                    mylog(LOGMASK.cloud, this.file.get('name'), 'upload done!');
+                    // parse meta info
+                    var gdrivedata = JSON.parse( a.target.responseText )
+                    this.file.set('gdrive:fileId',gdrivedata.id);
+                    this.file.save();
+                    this.uploaded_chunk_success(this._uploaded_bytes, true);
+                } else if (this._uploaded_bytes > this.file.size) {
+                    console.error('huh? uploaded too much stuffs');
+                    debugger;
+                } else {
+                    this.uploaded_chunk_success(this._uploaded_bytes);
+                    this.try_write();
+                    //                this.check_status( _.bind(function() {
+                    //                    this.try_write();
+                    //                }, this));
+                }
             }
         },
         uploaded_chunk_success: function(bytesnow, done) {
@@ -386,11 +395,22 @@
             this.try_write();
         },
         try_write: function() {
-            if (this.error) { return; }
-            if (this.uploading()) { return; }
-            if (this._checking_status) { return; }
+            console.log('try write!')
+            if (this.error) { 
+                console.error('try write fail - error');
+                return; 
+            }
+            if (this.uploading()) { 
+                console.log('cant write - uploading')
+                return; 
+            }
+            if (this._checking_status) { 
+                console.log('cant write checkin status')
+                return; 
+            }
 
             if (this.can_consume( this._chunk_size )) {
+                console.log('can consume!');
                 if (! this.drive.have_valid_token()) {
                     this.drive.trigger('need_user_authorization');
                     // set lock until authorized
@@ -419,8 +439,8 @@
                 }
 
                 //console.log(this.file.get('name'), 'consume data', [arr2str(data[0])] );
-                var blob = new Blob(data);
-                //var blob = FixSafariBuggyBlob(data);
+                //var blob = new Blob(data);
+                var blob = FixSafariBuggyBlob(data);
                 assert( sum == blob.size );
 
                 this.upload_chunk( blob );
@@ -534,8 +554,6 @@
                     console.log('authorized, show files list',result);
                 });
             });
-
-
         },
         list_files: function(callback) {
             this.request( { method: "GET", 
@@ -548,13 +566,24 @@
         gdrive_onload: function() {
             this._gdrive_loaded = true;
             var _this = this;
-            gapi.client.setApiKey(this.API_KEY);
+
+            // firefox is not authorizing. fuck you firefox.
+            this.get_new_token( { immediate: true }, function(resp) {
+                console.log('gdrive onload immediate auth result',resp);
+            });
+/*
             gapi.auth.authorize({immediate:true},function(result) {
                 console.log('onload auth result',result);
                 if (! result) {
-                    _this.trigger('need_user_authorization');
+                    if (navigator.product == 'Gecko') {
+                    } else {
+                        _this.trigger('need_user_authorization');
+                    }
                 }
             });
+*/
+
+
         },
         token_expired: function() {
             if (this._token_expires) {
@@ -629,7 +658,6 @@
                         if (obj.error.code == 401) {
                             console.warn('drive request returned 401',obj,text);
                             if (obj.error.message == "Invalid Credentials") {
-                                debugger;
                                 this.trigger('need_user_authorization'); // does this happen with token expried too?
                                 // credentials were revoked via deleting the app from gdrive
                             } else {
@@ -677,12 +705,13 @@
                         _this._token_expires = new Date() + (1000 * 60 * 24 * 365); // one year.
                         _this.trigger('authorized');
                         // expires in?
-                        callback({});
+                        callback({success:true});
                     } else {
                         callback({error:true})
                     }
                 });
             } else {
+                gapi.client.setApiKey(this.API_KEY);
                 gapi.auth.authorize(
                     {'client_id': _this.CLIENT_ID, 'scope': _this.SCOPES.join(' '), immediate:immediate},
                     function(result) {
@@ -692,7 +721,7 @@
                             _this._token = result.access_token;
                             _this.trigger('authorized');
                             //_this.process_after_auth_queue();
-                            callback({});
+                            callback({success:true});
                         } else {
                             callback({error:true, data:result});
                         }

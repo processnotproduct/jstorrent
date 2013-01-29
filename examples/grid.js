@@ -894,8 +894,9 @@ var JSTorrentClientView = BaseView.extend({
 
         jsclient.get_cloud_storage().on('need_user_authorization', function() {
             // show a dialog for user authorization
+            debugger;
             gapi.auth.init( function() {
-                alert('please click on "setup storage" to allow access to saving to google drive');
+                myalert('please click on "setup storage" to allow access to saving to google drive');
             });
         });
 

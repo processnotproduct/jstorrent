@@ -182,7 +182,6 @@
         },
         add_torrent: function(args, opts) {
             // check if already in models...
-
             if (args && args.metadata) {
                 var torrent = new jstorrent.Torrent( { metadata: args.metadata }, { collection: this.torrents } );
             } else if (args && args.infohash) {
@@ -191,10 +190,9 @@
             } else if (args && args.magnet) {
                 var torrent = new jstorrent.Torrent( { magnet: args.magnet }, { collection: this.torrents } );
             }
-
-            this.add_torrent_to_collection(torrent);
+            this.add_torrent_to_collection(torrent, opts);
         },
-        add_torrent_to_collection: function(torrent) {
+        add_torrent_to_collection: function(torrent, opts) {
             if (! this.torrents.contains(torrent)) {
                 torrent.newid = torrent.id;
                 torrent.id = null; // make sure backbone.Model.isNew evals to true
@@ -204,7 +202,7 @@
                     debugger;
                 });
                 torrent.save()
-                return torrent;
+
                 //torrent.save(); // have to save so that id gets set
                 //assert( this.torrents._byId[torrent.id] );
                 if (opts && opts.dontstart) {
@@ -212,9 +210,8 @@
                     torrent.start();
                 }
                 torrent.save();
+                return torrent;
                 //torrent.announce();
-
-                
             } else {
                 var existing_torrent = this.torrents.get_by_hash(torrent.hash_hex);
                 existing_torrent.trigger('flash', existing_torrent);
@@ -234,6 +231,7 @@
                        str.slice(0,'https://'.length) == 'https://'
                       ) {
                 if (config.packaged_app) {
+                    // XXX -- "web_url" sometimes leads to weird persistence
                     var torrent = new jstorrent.Torrent( { web_url: str }, { collection: this.torrents } );
                 } else {
                     //debugger; // use a proxy service to download and serve back
@@ -245,9 +243,6 @@
             } else {
                 debugger;
             }
-
-            // asynchronous now
-            //assert( _.keys(this.torrents._byId).length == this.torrents.models.length );
         },
         add_consec_torrent: function(num) {
             num = num | 1;

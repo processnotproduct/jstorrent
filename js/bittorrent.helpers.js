@@ -21,11 +21,16 @@ function analyze_xhr_event(evt) {
 }
 
 if (new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3) {
-    function FixSafariBuggyBlob(arr, opt) {
-        return new Blob(arr, opt);
+
+    window.FixSafariBuggyBlob = function(arr, opt) {
+        if (opt) {
+            return new Blob(arr, opt);
+        } else {
+            return new Blob(arr);
+        }
     }
 } else {
-    function FixSafariBuggyBlob(arr, opt) {
+    window.FixSafariBuggyBlob = function(arr, opt) {
         //assert(arr.length == 1);
         var totallength = 0;
         for (var i=0; i<arr.length; i++) {

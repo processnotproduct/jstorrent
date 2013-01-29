@@ -47,7 +47,26 @@ window.gdriveloaded = function() {
         // google drive loaded AFTER jstorrent code loaded
         jstorrent.JSTorrentClient.instance.get_cloud_storage().gdrive_onload();
     }
-}
+};
+
+(function() {
+    // this is silly :-D
+
+    var last_alert = null;
+    var dismissed = false;
+
+    window.myalert = function(v) {
+        if (last_alert == v && ! dismissed) {
+            return;
+        }
+        dismissed = false;
+        last_alert = v
+        alert(v);
+        dismissed = true;
+        console.log('dismissed',dismissed);
+    }
+
+})();
 
 window.assert = function(v) {
     if (!v) { 
@@ -61,7 +80,6 @@ window.assert = function(v) {
         if (arguments[1] && arguments[1].throw) {
             throw Error('assert throw');
         }
-
     }
 }
 

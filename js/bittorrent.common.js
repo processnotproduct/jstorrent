@@ -7,7 +7,7 @@ window.config = {
     //debug_torrent_client: {ip:'192.168.56.1', port:8030},
     debug_torrent_client: {ip:'192.168.56.101', port:25094},
     unit_tests: false, // run unit tests
-    debug_asserts: false,
+    debug_asserts: true,
     tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     //bittorrent_proxy: false,
@@ -44,8 +44,8 @@ if (window.location.host.match('jstorrent.com')) {
 window.gdriveloaded = function() {
     jstorrent.state.gdriveloaded = true;
     if (jstorrent.JSTorrentClient.instance) {
-        jstorrent.JSTorrentClient.instance.get_cloud_storage().authorize();
-        // debugger;
+        // google drive loaded AFTER jstorrent code loaded
+        jstorrent.JSTorrentClient.instance.get_cloud_storage().gdrive_onload();
     }
 }
 

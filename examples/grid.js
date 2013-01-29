@@ -383,8 +383,17 @@ function renderFileDownload(cellNode, row, data, colDef) {
 
     if (torrent.get_storage_area() == 'gdrive') {
         file.get_cloud_filesystem_entry( function(fe) {
-            if (fe.downloadUrl) {
-                $(cellNode).html( '<a href="' + fe.downloadURL + '" download="'+file.get('name')+'">Download</a>' );
+            // altlink opens in gdrive
+
+            // webContentLink is for just downloadin
+
+            if (fe.alternateLink) {
+
+                var openlink = '<a href="' + fe.alternateLink + '" target="_blank"><i class="icon-arrow-down"></i>Open</a>';
+                var dllink = '<a href="' + fe.webContentLink + '" download="'+file.get('name')+'"><i class="icon-arrow-down"></i>Download</a>'
+                //$(cellNode).html( '<a href="' + fe.alternateLink + '" download="'+file.get('name')+'">Download</a>' );
+                $(cellNode).html(  openlink + dllink);
+                //console.log('got gdrive data',fe);
             } else {
                 $(cellNode).text( JSON.stringify(fe) );
             }
@@ -862,7 +871,10 @@ var JSTorrentClientViewSettings = Backbone.Model.extend({
     database: jstorrent.storage,
     storeName: 'setting',
     initialize: function() {
-    }
+    },
+    get_storage_key: function() {
+        return this.get('id');
+    },
     
 });
 
@@ -879,6 +891,13 @@ var JSTorrentClientView = BaseView.extend({
         this.detailview = null;
         this.commands = new CommandsView({el:this.$('.commands'), table:this.torrenttable});
         this.tabs = new TabsView({el:this.$('.tabs')});
+
+        jsclient.get_cloud_storage().on('need_user_authorization', function() {
+            // show a dialog for user authorization
+            gapi.auth.init( function() {
+                alert('please click on "setup storage" to allow access to saving to google drive');
+            });
+        });
 
         $('#js-add-example-torrent').click( _.bind(function(evt) {
             jsclient.add_unknown(

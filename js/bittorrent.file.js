@@ -1,9 +1,9 @@
 (function() {
     TorrentFile = Backbone.Model.extend({
-        initialize: function(opts) {
+        initialize: function(opts, opts2) {
             // TODO -- persist "save" for files (for storing cloud drive data about file ids and such)
 
-            this.torrent = opts.torrent;
+            this.torrent = opts2.torrent;
             this.num = opts.num;
             this.size = this.get_size();
             this.start_byte = this.torrent._file_byte_accum[this.num];
@@ -13,6 +13,7 @@
             this._stream_metadata_pieces = {};
             this.info = this.get_info();
             this._cache = {};
+            this._cloud_upload_session = null;
             this.filesystem_entry = null;
             this.piece_bounds = this.get_piece_boundaries();
             assert( this.get_complete_array().length == this.get_num_pieces() )
@@ -25,9 +26,16 @@
             this.set('path',this.get_path());
             this.set('pieces',this.get_num_pieces());
             this.set('first_piece',Math.floor(this.start_byte / this.torrent.piece_size));
+
+            // would rather not persist all these values
             this.on('change:priority', function(m,v) {
                 this.torrent.set_file_priority(m.num, v);
             });
+
+            this.fetch(); // fetch stored attributes
+        },
+        get_storage_key: function() {
+            return 'torrent-' + this.torrent.get_infohash('hex').toLowerCase() + '-file-' + this.num;
         },
         get_bytes_for_seek_percent: function(frac) {
             var mp4file = this.get('mp4file');
@@ -315,6 +323,13 @@
                 return this.get_info().path;
             }
         },
+        cleanup: function() {
+            // assist in garbage collection
+            if (this._cloud_upload_session) {
+                this._cloud_upload_session.cleanup();
+            }
+            this._cloud_upload_session = null;
+        },
         remove: function(callback) {
             // removes file and updates torrent pieces
             this.get_filesystem_entry( _.bind(function(entry) {
@@ -496,11 +511,13 @@
         },
         get_cloud_filesystem_entry: function(callback) {
             var drive = this.torrent.collection.client.get_cloud_storage();
-            if (this.get('gdrivedata')) {
-                var data = this.get('gdrivedata');
-                drive.get( '/drive/v2/files/' + data.id, function(resp) {
-                    callback(resp);
-                } );
+            if (this.get('gdrive:fileId')) {
+                var id = this.get('gdrive:fileId');
+                if (id) {
+                    drive.get( '/drive/v2/files/' + id, function(resp) {
+                        callback(resp);
+                    } );
+                }
             } else {
                 callback({})
             }
@@ -691,7 +708,7 @@
                     }
                     //mylog(1,'piece',piece.num,'write chunk',i);
                     writer.onwrite = write_next;
-                    writer.write( new Blob([data]) );
+                    writer.write( new Blob([data]) ); // will break in buggy Safari versions (but no filesystem api, so this code is not exercised)
                     //mylog(LOGMASK.disk,'write to',file.repr(), (seekto>=0)?('seeked at',seekto,'numbytes',numbytes):'');
                     i++;
                 } else {

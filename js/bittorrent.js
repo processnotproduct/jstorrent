@@ -137,6 +137,7 @@
     }
     IOStream.prototype = {
         oncreate: function(data) {
+            this._created = true;
             this.sockno = data.socketId;
             _.bindAll(this, 'onconnect','do_read','send','onsend','got_read');
             chrome.socket.connect( this.sockno, this.host, this.port, this.onconnect );
@@ -146,6 +147,8 @@
                 return;
                 // BUG in implementation
             } else {
+                // sets _connected
+                this._connected = true;
                 this.onopen(data);
                 this.do_read();
             }
@@ -180,10 +183,14 @@
         },
         doclose: function(reason) {
             this.onclose({});
-            if (this._connected) {
+
+            try {
                 chrome.socket.disconnect(this.sockno);
+            } catch(e) {
+                chrome.socket.destroy(this.sockno);
             }
-            chrome.socket.destroy(this.sockno);
+
+
         },
         close: function(reason) {
             this._closed = true;
@@ -542,7 +549,7 @@
             if (this.torrent._requesting_metadata) { return; }
 
             this.set('state','request metadata');
-            this.torrent._requesting_metadata = true;
+            this.torrent._requesting_metadata = this;
             var hs = this._remote_extension_handshake;
             var total_size = hs['metadata_size'];
             var numrequests = Math.ceil(total_size/constants.metadata_request_piece_size);
@@ -661,12 +668,15 @@
                             this.close();
                         }
                     }
-                } else {
+                } else if (ext_msg_str == 'ut_pex') {
+                    console.log('got ext msg', ext_msg_str); // TODO - only share pex peers that we're connected to recently
                     var arr = new Uint8Array(data.payload.buffer, data.payload.byteOffset+1);
                     var str = arr2str(arr);
                     var info = bdecode(str);
                     this.peer.handle_pex(info);
                     mylog(LOGMASK.network, 'receive ut_pex extension message',info);
+                } else {
+                    console.warn('unhandled ext msg', ext_msg_str);
                 }
             } else {
                 this.shutdown('invalid extension message',data);
@@ -734,6 +744,8 @@
             }
         },
         handle_have: function(data) {
+            // TODO -- have acts as implicit CANCEL
+
             var index = jspack.Unpack('>i', data.payload);
             //mylog(3, 'handle have index', index);
             if (! this._remote_bitmask) {
@@ -801,7 +813,14 @@
             mylog(LOGMASK.network,'handle piece request for piece',index,'offset',offset,'of size',size);
             //mylog(1,'handle piece request for piece',index,'offset',offset);
 
-            if (this.torrent.has_piece(index)) {
+            if (this.torrent.get_storage_area() == 'gdrive') {
+                // we could fetch the data from google drive, once the
+                // file is 100% uploaded, but it has too high a cost
+                // for us (API requests/sec limited by global app key)
+                var payload = jspack.Pack(">III", [index, offset, size]);
+                this.send_message("REJECT_REQUEST", payload);
+                mylog(LOGMASK.network,'rejecting request (gdrive only, not storing data)',index,offset,size);
+            } else if (this.torrent.has_piece(index)) {
                 var piece = this.torrent.get_piece(index);
                 piece.set('requests_in', piece.get('requests_in')+1 );
                 piece.get_data(offset, size, this.on_handle_request_data);

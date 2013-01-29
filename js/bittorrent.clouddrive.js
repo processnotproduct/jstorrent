@@ -1,5 +1,6 @@
 (function() {
     /*
+
       abstract cloud drive class.
 
       trying to decide what the interface looks like. simple interface
@@ -17,15 +18,19 @@
           downloads are done in-order
 
           
+
+          ---------------------------------------------
+
+      This ended up being a pretty gdrive specific implementation. That's OK for now.
           
 
      */
 
     jstorrent.GoogleDriveUploadSession = Backbone.Model.extend({
         initialize: function(opts) {
+            this._creation = new Date;
             this.file = opts.file;
             this.drive = opts.drive;
-            //this.url_base = "https://www.googleapis.com";
             this.url_base = "https://www.googleapis.com";
             /*
               Chunk size restriction: There are some chunk size restrictions based on the size of the file you are uploading. Files larger than 256 KB (256 x 1024 bytes) must have chunk sizes that are multiples of 256 KB.  For files smaller than 256 KB, there are no restrictions. In either case, the final chunk has no limitations; you can simply transfer the remaining bytes. If you use chunking, it is important to keep the chunk size as large as possible to keep the upload efficient.
@@ -41,6 +46,10 @@
             this._pieces = [];
             this._bytes_written = 0; // file bytes uploaded
             this.on('chunkuploaderror', _.bind( this.on_chunk_upload_error, this ) );
+        },
+        cleanup: function() {
+            // called when file was destroyed or deleted, so need to cancel whatever we were doing.
+
         },
         on_chunk_upload_error: function() {
             // start exponential fallback, etc, detect unrecoverable errors
@@ -92,7 +101,7 @@
                 xhr.setRequestHeader('Content-Type','application/json');
                 xhr.onload = _.bind(this.oncreated, this, true, {error:false});
                 xhr.onerror = _.bind(this.oncreated, this, true, {error:true});
-                console.log('create session with data',bodydata);
+                mylog(LOGMASK.cloud,'create session with data',bodydata);
                 xhr.send( JSON.stringify(bodydata) );
             } else {
                 // RAW xhr not working, get a 403 on the OPTIONS preflight
@@ -114,7 +123,7 @@
             // essentially gives me random crap anyway
 
             //console.log('created session!',req,a,b,this.file.get('name'));
-            console.log('created session!',this.file.get('name'));
+            mylog(LOGMASK.cloud,'created session!',this.file.get('name'));
             this._creating_session = false;
             var loc;
 
@@ -124,6 +133,9 @@
                 var data = JSON.parse(b)
                 var loc = data.gapiRequest.data.headers.location || data.gapiRequest.data.headers.Location;
             }
+
+            this.file.set('gdrive:upload_location', loc);
+            this.file.save();
 
             if (loc) {
                 // safari has upper-case. motherfuckers
@@ -137,7 +149,7 @@
             }
         },
         check_status: function(callback) {
-            console.log('check status!');
+            mylog(LOGMASK.cloud,'check upload session status!', this.file.get('name'));
 
             if (config.packaged_app) {
                 // not working?
@@ -146,7 +158,7 @@
                 var xhr = new XMLHttpRequest;
                 //xhr.withCredentials=true;
                 var url = this.loc_raw;
-                xhr.open("POST", url, true)
+                xhr.open("PUT", url, true)
                 xhr.setRequestHeader( 'Content-Range', 'bytes ' + '*' + '/' + this.file.size );
                 xhr.setRequestHeader('Authorization',
                                      'Bearer ' + token);
@@ -156,7 +168,7 @@
             } else {
                 var req = gapi.client.request({
                     'path': this.loc,
-                    'method': 'POST',
+                    'method': 'PUT',
                     'headers': {
                         'Content-Range': 'bytes ' + '*' + '/' + this.file.size,
                     }
@@ -166,18 +178,29 @@
         },
         checked_status: function(info,callback,evt,x,y) {
             this._checking_status = false;
+            var fileId;
+
             if (info && info.gapiclient) {
                 if (evt.fileSize == this.file.size) {
+                    mylog(LOGMASK.cloud,'checked upload session status, complete!', this.file.get('name'));
+                    fileId = evt.id;
+                    this.file.set('gdrive:fileId', fileId);
+                    this.file.save();
+
                     callback( { finished: true }, null, evt )
                 }
             } else {
                 var headers = evt.target.getAllResponseHeaders();
                 var range = evt.target.getResponseHeader('range');
-                //console.log('STATUS', range);
-                var parts = range.split('=')[1].split('-')
-                var last_byte = parseInt( parts[1] );
-                this._uploaded_bytes = last_byte - 1;
-                callback({range:range}, headers);
+                debugger;
+                if (range) {
+                    var parts = range.split('=')[1].split('-')
+                    var last_byte = parseInt( parts[1] );
+                    this._uploaded_bytes = last_byte - 1;
+                    callback({range:range}, headers, evt);
+                } else {
+                    callback({}, headers, evt);
+                }
             }
         },
         upload_chunk: function(blob) {
@@ -199,6 +222,7 @@
             this.fr.readAsArrayBuffer(blob);
             //console.log(this.file.get('name'),'reading blob of sz',blob.size);
             this.fr.onerror = function(){debugger;}
+
             this.fr.onload = _.bind(function(r) {
                 assert(this === _this);
                 //console.log(this.file.get('name'),'read blob of sz',blob.size);
@@ -233,8 +257,10 @@
                 xhr.onerror = _.bind(this.uploaded_chunk, this, {error:true}, blob.size);
                 // firefox only likes ArrayBuffer, not views
                 try {
+                    console.log('xhr sending view with length', ab.length);
                     xhr.send( ab );
                 } catch(e) {
+                    console.warn('xhr cant send view');
                     // firefox doesn't understand xhr send arraybufferview ?
                     xhr.send( ab.buffer );
                 }
@@ -271,6 +297,7 @@
             if ((req && req.error) || haderr) { 
                 //console.error('error uploading chunk?');
                 console.error('upload chunk failed');
+                //if (config.debug_asserts) { debugger; }
                 // chrome returning status code 0, firefox seems to get the 503. on 503 we're supposed to re-try.
                 analyze_xhr_event( a );
 
@@ -283,8 +310,17 @@
                     if (info && info.finished) {
                         // CORS issue, but file did indeed finish uploading.
                     } else {
-                        debugger;
-                        this.trigger('chunkuploaderror');
+                        if (evt.target.status == 308) {
+                            // connection error or something, status tells us 308, so can resume uploading! yay!!!
+
+                            // the check_status reset the this._uploaded_bytes data for us
+                            this.try_write();
+                        } else if (evt.target.status == 404) {
+                            var elapsed = new Date - this._creation;
+                            console.error('404 error!!! resumable upload fail :-(', Math.floor(elapsed/( 60 * 1000)),'seconds');
+                        } else {
+                            this.trigger('chunkuploaderror');
+                        }
                     }
                 },this) );
 
@@ -298,13 +334,15 @@
             this._current_upload = null;
 
             //console.log('uploaded chunk!',req,size,a,b, this.file.get('name'));
-            console.log('uploaded chunk!',this.file.get('name'), this._uploaded_bytes);
+            mylog(LOGMASK.cloud, 'uploaded chunk!',this.file.get('name'), this._uploaded_bytes);
 
             if (this._uploaded_bytes == this.file.size) {
                 mylog(LOGMASK.cloud, this.file.get('name'), 'upload done!');
                 // parse meta info
                 var gdrivedata = JSON.parse( a.target.responseText )
-                this.file.set('gdrivedata',gdrivedata);
+                this.file.set('gdrive:fileId',gdrivedata.id);
+                this.file.save();
+
                 this.uploaded_chunk_success(this._uploaded_bytes, true);
             } else if (this._uploaded_bytes > this.file.size) {
                 console.error('huh? uploaded too much stuffs');
@@ -314,7 +352,7 @@
 
                 this.try_write();
 //                this.check_status( _.bind(function() {
-                    this.try_write();
+//                    this.try_write();
 //                }, this));
             }
         },
@@ -353,6 +391,13 @@
             if (this._checking_status) { return; }
 
             if (this.can_consume( this._chunk_size )) {
+                if (! this.drive.have_valid_token()) {
+                    this.drive.trigger('need_user_authorization');
+                    // set lock until authorized
+                    return;
+                }
+
+
                 if (this.creating_session()) {
                     // 
                     return;
@@ -375,6 +420,7 @@
 
                 //console.log(this.file.get('name'), 'consume data', [arr2str(data[0])] );
                 var blob = new Blob(data);
+                //var blob = FixSafariBuggyBlob(data);
                 assert( sum == blob.size );
 
                 this.upload_chunk( blob );
@@ -436,7 +482,9 @@
                 //console.log('piecenum',piece.num, 'get resp data',data);
 
                 for (var j=0; j<data.length; j++) {
-                    if (data[j].length + consumed > sz) {
+                    if (consumed == sz) {
+                        break; // all done yea! (but why did we come to this piece?)
+                    } else if (data[j].length + consumed > sz) {
                         assert( sz - consumed > 0 );
                         // need to splice off
                         sliced = new Uint8Array(data[j].buffer, data[j].byteOffset, sz - consumed);
@@ -460,37 +508,146 @@
 
     jstorrent.CloudDrive = Backbone.Model.extend({
         initialize: function() {
-            this._uploads = {}; // list of file upload sessions
-            // keys look like {infohash}-{file index}
             this.CLIENT_ID = '432934632994.apps.googleusercontent.com';
             this.url_base = 'https://www.googleapis.com';
             this.SCOPES = [
                 'https://www.googleapis.com/auth/drive.file',
             ];
-            //this.API_KEY = 'AIzaSyBrXfDSEzTxpwaEfqPg1qCPAOT_fzHRVz4'; // not needed?
+            this.API_KEY = 'AIzaSyBrXfDSEzTxpwaEfqPg1qCPAOT_fzHRVz4'; // needed for "referer" html apps?
+
+            this._fetching_token = false;
             this._token = null;
             this._token_expires = null;
+            this._token_revoked = false; // set this to true when we had access but then we lost it (due to user destroying the app's access)
+
+            this._gdrive_loaded = false;
+
             this._after_auth_queue = [];
+
             if (jstorrent.state.gdriveloaded) {
-                // google api loaded before this was initialized, so
-                // need to initialize auth here (race condition state
-                // tracking)
-                this.authorize();
+                // google api loaded BEFORE we loaded
+                this.gdrive_onload();
+            }
+
+            this.on('authorized', function() { 
+                this.list_files( function(result) {
+                    console.log('authorized, show files list',result);
+                });
+            });
+
+
+        },
+        list_files: function(callback) {
+            this.request( { method: "GET", 
+                            path: 'drive/v2/files',
+                            callback: function(resp) {
+                                console.log('list files resp',resp);
+                                if (callback){callback(resp)}
+                            } } );
+        },
+        gdrive_onload: function() {
+            this._gdrive_loaded = true;
+            var _this = this;
+            gapi.client.setApiKey(this.API_KEY);
+            gapi.auth.authorize({immediate:true},function(result) {
+                console.log('onload auth result',result);
+                if (! result) {
+                    _this.trigger('need_user_authorization');
+                }
+            });
+        },
+        token_expired: function() {
+            if (this._token_expires) {
+            }
+        },
+        have_valid_token: function() {
+            return this._token && ! this.token_expired() && ! this._token_revoked;
+        },
+        request: function(opts) {
+            var _this = this;
+            if (! this._gdrive_loaded) {
+                console.warn('made request to drive api before drive client was loaded', opts);
+                opts.callback({error:'gdrive api not loaded'});
+                return;
+            }
+            if (! this.have_valid_token()) {
+                if (this._fetching_token) {
+                    opts.callback({error:'currently fetching a token'});
+                    return;
+                }
+
+                console.log('drive request, token not valid, fetching new one');
+                this.get_new_token( null, function(resp) {
+                    console.log('request auto token fetch resp',resp);
+                    if (resp.error && resp.data === null) {
+                        // need to do non-immediate mode
+                        _this.trigger('need_user_authorization')
+                    }
+                    opts.callback({error:'had to fetch a token'});
+                });
+                return;
+            }
+            console.log('makin request');
+            // what to do when token is expired? fail quickly.
+            if (this.token_expired()) {
+                callback({error:'token expired'}, null);
+                return;
+            }
+            var path = opts.path;
+            var callback = opts.callback;
+
+            if (config.packaged_app) {
+                var xhrurl = this.url_base + path;
+                var xhr = new XMLHttpRequest;
+                xhr.open('GET', xhrurl);
+                if (opts.headers) {
+                    for (var key in opts.headers) {
+                        xhr.setRequestHeader(key, opts.headers[key]);
+                    }
+                }
+                xhr.setRequestHeader('Authorization', 'Bearer ' + this.get_token());
+                xhr.onload = function(evt) {
+                    callback(JSON.parse(xhr.responseText), evt);
+                };
+                xhr.onerror = function(evt) {
+                    if (xhr.code == 401) {
+                        // token expired
+                        console.warn('token expired?')
+                    }
+                    debugger;
+                    callback({error:true}, evt);
+                };
+                xhr.send();
+            } else {
+                var req = gapi.client.request({
+                    method: 'GET',
+                    path: path
+                });
+                req.execute( function(obj, text) {
+                    // check for expired token
+                    if (obj && obj.error) {
+                        if (obj.error.code == 401) {
+                            console.warn('drive request returned 401',obj,text);
+                            if (obj.error.message == "Invalid Credentials") {
+                                debugger;
+                                this.trigger('need_user_authorization'); // does this happen with token expried too?
+                                // credentials were revoked via deleting the app from gdrive
+                            } else {
+                            }
+                            _this._token_revoked = true;
+                        }
+                    }
+                    callback(obj, text);
+                } );
             }
         },
         get: function(path, callback) {
-            // do basic get with auth
-            var xhrurl = this.url_base + path;
-            var xhr = new XMLHttpRequest;
-            xhr.open('GET', xhrurl);
-            xhr.setRequestHeader('Authorization', 'Bearer ' + this.get_token());
-            xhr.onload = function(evt) {
-                callback(JSON.parse(xhr.responseText));
-            };
-            xhr.onerror = function(evt) {
-                callback({error:true});
-            };
-            xhr.send();
+            this.request( { method:"GET",
+                            headers: {
+                                // auth header gets put in automagically
+                            },
+                            path: path,
+                            callback: callback } );
         },
         process_after_auth_queue: function() {
             for (var i=0; i<this._after_auth_queue.length; i++) {
@@ -501,44 +658,51 @@
         add_to_queue: function(callback) {
             this._after_auth_queue.push(callback);
         },
-        get_token: function() {
-            assert (this._token);
-            return this._token;
-        },
-        authorize: function(opts) {
+        get_new_token: function(opts, callback) {
+            this._fetching_token = true;
+            // if access was revoked through another method, need to do user triggered token, in non-immediate mode.
             var immediate = true;
-
+            var _this = this;
             if (opts && opts.immediate === false) {
                 immediate = false;
             }
+
             var _this = this;
-            //gapi.client.setApiKey(this.API_KEY);
-
             if (config.packaged_app) {
-
                 chrome.experimental.identity.getAuthToken( {interactive: true}, function(token) {
-                    console.log('got token', token);
-                    _this._token = token;
-                    // expires in?
-                    _this.process_after_auth_queue();
+                    _this._fetching_token = false;
+                    console.log('got gdrive token', token);
+                    if (token) {
+                        _this._token = token;
+                        _this._token_expires = new Date() + (1000 * 60 * 24 * 365); // one year.
+                        _this.trigger('authorized');
+                        // expires in?
+                        callback({});
+                    } else {
+                        callback({error:true})
+                    }
                 });
-
             } else {
-                gapi.auth.init( function() {
-                    gapi.auth.authorize(
-                        {'client_id': _this.CLIENT_ID, 'scope': _this.SCOPES.join(' '), immediate:immediate},
-                        function(result) {
-                            if (result) { 
-                                _this._token_expires = result.expires_in;
-                                _this._token = result.access_token;
-                                _this.process_after_auth_queue();
-                            } else {
-                                debugger;
-                            }
+                gapi.auth.authorize(
+                    {'client_id': _this.CLIENT_ID, 'scope': _this.SCOPES.join(' '), immediate:immediate},
+                    function(result) {
+                        _this._fetching_token = false;
+                        if (result) { 
+                            _this._token_expires = result.expires_in;
+                            _this._token = result.access_token;
+                            _this.trigger('authorized');
+                            //_this.process_after_auth_queue();
+                            callback({});
+                        } else {
+                            callback({error:true, data:result});
                         }
-                    );
-                });
+                    }
+                );
             }
+        },
+        get_token: function() {
+            assert (this._token);
+            return this._token;
         },
         write_torrent_piece: function(piece) {
             var torrent = piece.torrent;
@@ -560,17 +724,18 @@
             // (have "needed" counter and release "needed" when we are
             // done, if reaches 0, delete piece data)
 
-            var key = file.torrent.get_infohash('hex') + '-' + file.num;
-            // don't store in my _uploads ?? store in a file
-            // attribute? (makes it easier for grid.js to update when
-            // changes occur)
             var filesession;
-            
-            if (! this._uploads[key]) {
+
+            if (! file._cloud_upload_session) {
                 filesession = new jstorrent.GoogleDriveUploadSession( { drive: this, file: file } );
-                this._uploads[key] = filesession;
+                file._cloud_upload_session = filesession;
+
+                // need to persist this so that when
+                // reload/resume/restart it can continue where it left
+                // off. Also be smarter about storing bitmask_complete
+                // as "cloud" bitmask_complete.
             } else {
-                filesession = this._uploads[key];
+                filesession = file._cloud_upload_session;
             }
 
             var haderr = filesession.enqueue_write( piece, byterange );
@@ -583,7 +748,10 @@
     window.setup_drive_action = function() {
         document.getElementById('setup-storage').addEventListener('click',function(evt) {
                 // immediate false means iframe can pop up
-            jsclient.get_cloud_storage().authorize( { immediate: false } );
+
+            jsclient.get_cloud_storage().get_new_token( { immediate: false }, function(result) {
+                console.log('user clicked on setup drive and got result',result);
+            } );
         });
     }
 

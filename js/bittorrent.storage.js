@@ -391,8 +391,11 @@ if (false && window.indexedDB) {
             }
             
         } else {
-            assert(model.get('id') || model.newid || model.id);
-            var key = model.storeName + '-' + (model.get('id') || model.newid || model.id);
+            assert(model.get('id') !== undefined || model.newid || model.id);
+            //var key = model.storeName + '-' + (model.get('id') || model.newid || model.id);
+            var key = model.get_storage_key();
+            assert(! key.match('undefined'));
+            assert( key.toLowerCase() == key );
             
             if (method == 'read') {
                 asyncLocalStorage.getItem( key, function(item) {
@@ -404,16 +407,25 @@ if (false && window.indexedDB) {
                     }
                 } );
             } else if (method == 'create') {
+                assert(! key.match('undefined'));
+                if (model instanceof jstorrent.TorrentFile) {
+                    debugger;
+                }
                 asyncLocalStorage.setItem( key, JSON.stringify(model.toJSON()), function(){} );
                 model.id = model.newid;
                 model.collection._byId[ model.id ] = model; // W T F, when is this supposed to happen...
-                // update collection
-                var torrents = _.map( model.collection.models, function(m) { return m.id } );
-                asyncLocalStorage.setItem( model.collection.storeName, JSON.stringify( torrents ), function(){} );
+
+                // update collection (only for torrents...)
+                if (model instanceof jstorrent.Torrent) {
+                    var torrents = _.map( model.collection.models, function(m) { return m.id } );
+                    asyncLocalStorage.setItem( model.collection.storeName, JSON.stringify( torrents ), function(){} );
+                }
+
                 opts.success();
             } else if (method == 'update') {
                 var val = JSON.stringify(model.toJSON());
                 assert(val);
+                assert(! key.match('undefined'));
                 asyncLocalStorage.setItem( key, val, function(){} );
                 opts.success();
             } else if (method == 'delete') {
@@ -421,9 +433,11 @@ if (false && window.indexedDB) {
                 if (! model.collection) {
                     debugger; // why no collection??
                 } else {
-                    var torrents = _.map(_.reject( model.collection.models, function(m) { return m.id == model.id } ), function(m) { return m.id } );
-                    asyncLocalStorage.setItem( model.collection.storeName, JSON.stringify( torrents ), function(){} );
-                    model.collection.remove( model );
+                    if (model instanceof jstorrent.Torrent) {
+                        var torrents = _.map(_.reject( model.collection.models, function(m) { return m.id == model.id } ), function(m) { return m.id } );
+                        asyncLocalStorage.setItem( model.collection.storeName, JSON.stringify( torrents ), function(){} );
+                        model.collection.remove( model );
+                    }
                 }
                 opts.success();
             } else {

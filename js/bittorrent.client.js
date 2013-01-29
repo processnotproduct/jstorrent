@@ -7,6 +7,8 @@
             window.jspack = new JSPack();
             jstorrent.JSTorrentClient.instance = this;
             if (config.packaged_app) {
+                // google drive stuff is a part of packaged apps so
+                // load immediately after initialization
                 _.defer( function() {gdriveloaded();} );
             }
             this.cloudstorage = new jstorrent.CloudDrive;
@@ -55,8 +57,9 @@
                 if (data && data.error) {
                     //var blobcheck = new Blob( [new Uint8Array([1,1,1])] ).size == 3;
                     var blobcheck = new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3;
+                    var blobcheck2 = FixSafariBuggyBlob([new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3
 
-                    if ( ! blobcheck ) {
+                    if ( ! blobcheck && ! blobcheck2 ) {
                         alert('Your safari is buggy (Blob constructor. Please upgrade)');
                         this.trigger('unsupported');
                         return;
@@ -322,12 +325,10 @@
         },
         remove_torrent: function(torrent, callback) {
             torrent.stop({silent:true});
-            torrent.cleanup();
-
             torrent.remove_files( _.bind(function() {
 
                 // destroy actually calls sync delete ...
-
+                torrent.cleanup(); // calls delete on files
                 torrent.destroy( { success:
                                    function(a,b,c) {
                                        if (callback)callback();
@@ -360,6 +361,10 @@
                 if (torrent.get('state') == 'started') {
                     if (this.get('stop_all_torrents') && ! torrent.get('streaming')) {
                         continue
+                    }
+
+                    if (torrent.get_storage_area() == 'gdrive') {
+                        // if we have too many pieces in memory, don't make new requests
                     }
 
                     torrent.try_add_peers();

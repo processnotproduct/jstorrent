@@ -55,9 +55,9 @@
                 //mylog(1,'new torrent with hash',this.hash_hex);
             } else if (opts.infohash) {
                 // initialization via infohash (i.e. magnet link) {
-                this.hash_hex = opts.infohash;
+                this.hash_hex = opts.infohash.toLowerCase();
                 this.hash = str2arr(hex2str(this.hash_hex));
-                this.set('id',this.hash_hex);
+                this.set('id',this.hash_hex.toLowerCase());
                 this.set('name',this.get_name());
                 return;
             } else if (opts.magnet) {
@@ -84,10 +84,10 @@
                 } else if (encodedhash.length == 32) {
                     var output = b32decode(encodedhash);
                     this.hash = str2arr(output);
-                    this.hash_hex = ab2hex(this.hash);
+                    this.hash_hex = ab2hex(this.hash).toLowerCase();
                 }
-
                 assert (this.hash_hex.length == 40);
+                assert( this.hash_hex == this.hash_hex.toLowerCase() );
                 assert (this.hash.length == 20);
                 this.magnet_info = d;
                 this.set('id',this.hash_hex);
@@ -131,6 +131,9 @@
             }
             this.set('name',this.get_name());
             this.set('id',this.hash_hex);
+        },
+        get_storage_key: function() {
+            return 'torrent-' + this.get_infohash('hex');
         },
         download_from_web_url: function() {
             var str = this.web_url
@@ -302,7 +305,7 @@
             var hasher = new Digest.SHA1();
             hasher.update( new Uint8Array(bencode(this.get('metadata')['info'])) );
             this.hash = new Uint8Array(hasher.finalize());
-            this.hash_hex = ab2hex(this.hash);
+            this.hash_hex = ab2hex(this.hash).toLowerCase();
         },
         set_file_priority: function(num, prio) {
             var fp = this.get('file_priorities');
@@ -347,8 +350,11 @@
             return s;
         },
         get_infohash: function(format) {
+            var val;
             if (format == 'hex') {
-                return this.hash_hex ? this.hash_hex : this.althash_hex;
+                val = this.hash_hex ? this.hash_hex : this.althash_hex;
+                assert(val.toLowerCase() == val)
+                return val
             } else {
                 assert( this.hash.length == 20 );
                 return this.hash ? this.hash : this.althash;
@@ -376,6 +382,11 @@
             return c / this.num_pieces;
         },
         make_chunk_requests: function(conn, num_to_request) {
+
+            // XXX - modify for cloud uploading, if too much data in
+            // RAM, stop making far out requests, fill up holes so
+            // that chunk uploading can continue.
+
             // need to store a data structure of availability...
 
             // creates a number of chunk requests to pass onto connections
@@ -694,6 +705,9 @@
             return false;
         },
         on_connection_close: function(conn) {
+            if (conn == this._requesting_metadata) {
+                this._requesting_metadata = false;
+            }
             var key = conn.get_key();
             this.connections.remove(conn)
             this.set('numpeers', this.connections.models.length);
@@ -767,14 +781,15 @@
         is_multifile: function() {
             return !! this.get_infodict().files;
         },
-        get_file: function(n) {
+        get_file: function(n, opts) {
             assert(! this.magnet_only() );
             var file = this.files.get(n);
             if (file) {
                 assert (file.num == n)
                 return file
             } else {
-                var file = new jstorrent.TorrentFile({id:n, torrent:this, num:n});
+                if (opts && opts.nocreate) { return; }
+                var file = new jstorrent.TorrentFile({id:n, num:n}, {torrent:this});
                 var fp = this.get('file_priorities');
                 if (fp && fp[n]) {
                     file.set('priority',fp[n]);
@@ -837,6 +852,17 @@
                 //piece.cleanup();
                 this.pieces.remove(piece);
                 //piece.free();
+            }
+            var file;
+            if (this.has_infodict()) {
+                for (var i=0; i<this.get_num_files(); i++) {
+                    file = this.get_file(i, {nocreate:true});
+                    if (file) { 
+                        //this.files.remove(file); // calls sync delete?
+                        file.destroy(); // removes from collection
+                        file.cleanup();
+                    }
+                }
             }
         },
         stop: function(opts) {
@@ -1288,6 +1314,7 @@
         className: 'TorrentCollection',
 
         contains: function(torrent_or_hash) {
+            // fucking lowercase vs uppercase hashes
             var hash = (torrent_or_hash instanceof jstorrent.Torrent ? torrent_or_hash.hash_hex.toLowerCase() : torrent_or_hash.toLowerCase());
 
             for (var i=0; i<this.models.length; i++) {

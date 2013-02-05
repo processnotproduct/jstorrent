@@ -20,43 +20,41 @@ function analyze_xhr_event(evt) {
     console.log('xhr event',evt,'of type',evt.type, 'for xhr',xhr, xhr.status, xhr.statusText);
 }
 
-try {
-    if (new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3) {
-        window.FixSafariBuggyBlob = function(arr, opt) {
-            if (opt) {
-                return new Blob(arr, opt);
-            } else {
-                return new Blob(arr);
-            }
-        }
-    } else {
-        window.FixSafariBuggyBlob = function(arr, opt) {
-            //assert(arr.length == 1);
-            var totallength = 0;
-            for (var i=0; i<arr.length; i++) {
-                totallength += arr[i].length;
-            }
 
-            var view;
-
-            var ab = new ArrayBuffer(totallength);
-            var ia = new Uint8Array(ab);
-
-            var absoffset = 0;
-            for (var j=0; j<arr.length; j++) {
-                view = arr[j];
-                for (var i = 0; i < view.length; i++) {
-                    ia[absoffset] = view[i];
-                    absoffset++;
-                }
-            }
-
-            return new Blob([ab], {type: 'mimeString'});
+if (new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3) {
+    window.FixSafariBuggyBlob = function(arr, opt) {
+        if (opt) {
+            return new Blob(arr, opt);
+        } else {
+            return new Blob(arr);
         }
     }
-} catch(e) {
-    window.FixSafariBuggyBlob = null;
+} else {
+    window.FixSafariBuggyBlob = function(arr, opt) {
+        //assert(arr.length == 1);
+        var totallength = 0;
+        for (var i=0; i<arr.length; i++) {
+            totallength += arr[i].length;
+        }
+
+        var view;
+
+        var ab = new ArrayBuffer(totallength);
+        var ia = new Uint8Array(ab);
+
+        var absoffset = 0;
+        for (var j=0; j<arr.length; j++) {
+            view = arr[j];
+            for (var i = 0; i < view.length; i++) {
+                ia[absoffset] = view[i];
+                absoffset++;
+            }
+        }
+
+        return new Blob([ab], {type: 'mimeString'});
+    }
 }
+
 
 (function() {
     assert( window.mime_data );

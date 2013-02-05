@@ -909,6 +909,7 @@ var JSTorrentClientView = BaseView.extend({
 
             jsclient.add_unknown('F2463F64B332B04650D26B5C766A2E8C7E0F7E14');
             jsclient.add_unknown('C7DB2AFBB6CC77A1D6DDC068EB19044AB92DA191');
+            jsclient.add_unknown('6c92e923b9a799ca881577300124b4a474a4f83f');
 /*
             jsclient.add_unknown(
 "magnet:?xt=urn:btih:f463bfded35ef84c06b5d51df51856076b97059b&dn=DJ+Shadow+-+Hidden+Transmissions+Bundle+BitTorrent+Edition&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"

@@ -56,8 +56,14 @@
             function ready(data) {
                 if (data && data.error) {
                     //var blobcheck = new Blob( [new Uint8Array([1,1,1])] ).size == 3;
-                    var blobcheck = new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3;
-                    var blobcheck2 = FixSafariBuggyBlob([new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3
+                    if (window.FixSafariBuggyBlob === null) {
+                        alert('Your safari is buggy (Blob constructor. Please upgrade)');
+                        this.trigger('unsupported');
+                        return;
+                    } else {
+                        var blobcheck = new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3;
+                        var blobcheck2 = FixSafariBuggyBlob([new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3
+                    }
 
                     if ( ! blobcheck && ! blobcheck2 ) {
                         alert('Your safari is buggy (Blob constructor. Please upgrade)');

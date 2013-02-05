@@ -20,8 +20,8 @@ function analyze_xhr_event(evt) {
     console.log('xhr event',evt,'of type',evt.type, 'for xhr',xhr, xhr.status, xhr.statusText);
 }
 
-if (new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3) {
 
+if (new Blob( [new Uint8Array([1,1,1])], {type: "application/octet-binary"} ).size == 3) {
     window.FixSafariBuggyBlob = function(arr, opt) {
         if (opt) {
             return new Blob(arr, opt);

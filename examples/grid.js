@@ -394,7 +394,7 @@ function renderFileDownload(cellNode, row, data, colDef) {
             if (fe.alternateLink) {
 
                 var openlink = '<a href="' + fe.alternateLink + '" target="_blank"><i class="icon-arrow-down"></i>Open</a>';
-                var dllink = '<a href="' + fe.webContentLink + '" download="'+file.get('name')+'"><i class="icon-arrow-down"></i>Download</a>'
+                var dllink = '<a href="' + fe.webContentLink + '" target="_blank" download="'+file.get('name')+'"><i class="icon-arrow-down"></i>Download</a>'
                 //$(cellNode).html( '<a href="' + fe.alternateLink + '" download="'+file.get('name')+'">Download</a>' );
                 $(cellNode).html(  openlink + dllink);
                 //console.log('got gdrive data',fe);
@@ -906,10 +906,14 @@ var JSTorrentClientView = BaseView.extend({
         });
 
         $('#js-add-example-torrent').click( _.bind(function(evt) {
+
+            jsclient.add_unknown('F2463F64B332B04650D26B5C766A2E8C7E0F7E14');
+            jsclient.add_unknown('C7DB2AFBB6CC77A1D6DDC068EB19044AB92DA191');
+/*
             jsclient.add_unknown(
 "magnet:?xt=urn:btih:f463bfded35ef84c06b5d51df51856076b97059b&dn=DJ+Shadow+-+Hidden+Transmissions+Bundle+BitTorrent+Edition&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"
             );
-
+*/
         },this));
 
         this.$('.dragbar').mousedown(_.bind(function(e){

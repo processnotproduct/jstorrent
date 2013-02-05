@@ -428,6 +428,7 @@
             if (handled) {
                 this.set('chunks_received',this.get('chunks_received')+1);
                 this._outbound_chunk_requests --;
+                assert( this._outbound_chunk_requests >= 0 );
                 this.set('outbound_chunks',this._outbound_chunk_requests);
             }
         },
@@ -637,7 +638,8 @@
                             reqdata.data = data;
                             var meta = this.check_have_all_metadata();
                             if (meta) {
-                                mylog(1, 'have all metadata', meta, this.repr());
+                                //mylog(1, 'have all metadata', meta, this.repr());
+                                mylog(1, 'have all metadata', this.repr());
                                 var decoded = bdecode(arr2str(meta));
                                 this.torrent.metadata_download_complete(decoded);
                             } else {

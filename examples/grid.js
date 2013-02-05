@@ -298,6 +298,10 @@ var TorrentTableView = SuperTableView.extend({
         this.grid.onClick.subscribe( _.bind(function(evt, data) {
             var torrent = this.grid.getDataItem(data.row);
             mylog(LOGMASK.ui,'click on torrent',torrent);
+            // slickgrid bug -- sometimes this does not trigger
+            //selected rows change (have to click on another column
+            //for it to happen)
+
             //jsclientview.set_subview_context(torrent);
         },this));
         this.grid.onSelectedRowsChanged.subscribe( _.bind(function(evt,data) {
@@ -486,6 +490,7 @@ var FileTableView = SuperTableView.extend({
 //            {id: "upload", name: "upload", field: "upload", sortable: false, width:500 },
 
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
+            {id: "gdrive_uploaded", name: "gdrive_uploaded", field: "gdrive_uploaded", width:80 },
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
             {id: "first_piece", name: "first_piece", field: "first_piece", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
@@ -549,7 +554,7 @@ var PeerTableView = SuperTableView.extend({
         this.torrent = opts.torrent;
         opts.columns = [
             {id: "client", name: "client", field: "client", sortable: true, width:140 },
-            {id: "country", name: "country", field: "country", sortable: true, width:140 },
+//            {id: "country", name: "country", field: "country", sortable: true, width:140 },
             {name: "strurl", field: "conntype", width:30 },
             {id: "host", name: "host", field: "host", sortable: true, width:130 },
             {id: "port", name: "port", field: "port", sortable: true, width:60 },

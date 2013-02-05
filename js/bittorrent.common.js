@@ -5,18 +5,21 @@ window.jstorrent = {
 window.config = {
     //debug_torrent_client: {ip:'127.0.0.1', port:8030},
     //debug_torrent_client: {ip:'192.168.56.1', port:8030},
-    debug_torrent_client: {ip:'192.168.56.101', port:25094},
+    //debug_torrent_client: {ip:'192.168.56.101', port:25094},
     unit_tests: false, // run unit tests
     debug_asserts: true,
-    tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service
+    //tracker_proxy: 'http://192.168.56.1:6969/proxy', // tracker proxy service // not used
     jstorrent_host: 'http://192.168.56.1:9090', // website host (i.e. jstorrent.com)
     //bittorrent_proxy: false,
-    bittorrent_proxy: '192.168.56.1:8030',
+    bittorrent_proxy: "ec2-23-20-74-184.compute-1.amazonaws.com:8030",
+    bittorrent_incoming_proxy: "ec2-23-20-74-184.compute-1.amazonaws.com:8030",
+    //bittorrent_proxy: '192.168.56.1:8030',
     //bittorrent_proxy:'kzahel.dyndns.org:8030', // use home computer
     home_computer: 'kzahel.dyndns.org:14098',
 //    external_ip: '38.99.42.130', // HARD CODED IP AT WORK
-    bittorrent_incoming_proxy: '192.168.56.1:8030',
-    udp_proxy: '192.168.56.1:8030',
+    //bittorrent_incoming_proxy: '192.168.56.1:8030',
+    //udp_proxy: '192.168.56.1:8030',
+    udp_proxy: "ec2-23-20-74-184.compute-1.amazonaws.com:8030",
     //udp_proxy: '127.0.0.1:8030',
     packaged_app: window.chrome && window.chrome.app && window.chrome.app.window,
     //ip_aliases: { '38.99.42.130': '127.0.0.1' },
@@ -33,12 +36,16 @@ if (config.packaged_app) {
 }
 
 if (window.location.host.match('jstorrent.com')) {
+
+    var host = "ec2-23-20-74-184.compute-1.amazonaws.com:8030";
+
     config.default_tracker = "udp://tracker.openbittorrent.com:80/announce";
-    config.tracker_proxy = 'http://kzahel.dyndns.org:6969/proxy';
+//    config.tracker_proxy = 'http://kzahel.dyndns.org:6969/proxy'; // HTTP trackers only?
     config.jstorrent_host = 'http://jstorrent.com';
-    config.bittorrent_proxy = 'kzahel.dyndns.org:8030';
-    config.udp_proxy = 'kzahel.dyndns.org:8030';
-    config.bittorrent_incoming_proxy = 'kzahel.dyndns.org:8030';
+    //config.bittorrent_proxy = 'kzahel.dyndns.org:8030';
+    config.bittorrent_proxy = host;
+    config.udp_proxy = host;
+    config.bittorrent_incoming_proxy = host;
 }
 
 window.gdriveloaded = function() {

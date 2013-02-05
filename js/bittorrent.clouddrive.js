@@ -1,28 +1,8 @@
 (function() {
     /*
-
-      abstract cloud drive class.
-
-      trying to decide what the interface looks like. simple interface
-      would be it takes pieces. nicer interface would have it already
-      split up into files
-
-      perhaps instantiate a "cloudfile" object
-
-      needs to support uploading from the middle of a piece (i.e. skipped files)
-
-
-      - simplest entry point: torrent.write_data_from_piece( piece )
-          concern: what to do when these complete out-of-order?
-          perhaps this provides an opportunity to ensure that the
-          downloads are done in-order
-
+      - entry point: torrent.write_data_from_piece( piece )
           
-
-          ---------------------------------------------
-
       This ended up being a pretty gdrive specific implementation. That's OK for now.
-          
 
      */
 
@@ -43,17 +23,20 @@
             this.loc = null; // gdrive upload location
             this.loc_raw = null;
             this.error = null;
+
+            this._service_unavailable = null;
+            this._service_unavailable_count = 0;
+
             this._pieces = [];
             this._bytes_written = 0; // file bytes uploaded
-            this.on('chunkuploaderror', _.bind( this.on_chunk_upload_error, this ) );
+            //this.on('chunkuploaderror', _.bind( this.on_chunk_upload_error, this ) );
         },
         cleanup: function() {
             // called when file was destroyed or deleted, so need to cancel whatever we were doing.
-
         },
         on_chunk_upload_error: function() {
             // start exponential fallback, etc, detect unrecoverable errors
-            this.error = true;
+            this.set_error('chunk upload error');
         },
         get_current_piece_uploading: function() {
             // returns piece index with respect to this._uploaded_bytes
@@ -76,30 +59,19 @@
             }
             assert(callback);
             this._create_callback = callback;
-
             var filename = utf8.parse(str2arr(this.file.get('name')));
-
-/*
-            if (! navigator.vendor.match('Google')) {
-                filename = 'nonchrome-' + filename;
-            }
-*/
-
-
             var bodydata = { 'title': filename,
                              'description': 'from torrent ' + this.file.torrent.get_infohash('hex'),
                              'mimeType': mime_map(filename)
                            };
-
             if (config.packaged_app) {
                 var token = this.drive.get_token();
                 var xhr = new XMLHttpRequest;
                 //xhr.withCredentials = true;
-                var url = this.url_base + '/upload/drive/v2/files' + '?uploadType=resumable&access_token=' + encodeURIComponent( token );
+                var url = this.url_base + '/upload/drive/v2/files' + '?uploadType=resumable'; //&access_token=' + encodeURIComponent( token );
                 xhr.open("POST", url, true)
-                //xhr.setRequestHeader('Authorization',
-                //                     'Bearer ' + token.access_token);
-                //            xhr.setRequestHeader('X-Upload-Content-Length', this.file.size);
+                xhr.setRequestHeader('Authorization',
+                                     'Bearer ' + token);
                 xhr.setRequestHeader('Content-Type','application/json');
                 xhr.onload = _.bind(this.oncreated, this, true, {error:false});
                 xhr.onerror = _.bind(this.oncreated, this, true, {error:true});
@@ -110,10 +82,6 @@
                 var req = gapi.client.request({
                     'path': '/upload/drive/v2/files',
                     'method': 'POST',
-//                    'headers': {
-//                        'X-Upload-Content-Type': 'text/plain',
-//                        'X-Upload-Content-Length': this.file.size
-//                    },
                     'params': {'uploadType': 'resumable'},
                     'body': bodydata
                 });
@@ -153,10 +121,11 @@
         },
         check_status: function(callback) {
             mylog(LOGMASK.cloud,'check upload session status!', this.file.get('name'));
+            this._checking_status = true;
 
             if (config.packaged_app) {
                 // not working?
-                this._checking_status = true;
+
                 var token = this.drive.get_token();
                 var xhr = new XMLHttpRequest;
                 //xhr.withCredentials=true;
@@ -184,13 +153,19 @@
             var fileId;
 
             if (info && info.gapiclient) {
-                if (evt.fileSize == this.file.size) {
+                if (evt && evt.fileSize == this.file.size) {
                     mylog(LOGMASK.cloud,'checked upload session status, complete!', this.file.get('name'));
+                    this.file.set('gdrive_uploaded', 1);
                     fileId = evt.id;
                     this.file.set('gdrive:fileId', fileId);
                     this.file.save();
-
                     callback( { finished: true }, null, evt )
+                } else {
+                    // incomplete or some crap
+                    var data = JSON.parse(x);
+                    console.error('check status: code',data.gapiRequest.data.status, data);
+                    // cannot read range header ! lame
+                    this.set_error('unable to check status');
                 }
             } else {
                 var headers = evt.target.getAllResponseHeaders();
@@ -217,83 +192,33 @@
 
             assert(this.loc);
             var _this = this;
-/*
-            if (! this.fr) {
-                this.fr = new FileReader;
+            assert(this === _this);
+
+            var url = this.loc_raw;
+            //url = 'http://192.168.56.1:9090/drive/v2/files'; // debug (found out safari does not upload typed array views)
+            var headers = {
+                'Content-Range': 'bytes ' + this._uploaded_bytes + '-' + (this._uploaded_bytes + blob.size-1) + '/' + this.file.size,
             }
-            
-            this.fr.readAsArrayBuffer(blob);
-            //console.log(this.file.get('name'),'reading blob of sz',blob.size);
-            this.fr.onerror = function(){debugger;}
-
-            this.fr.onload = _.bind(function(r) {
-*/
-                assert(this === _this);
-                //console.log(this.file.get('name'),'read blob of sz',blob.size);
-//                var ab = new Uint8Array(r.target.result);
-                //var ab = r.target.result;
-                // XXX - "body" cannot be typed array using gapi library. Use raw XMLHTTPRequest!
-
-
-                //var url = this.url;
-/*
-                var qp = {
-                    'path': this.loc
-                }
-
-                var qp = {};
-                _.each( qp, function(v,k) {
-                    url = url + '&' + k + '=' + encodeURIComponent(v);
-                });
-*/
-                var token = _this.drive.get_token();
-                //var token = gapi.auth.getToken();
-                var xhr = new XMLHttpRequest;
-                //xhr.withCredentials=true;
-                //var url = this.loc_raw + '&access_token=' + encodeURIComponent(token.access_token);
-                var url = this.loc_raw;
-
-                //url = 'http://192.168.56.1:9090/drive/v2/files'; // debug
-
-                xhr.open("PUT", url, true)
-                xhr.setRequestHeader( 'Content-Range', 'bytes ' + this._uploaded_bytes + '-' + (this._uploaded_bytes + blob.size-1) + '/' + this.file.size );
-                xhr.setRequestHeader('Authorization',
-                                     'Bearer ' + token);
-                xhr.onload = _.bind(this.uploaded_chunk, this, {error:false}, blob.size);
-                xhr.onerror = _.bind(this.uploaded_chunk, this, {error:true}, blob.size);
-            xhr.onreadystatechange = function(evt) {
-                console.log('chunk readystate',evt);
+            var nocors = false
+            if (this._uploaded_bytes + blob.size == this.file.size) {
+                nocors =true;
             }
-                // firefox only likes ArrayBuffer, not views
+            //mylog(LOGMASK.cloud, 
+            console.log('uploading chunk of sz',blob.size );
+            this.drive.request( { method: "PUT",
+                                  path_full: this.loc_raw,
+                                  headers: headers,
+                                  rawxhr: true,
+                                  nocors: nocors,
+                                  callback: _.bind(this.uploaded_chunk, this, {error:false}, blob.size),
+                                  progress: function(evt) {
+                                      console.log('chunk readystate',evt);
+                                  },
+                                  body: blob
+                                });
 
-            mylog(LOGMASK.cloud, 'uploading chunk of sz',blob.size);
-                xhr.send(blob);
-/*
-                try {
-                    console.log('xhr sending view with length', ab.length);
-                    xhr.send( ab );
-                } catch(e) {
-                    console.warn('xhr cant send view');
-                    // firefox doesn't understand xhr send arraybufferview ?
-                    xhr.send( ab.buffer );
-                }
-*/
-/*
-                var req = gapi.client.request({
-                    'path': this.loc,
-                    'method': 'PUT',
-                    //            'params': {'uploadType': 'resumable'},
-                    'headers': {'Content-Range': 'bytes ' + this._uploaded_bytes + '-' + (this._uploaded_bytes + blob.size-1) + '/' + this.file.size,
-                                'Content-Length': blob.size
-//                                'Content-Type': 'text/plain'
-                               },
-                    'body': utf8.parse(ab)});
-
-                req.execute( _.bind(this.uploaded_chunk, this, req, blob.size) );
-*/
-//            },this);
         },
-        uploaded_chunk: function(req,size,a,b) {
+        uploaded_chunk: function(req,size, resp, evt) {
             // note that even though OPTIONS succeeds (gives header
             // saying allowing access) the response to the chunk
             // upload does NOT include the header that lets use read
@@ -305,7 +230,7 @@
             this._current_upload = null;
 
             var haderr = false;
-            if (! _.contains([200,308], a.target.status) ) {
+            if (! _.contains([200,308], evt.target.status) ) {
                 haderr = true;
             }
 
@@ -315,11 +240,13 @@
                 console.error('upload chunk failed');
                 //if (config.debug_asserts) { debugger; }
                 // chrome returning status code 0, firefox seems to get the 503. on 503 we're supposed to re-try.
-                analyze_xhr_event( a );
+                analyze_xhr_event( evt );
 
                 // if 503 error code, do something totally different...
-                if (a.target.status == 503) {
-                    debugger;
+                if (evt.target.status == 503) {
+                    this._service_unavailable = new Date();
+                    this._service_unavailable_count++;
+                    console.warn('service unavailable, block upload attempts for a while');
                 }
 
                 this.check_status( _.bind( function(info,h,evt) {
@@ -335,24 +262,33 @@
                             var elapsed = new Date - this._creation;
                             console.error('404 error!!! resumable upload fail :-(', Math.floor(elapsed/( 60 * 1000)),'seconds');
                         } else {
-                            this.trigger('chunkuploaderror');
+                            this.set_error('chunk upload error');
                         }
                     }
                 },this) );
             } else {
                 this._uploaded_bytes += size;
 
+                this.file.set('gdrive_uploaded', this._uploaded_bytes / this.file.size);
 
                 //console.log('uploaded chunk!',req,size,a,b, this.file.get('name'));
                 mylog(LOGMASK.cloud, 'uploaded chunk!',this.file.get('name'), this._uploaded_bytes);
 
                 if (this._uploaded_bytes == this.file.size) {
-                    mylog(LOGMASK.cloud, this.file.get('name'), 'upload done!');
+                    mylog(LOGMASK.cloud, this.file.get('name'), 'upload done, status code', evt.target.status);
                     // parse meta info
-                    var gdrivedata = JSON.parse( a.target.responseText )
-                    this.file.set('gdrive:fileId',gdrivedata.id);
-                    this.file.save();
-                    this.uploaded_chunk_success(this._uploaded_bytes, true);
+                    if (evt.target.status == 308) {
+                        // why on earth does it send 308 when we uploaded all the bytes??
+                        debugger;
+
+                    } else if (evt.target.responseText) {
+                        var gdrivedata = JSON.parse( evt.target.responseText )
+                        this.file.set('gdrive:fileId',gdrivedata.id);
+                        this.file.save();
+                        this.uploaded_chunk_success(this._uploaded_bytes, true);
+                    } else {
+                        this.set_error('unexpected final chunk upload response');
+                    }
                 } else if (this._uploaded_bytes > this.file.size) {
                     console.error('huh? uploaded too much stuffs');
                     debugger;
@@ -364,6 +300,27 @@
                     //                }, this));
                 }
             }
+        },
+        service_currently_unavailable: function() {
+            // do this globally on Drive.request instead
+
+            // checks whether we can issue an upload request right now
+            if (this._service_unavailable) {
+                var elapsed = new Date() - this._service_unavailable;
+                var backoff = this._get_backoff_time( this._service_unavailable_count )
+                if (elapsed > backoff) {
+                    this._service_unavailable = null;
+                    return true;
+                }
+            }
+            return false;
+        },
+        _get_backoff_time: function(count) {
+            return 1 + Math.pow(2, count) + 2 * Math.random();
+        },
+        set_error: function(err) {
+            this.error = err;
+            this.trigger('error', err);
         },
         uploaded_chunk_success: function(bytesnow, done) {
             // call piece.unregister_consumer for any piece below this range so that these pieces can be freed from memory
@@ -417,6 +374,10 @@
                     return;
                 }
 
+                if (this.service_currently_unavailable()) {
+                    console.log('service unavailable');
+                    return;
+                }
 
                 if (this.creating_session()) {
                     // 
@@ -551,7 +512,11 @@
 
             this.on('authorized', function() { 
                 this.list_files( function(result) {
-                    console.log('authorized, show files list',result);
+                    if (result.error) {
+                        console.error('check hostname, likely not authorized in developer console');
+                    } else {
+                        console.log('authorized, show files list',result);
+                    }
                 });
             });
         },
@@ -570,20 +535,10 @@
             // firefox is not authorizing. fuck you firefox.
             this.get_new_token( { immediate: true }, function(resp) {
                 console.log('gdrive onload immediate auth result',resp);
-            });
-/*
-            gapi.auth.authorize({immediate:true},function(result) {
-                console.log('onload auth result',result);
-                if (! result) {
-                    if (navigator.product == 'Gecko') {
-                    } else {
-                        _this.trigger('need_user_authorization');
-                    }
+                if ((resp && resp.error) || ! resp) {
+                    _this.trigger('need_user_authorization');
                 }
             });
-*/
-
-
         },
         token_expired: function() {
             if (this._token_expires) {
@@ -593,6 +548,12 @@
             return this._token && ! this.token_expired() && ! this._token_revoked;
         },
         request: function(opts) {
+            /*
+              all requests to google's api go through this method,
+              EXCEPT the chunk piece uploads. These are slightly
+              different... but I should put them in here to simplify
+              things.
+             */
             var _this = this;
             if (! this._gdrive_loaded) {
                 console.warn('made request to drive api before drive client was loaded', opts);
@@ -604,7 +565,6 @@
                     opts.callback({error:'currently fetching a token'});
                     return;
                 }
-
                 console.log('drive request, token not valid, fetching new one');
                 this.get_new_token( null, function(resp) {
                     console.log('request auto token fetch resp',resp);
@@ -625,10 +585,14 @@
             var path = opts.path;
             var callback = opts.callback;
 
-            if (config.packaged_app) {
-                var xhrurl = this.url_base + path;
+            if (config.packaged_app || opts.rawxhr) {
+                if (opts.path_full) {
+                    var xhrurl = opts.path_full;
+                } else {
+                    var xhrurl = this.url_base + path;
+                }
                 var xhr = new XMLHttpRequest;
-                xhr.open('GET', xhrurl);
+                xhr.open(opts.method || "GET", xhrurl);
                 if (opts.headers) {
                     for (var key in opts.headers) {
                         xhr.setRequestHeader(key, opts.headers[key]);
@@ -636,17 +600,37 @@
                 }
                 xhr.setRequestHeader('Authorization', 'Bearer ' + this.get_token());
                 xhr.onload = function(evt) {
-                    callback(JSON.parse(xhr.responseText), evt);
+                    if (xhr.responseText) {
+                        callback(JSON.parse(xhr.responseText), evt);
+                    } else {
+                        callback(null, evt);
+                    }
                 };
                 xhr.onerror = function(evt) {
-                    if (xhr.code == 401) {
+                    if (xhr.status == 0 && opts.nocors) {
+                        // was expecting server to fuck up with CORS,
+                        // though this error could also be due to
+                        // something else. having no CORS headers is
+                        // supposed to behave exactly like a failed
+                        // network request, etc, due to JS security
+                        // XHR architecture nonsense.
+                        callback(null, evt);
+                    } else if (xhr.status == 401) {
                         // token expired
                         console.warn('token expired?')
+                        callback({error:true}, evt);
+                    } else if (xhr.status == 503) {
+                        // start exponential random backoff shit
+                        debugger;
+                    } else {
+                        callback({error:true}, evt);
                     }
-                    debugger;
-                    callback({error:true}, evt);
                 };
-                xhr.send();
+                if (opts.body) {
+                    xhr.send(opts.body);
+                } else {
+                    xhr.send();
+                }
             } else {
                 var req = gapi.client.request({
                     method: 'GET',
@@ -772,15 +756,21 @@
         }
     });
 
-
     // move into grid.js
     window.setup_drive_action = function() {
         document.getElementById('setup-storage').addEventListener('click',function(evt) {
                 // immediate false means iframe can pop up
-
+/*
+            dropbox.authenticate( function(error, client) {
+                debugger;
+            });
+*/
             jsclient.get_cloud_storage().get_new_token( { immediate: false }, function(result) {
                 console.log('user clicked on setup drive and got result',result);
             } );
+
+
+
         });
     }
 

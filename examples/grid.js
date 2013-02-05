@@ -392,7 +392,6 @@ function renderFileDownload(cellNode, row, data, colDef) {
             // webContentLink is for just downloadin
 
             if (fe.alternateLink) {
-
                 var openlink = '<a href="' + fe.alternateLink + '" target="_blank"><i class="icon-arrow-down"></i>Open</a>';
                 var dllink = '<a href="' + fe.webContentLink + '" target="_blank" download="'+file.get('name')+'"><i class="icon-arrow-down"></i>Download</a>'
                 //$(cellNode).html( '<a href="' + fe.alternateLink + '" download="'+file.get('name')+'">Download</a>' );

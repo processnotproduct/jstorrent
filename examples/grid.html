@@ -167,7 +167,8 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
 
       <fieldset>
         <legend>Cloud Drive</legend>
-        <a target="_blank" href="https://drive.google.com/?overridemobile=true#recent">Open</a>
+        <a target="_blank" href="https://drive.google.com/?overridemobile=true#recent">Open Web</a>
+        <a onclick="window.location=this.getAttribute('data-href');" href="#" data-href="googledrive://">Open in Drive</a>
       </fieldset>
 
       <fieldset>

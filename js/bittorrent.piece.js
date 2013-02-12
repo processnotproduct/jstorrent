@@ -241,6 +241,9 @@
             // piecenum, offset, sz
             var requests = [];
             for (var i=0; i<this.numchunks; i++) {
+
+                // allow duplicate requests and do cancel
+
                 if (! this._outbound_request_offsets[i*constants.chunk_size]
                     && ! this._chunk_responses[i]
                    ) {

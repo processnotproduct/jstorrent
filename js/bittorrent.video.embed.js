@@ -129,6 +129,7 @@
 
     function onadd() {
         window.torrent = client.torrents.get_by_hash(hash);
+        torrent.set_storage_area('temporary');
         torrent.start();
         if (torrent.get_infodict()) {
             onmetadata()

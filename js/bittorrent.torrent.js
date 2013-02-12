@@ -648,6 +648,9 @@
                 tracker.announce(); // checks it didn't do it too recently
             }
         },
+        set_storage_area: function(area) {
+            this.set('storage_area',area);
+        },
         get_storage_area: function() {
             /*
               returns the area where files for this torrent are to be stored.

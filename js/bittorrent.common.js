@@ -25,7 +25,7 @@ window.config = {
     //ip_aliases: { '38.99.42.130': '127.0.0.1' },
     default_tracker: 'http://192.168.56.1:6969/announce',
     kyle_ut_home: 'kzahel.dyndns.org:38028',
-    disable_filesystem: true,
+    disable_filesystem: false,
     public_trackers: ["udp://tracker.openbittorrent.com:80/announce",
                       "udp://tracker.publicbt.com:80/announce"]
     //bittorrent_proxy: 'kzahel.dyndns.org:8030' // torrent proxy service

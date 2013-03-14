@@ -32,8 +32,11 @@ development.
 
 Next, I worked on supporting browsers without the FileSystem
 API. Downloads were streamed chunk by chunk using Google Drive's
-resumable upload API. This functionality worked nicely and worked on
-iOS Safari (iPhone, iPad). 
+resumable upload API. This functionality most importantly worked on
+iOS Safari (iPhone, iPad). Currently, it is possible to see this in
+action by going to http://jstorrent.com on your iOS device. You may
+need to go back a few revisions to get back into the working demo
+state that I showed before the last Palooza.
 
 Most recently, I have been making some updates to the Chrome Packaged
 App version, which has access to a javascript socket API, so does not
@@ -43,6 +46,13 @@ the Chrome Web Store,
 https://chrome.google.com/webstore/detail/jstorrent/anhdpjpojoipgpmfanmedjghaligalgb,
 which is to date the only way of downloading torrents on a Google
 Chrome OS. (i.e. Chromebook)
+
+BitTorrent has a competing implementation of using Native Client
+(NaCL) that was being worked on by the Minsk BitTorrent office, but it
+is a low priority for them as they have found a much better product to
+work on called uSync/distributed sync/BitTorrent sync (not sure what
+it's actually called), and it is not released in the chrome web
+store. Also I'm not sure if NaCL even compiles on ARM chromebooks.
 
 Since this is still an experimental project, there are a number of
 workarounds for various problems that still prevent this technology's

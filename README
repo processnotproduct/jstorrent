@@ -10,7 +10,7 @@ dragging in files or folders, I wrote code that created the torrent
 metadata from the collection of files and folders dropped into the
 browser window. I wrote this because I saw that BitTorrent the company
 had spent the last few years working on creating a "share" product and
-it had no plan or possibility of supporting DnD.
+it had no plan or possibility of supporting DnD. I like DnD. A lot.
 
 I found out that Chrome had a FileSystem API, and after doing some
 reading about widespread websocket binary frame and typed array
@@ -25,7 +25,10 @@ download torrents, so I made sure that functionality worked also.
 
 Then, I worked on supporting video playback from MP4 containers before
 the files were complete. This turned out to work fairly well, though
-required the FileSystem API that is still only present in Chrome.
+required the FileSystem API that is still only present in Chrome. The
+upcoming MediaSource API would be a much better solution to this
+problem, but is also Chrome only at this time, and still in early
+development.
 
 Next, I worked on supporting browsers without the FileSystem
 API. Downloads were streamed chunk by chunk using Google Drive's
@@ -36,12 +39,29 @@ Most recently, I have been making some updates to the Chrome Packaged
 App version, which has access to a javascript socket API, so does not
 need any special client version with websocket support to connect
 to. There is currently an app called "jstorrent" that is available on
-the Chrome Web Store:
-https://chrome.google.com/webstore/detail/jstorrent/anhdpjpojoipgpmfanmedjghaligalgb
+the Chrome Web Store,
+https://chrome.google.com/webstore/detail/jstorrent/anhdpjpojoipgpmfanmedjghaligalgb,
+which is to date the only way of downloading torrents on a Google
+Chrome OS. (i.e. Chromebook)
 
 Since this is still an experimental project, there are a number of
 workarounds for various problems that still prevent this technology's
 use to be more widespread.
+
+- FileSystem API is very important for getting the best
+  performance. Saving to a cloud drive is less than optimal because
+  lack of good support for edge cases such as turning off the computer
+  and resuming the saving to the cloud drive. This is only available
+  in Google Chrome.
+
+- Having a cloud storage provider that allows for random-access writes
+  and allowing access to torrent file resources via HTTP streams that
+  would be able to hold onto sockets and write data as it becomes
+  available via upload. Such a storage provider could also deduplicate
+  data say on the piece level to be even more efficient in terms of
+  storage cost (I wrote a document describing this product idea as
+  BitTorrent Drive, Clement Moussu expressed interest in this
+  project).
 
 - WebSocket support was disabled in the desktop client
   (https://github.com/bittorrent/microtorrent/commit/40e49c697b02097d19ec6355ca752c62858f1381)

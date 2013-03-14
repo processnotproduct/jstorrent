@@ -68,6 +68,9 @@ var CommandsView = BaseView.extend({
             this.$('.' + tabname).click( _.bind(function() {
                 //mylog(1,'click on action',tabname);
                 this.options.table.notify_action(tabname);
+
+                _gaq.push(['_trackEvent', 'CommandClick', tabname]);
+
                 //jsclientview.set_tab(tabname);
             },this));
         },this));
@@ -91,6 +94,9 @@ var AddView = BaseView.extend({
     do_add: function() {
         var url = this.$('.url').val();
         this.$('.url').val('');
+
+        _gaq.push(['_trackEvent', 'do_add', 'AddView']);
+
         jsclient.add_unknown(url);
     }
 });
@@ -296,6 +302,9 @@ var TorrentTableView = SuperTableView.extend({
     },
     bind_events: function() {
         this.grid.onClick.subscribe( _.bind(function(evt, data) {
+
+            _gaq.push(['_trackEvent', 'TorrentClickRow', data.row]);
+
             var torrent = this.grid.getDataItem(data.row);
             mylog(LOGMASK.ui,'click on torrent',torrent);
             // slickgrid bug -- sometimes this does not trigger
@@ -904,16 +913,16 @@ var JSTorrentClientView = BaseView.extend({
             });
         });
 
-        $('#js-add-example-torrent').click( _.bind(function(evt) {
+        $('.js-add-example-torrent').click( _.bind(function(evt) {
 
             jsclient.add_unknown('F2463F64B332B04650D26B5C766A2E8C7E0F7E14');
             jsclient.add_unknown('C7DB2AFBB6CC77A1D6DDC068EB19044AB92DA191');
             jsclient.add_unknown('6c92e923b9a799ca881577300124b4a474a4f83f');
-/*
+
             jsclient.add_unknown(
 "magnet:?xt=urn:btih:f463bfded35ef84c06b5d51df51856076b97059b&dn=DJ+Shadow+-+Hidden+Transmissions+Bundle+BitTorrent+Edition&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"
             );
-*/
+
         },this));
 
         this.$('.dragbar').mousedown(_.bind(function(e){
@@ -1011,6 +1020,7 @@ var JSTorrentClientView = BaseView.extend({
         }
     },
     set_tab: function(tabtype) {
+        _gaq.push(['_trackEvent', 'set_tab', 'DetailView', tabtype]);
         this.tabs.$('li').removeClass('active')
         this.tabs.$('.' + tabtype).addClass('active');
         this.settings.set('tab',tabtype);
@@ -1141,6 +1151,9 @@ function main() {
     $(document.body).on("dragleave", function(evt){mylog(1,'dragleave');});
     $(document.body).on("dragover", function(evt){mylog(1,'dragover');});
     $(document.body).on('drop', function(evt) {
+
+        _gaq.push(['_trackEvent', 'DropFiles', 'body', items.length]);
+
         mylog(1,'DROP!');
         evt.originalEvent.stopPropagation();
         evt.originalEvent.preventDefault();
@@ -1225,7 +1238,10 @@ function main() {
 
     });
 
-    $('#js-add_example').click( function() { jsclient.add_example_torrent(); } );
+    $('#js-add_example').click( function() { 
+        _gaq.push(['_trackEvent', 'add_example_torrent']);
+        jsclient.add_example_torrent(); 
+    } );
     //jsclient.add_random_torrent();
 
 }
@@ -1257,4 +1273,12 @@ if (! config.packaged_app) {
     ga.src = (('https:' == document.location.protocol || window.chrome) ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
     var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
   })();
+} else {
+
+
+
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-35025483-1']);
+    _gaq.push(['_setDomainName', 'jstorrent.com']);
+    _gaq.push(['_trackPageview']);
 }

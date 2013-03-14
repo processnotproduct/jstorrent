@@ -20,8 +20,8 @@ var main_window = null;
         main_window = chrome.app.window.create(page,
                                                { defaultWidth: 1000,
                                                  id:'jstorrent',
-                                                 minHeight: 690,
-                                                 defaultHeight: 690 }
+                                                 minHeight: 700,
+                                                 defaultHeight: 700 }
                                               );
     });
 

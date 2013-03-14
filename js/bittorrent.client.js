@@ -6,7 +6,7 @@
 
             window.jspack = new JSPack();
             jstorrent.JSTorrentClient.instance = this;
-            if (config.packaged_app) {
+            if (config.packaged_app && config.disable_filesystem) {
                 // google drive stuff is a part of packaged apps so
                 // load immediately after initialization
                 _.defer( function() {gdriveloaded();} );

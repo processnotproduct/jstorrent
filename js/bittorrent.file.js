@@ -491,6 +491,7 @@
             }
         },
         save_as: function() {
+            _gaq.push(['_trackEvent', 'FileSaveAs']);
             function errorHandler(){console.error('saveas error handler')}
             var _this = this;
             chrome.fileSystem.chooseEntry({type: 'saveFile', suggestedName: this.get_name()}, function(writableFileEntry) {
@@ -498,6 +499,7 @@
                     writableFileEntry.createWriter(function(writer) {
                         writer.onerror = errorHandler;
                         writer.onwriteend = function(e) {
+                            _gaq.push(['_trackEvent', 'FileSaveAsComplete']);
                             console.log('write complete');
                         };
                         _this.filesystem_entry.file( function(f) {

@@ -681,7 +681,10 @@
 
             var _this = this;
             if (config.packaged_app) {
-                chrome.experimental.identity.getAuthToken( {interactive: true}, function(token) {
+
+                var identity = chrome.experimental.identity || chrome.identity;
+
+                identity.getAuthToken( {interactive: true}, function(token) {
                     _this._fetching_token = false;
                     console.log('got gdrive token', token);
                     if (token) {

@@ -1,30 +1,64 @@
-JSTorrent (JavaScript torrent client)
+BitTorrent with pure JS (no native code)
 
-http://jstorrent.com
+---
 
-(Also a Chrome OS Web app)
-https://groups.google.com/forum/#!topic/chromebook-central/DXJmD1ZUK2Q
+A short history of this project:
 
-provides "JSTorrentClient", which stores a list of torrent files in a
-local storage mechanism. The actual torrent data is backed by the
-HTML5 filesystem API.
+This started out as a project to support creating a torrent in the
+browser via "drag and drop" (DnD) into the browser window. When
+dragging in files or folders, I wrote code that created the torrent
+metadata from the collection of files and folders dropped into the
+browser window. I wrote this because I saw that BitTorrent the company
+had spent the last few years working on creating a "share" product and
+it had no plan or possibility of supporting DnD.
 
-requires:
-- FileSystem API (included in Chrome, other browsers still have no implementations!)
-- Web Workers (for CPU intensive sha1 hashing in the background)
-- WebSockets (most browsers have this)
-  - with ArrayBuffer binary frame support (also most browsers have)
+I found out that Chrome had a FileSystem API, and after doing some
+reading about widespread websocket binary frame and typed array
+support in _all_ (except <=IE8) browsers I decided it would be a good
+idea to then make sure the created torrent could connect to another
+BitTorrent client and seed the data. This was possible due to Art
+(https://github.com/prozacchiwawa) who wrote websocket support into
+the desktop client.
+
+Once that was working, I decided it would be great to be able to also
+download torrents, so I made sure that functionality worked also.
+
+Then, I worked on supporting video playback from MP4 containers before
+the files were complete. This turned out to work fairly well, though
+required the FileSystem API that is still only present in Chrome.
+
+Next, I worked on supporting browsers without the FileSystem
+API. Downloads were streamed chunk by chunk using Google Drive's
+resumable upload API. This functionality worked nicely and worked on
+iOS Safari (iPhone, iPad). 
+
+Most recently, I have been making some updates to the Chrome Packaged
+App version, which has access to a javascript socket API, so does not
+need any special client version with websocket support to connect
+to. There is currently an app called "jstorrent" that is available on
+the Chrome Web Store:
+https://chrome.google.com/webstore/detail/jstorrent/anhdpjpojoipgpmfanmedjghaligalgb
+
+Since this is still an experimental project, there are a number of
+workarounds for various problems that still prevent this technology's
+use to be more widespread.
+
+- WebSocket support was disabled in the desktop client
+  (https://github.com/bittorrent/microtorrent/commit/40e49c697b02097d19ec6355ca752c62858f1381)
+  so it is still necessary to use a websocket/socket bridge. See
+  js/bittorrent.common.js, in the configuration there is the variable
+  "bittorrent_proxy" for which you can use
+  https://github.com/kzahel/ktorrent (ktorrent)
+
+- HTTP Trackers need to support CORS if the web browser is to speak
+  directly to BitTorrent trackers without the need for a
+  proxy. Currently, nobody really cares or knows about this project,
+  so HTTP trackers do not support CORS. So there is a "tracker_proxy"
+  variable that works a lot like the "bittorrent_proxy". ktorrent can
+  do this.
+
+- Talking to UDP trackers is not possible except through a UDP
+  proxy. So there is also a "udp_proxy" variable. Again, ktorrent
+  serves to this purpose.
 
 
-While web browsers still cannot listen for incoming connections, they
-are now perfectly capable of creating websocket connections to other
-BitTorrent clients. Alpha versions of uTorrent know how to talk
-bittorrent over websocket frames (Thanks to Art -
-https://github.com/prozacchiwawa)
-
-Trackers will need to support CORS cross site requests. For now an
-official proxy is available. There is also a proxy for UDP Trackers.
-
-This project can also be loaded as a "packaged app" in Chrome Canary
-(essentially, like an extension), and it will make use of the Chrome
-networking APIs (basically, gives access to raw UDP/TCP sockets)

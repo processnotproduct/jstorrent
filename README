@@ -45,14 +45,12 @@ to. There is currently an app called "jstorrent" that is available on
 the Chrome Web Store,
 https://chrome.google.com/webstore/detail/jstorrent/anhdpjpojoipgpmfanmedjghaligalgb,
 which is to date the only way of downloading torrents on a Google
-Chrome OS. (i.e. Chromebook)
-
-BitTorrent has a competing implementation of using Native Client
-(NaCL) that was being worked on by the Minsk BitTorrent office, but it
-is a low priority for them as they have found a much better product to
-work on called uSync/distributed sync/BitTorrent sync (not sure what
-it's actually called), and it is not released in the chrome web
-store. Also I'm not sure if NaCL even compiles on ARM chromebooks.
+Chrome OS. (i.e. Chromebook). BitTorrent has another implementation
+using Native Client (NaCL) that was being worked on by the Minsk
+BitTorrent office, but it is a low priority for them as they have
+found a much better product to work on called uSync/distributed
+sync/BitTorrent sync (not sure what it's actually called), but it is
+not released in the chrome web store.
 
 Since this is still an experimental project, there are a number of
 workarounds for various problems that still prevent this technology's
@@ -91,4 +89,7 @@ use to be more widespread.
   proxy. So there is also a "udp_proxy" variable. Again, ktorrent
   serves to this purpose.
 
+- No ability to accept incoming connections, but there is
+  "bittorrent_incoming_proxy", which makes this possible. UPnP is not
+  currently supported.
 

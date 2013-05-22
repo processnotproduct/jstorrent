@@ -652,6 +652,11 @@
             this.set('storage_area',area);
         },
         get_storage_area: function() {
+            if (! this.collection) {
+                mylog(1,'get storage area for deleted torrent');
+                // this torrent was deleted ...
+                return;
+            }
             /*
               returns the area where files for this torrent are to be stored.
 

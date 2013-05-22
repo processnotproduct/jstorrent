@@ -915,9 +915,7 @@ var JSTorrentClientView = BaseView.extend({
 
         $('.js-add-example-torrent').click( _.bind(function(evt) {
 
-            jsclient.add_unknown('F2463F64B332B04650D26B5C766A2E8C7E0F7E14');
-            jsclient.add_unknown('C7DB2AFBB6CC77A1D6DDC068EB19044AB92DA191');
-            jsclient.add_unknown('6c92e923b9a799ca881577300124b4a474a4f83f');
+            jsclient.add_unknown("magnet:?xt=urn:btih:0e876ce2a1a504f849ca72a5e2bc07347b3bc957&tr=http%3A%2F%2Ftracker001.legaltorrents.com%3A7070%2Fannounce&dn=Blender_Foundation_-_Big_Buck_Bunny_720p")
 
             jsclient.add_unknown(
 "magnet:?xt=urn:btih:f463bfded35ef84c06b5d51df51856076b97059b&dn=DJ+Shadow+-+Hidden+Transmissions+Bundle+BitTorrent+Edition&tr=udp%3A%2F%2Ftracker.openbittorrent.com%3A80&tr=udp%3A%2F%2Ftracker.publicbt.com%3A80&tr=udp%3A%2F%2Ftracker.istole.it%3A6969&tr=udp%3A%2F%2Ftracker.ccc.de%3A80"
@@ -1149,14 +1147,43 @@ function main() {
     });
     $(document.body).on("dragenter", function(evt){mylog(1,'dragenter');});
     $(document.body).on("dragleave", function(evt){mylog(1,'dragleave');});
-    $(document.body).on("dragover", function(evt){mylog(1,'dragover');});
-    $(document.body).on('drop', function(evt) {
 
-        _gaq.push(['_trackEvent', 'DropFiles', 'body', items.length]);
+    // isValid taken from chrome sample app
+    var isValid = function(dataTransfer) {
+        return dataTransfer && dataTransfer.types 
+            && ( dataTransfer.types.indexOf('Files') >= 0 
+                 || dataTransfer.types.indexOf('text/uri-list') >=0 )
+    }
 
-        mylog(1,'DROP!');
-        evt.originalEvent.stopPropagation();
-        evt.originalEvent.preventDefault();
+    function onDropPackagedApp(evt) {
+        mylog(1,'ondroppackagedapp');
+        var e = evt.originalEvent;
+
+        e.preventDefault();
+        e.stopPropagation();
+        if (isValid(e.dataTransfer)) {
+            mylog(1,'ondroppackagedapp isvalid');
+
+            if (e.dataTransfer.types.indexOf('Files') >= 0) {
+                mylog(1,'ondroppackagedapp had files ...');
+                var files = e.dataTransfer.files;
+                for (var i = 0; i < files.length; i++) {
+                    mylog(1,'ondroppackged app had files iter files',i);
+                    var text = files[i].name+', '+files[i].size+' bytes';
+                    model.addTodo(text, false, {file: files[i]});
+                }
+            } else { // uris
+                mylog(1,'no files yet');
+                var uri=e.dataTransfer.getData("text/uri-list");
+                model.addTodo(uri, false, {uri: uri});
+            }
+
+        }
+
+    }
+
+
+    function onDrop(evt) {
 
         var files = evt.originalEvent.dataTransfer.files;
         var items = evt.originalEvent.dataTransfer.items;
@@ -1200,6 +1227,32 @@ function main() {
                 }
             }
         }
+
+    }
+
+
+    $(document.body).on("dragover", function(evt){
+        evt.stopPropagation();
+        evt.preventDefault();
+
+        if (isValid(evt.originalEvent.dataTransfer) && config.packaged_app) {
+            _gaq.push(['_trackEvent', 'DropFiles', 'body']);
+            mylog(1,'dragover had file?',evt.originalEvent.dataTransfer);
+
+            onDropPackagedApp(evt);
+        } else {
+            mylog(1,'dragover');
+        }
+    });
+    $(document.body).on('drop', function(evt) {
+
+        _gaq.push(['_trackEvent', 'DropFiles', 'body']);
+
+        mylog(1,'DROP!');
+        evt.originalEvent.stopPropagation();
+        evt.originalEvent.preventDefault();
+
+        onDrop(evt);
 
     });
 

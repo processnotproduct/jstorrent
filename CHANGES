@@ -1,6 +1,10 @@
+May 21 2013.
+
+Fix dropping in torrent file to packaged app
+
 May 17 2013.
 
-Add drive file integration oauth scope
+Add drive file integration oauth scope (not yet activated because "identity" api is still experimental)
 
 Aug 15 2012.
 

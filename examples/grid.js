@@ -964,11 +964,23 @@ var JSTorrentClientView = BaseView.extend({
             try_register_protocol();
         });
 
+        $('#filesystem_open').click( function() {
+            filesystem_window = chrome.app.window.create('html5_filesystem_explorer/popup.html',
+                                                   { defaultWidth: 300,
+                                                     id:'filesystem',
+                                                     minHeight: 500,
+                                                     defaultHeight: 500 }
+                                                  );
+            
+        });
+
 /*
+  // look in bittorrent.clouddrive
         $('#setup-storage').click( function() {
             debugger;
         });
 */
+
 
         this.init_detailview();
     },

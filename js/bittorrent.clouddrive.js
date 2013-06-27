@@ -491,6 +491,9 @@
         initialize: function() {
             this.CLIENT_ID = '432934632994.apps.googleusercontent.com';
             this.url_base = 'https://www.googleapis.com';
+            if (config.packaged_app) {
+                this.url_base = this.url_base + '/';
+            }
             this.SCOPES = [
                 'https://www.googleapis.com/auth/drive.file',
             ];

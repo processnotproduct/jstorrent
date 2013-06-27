@@ -1,7 +1,7 @@
 {
     "name": "JSTorrent",
     "description": "Javascript Torrent Client",
-    "version": "0.3.1",
+    "version": "0.3.4",
     "manifest_version": 2,
     "minimum_chrome_version": "24",
     "offline_enabled": true,
@@ -16,6 +16,7 @@
             "title": "Torrent downloader"
         }
     },
+    "key": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCvpsh4qvVEOcUZPeucJJ5VASn8fIOGsoQIXnIewzRcqi3Nwj/4WttouI8Fp2OlNxjH6rkaFOSaUPv5n0j20M7clmTjFPmJtbdKKBdVnE5g1jRpkzwMPMV8fpP5IyyTy0hSkK1FAWuxnlBmOMLSAeqCsVH4cYO9s2ilFMNMEG04wIDAQAB",
     "permissions": [
         {"fileSystem":["write"]},
         {"socket":[
@@ -25,12 +26,13 @@
             "udp-send-to::"
         ]},
         "storage",
+        "experimental",
         "http://*/",
         "https://*/",
         "https://www.googleapis.com/"
     ],
     "oauth2": {
-        "client_id": "432934632994-7if8sp8g5mc0gojarmeq8aaet04494hj.apps.googleusercontent.com",
+        "client_id": "432934632994-20rclui1m8od0p2g09vfbrdnk93gbraa.apps.googleusercontent.com",
         "scopes": ["https://www.googleapis.com/auth/drive.file",
                    "https://www.googleapis.com/auth/drive.install"
                   ]

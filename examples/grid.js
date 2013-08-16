@@ -11,6 +11,31 @@ function try_register_protocol() {
     mylog(1,'result register',result);
 }
 
+
+function setup_chrome_context_menu() {
+    /* ah fuck, this only creates a context menu in the app itself.
+       I was hoping to add one to the browser.
+
+       So I'll have to do something like this in an extension and hope
+       people install that. */
+
+    var menu = chrome.contextMenus.create({
+	"title": "Download with JSTorrent",
+	"contexts": ["all"],
+	"id": "JSTorrent"
+    }, function(ondone) {
+	console.log("setup chrome context menu result", ondone, "error?", chrome.runtime.lastError);
+    });
+
+    chrome.contextMenus.onClicked.addListener(function(info, tab) {
+	console.log('user clicked on context menu',info,tab);
+    });
+
+
+}
+
+//if (config.packaged_app) { setup_chrome_context_menu(); }
+
 var BaseView = Backbone.View.extend({
     destroy: function() {
         this.undelegateEvents();

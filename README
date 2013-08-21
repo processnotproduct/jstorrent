@@ -1,5 +1,11 @@
 BitTorrent with pure JS (no native code)
 
+Available on Chrome web store
+https://chrome.google.com/webstore/detail/jstorrent/anhdpjpojoipgpmfanmedjghaligalgb
+
+Coming soon - the partner extension (to handle clicking on magnet: links)
+
+
 ---
 
 A short history of this project:
@@ -45,12 +51,7 @@ to. There is currently an app called "jstorrent" that is available on
 the Chrome Web Store,
 https://chrome.google.com/webstore/detail/jstorrent/anhdpjpojoipgpmfanmedjghaligalgb,
 which is to date the only way of downloading torrents on a Google
-Chrome OS. (i.e. Chromebook). BitTorrent has another implementation
-using Native Client (NaCL) that was being worked on by the Minsk
-BitTorrent office, but it is a low priority for them as they have
-found a much better product to work on called uSync/distributed
-sync/BitTorrent sync (not sure what it's actually called), but it is
-not released in the chrome web store.
+Chrome OS. (i.e. Chromebook).
 
 Since this is still an experimental project, there are a number of
 workarounds for various problems that still prevent this technology's
@@ -72,7 +73,6 @@ use to be more widespread.
   project).
 
 - WebSocket support was disabled in the desktop client
-  (https://github.com/bittorrent/microtorrent/commit/40e49c697b02097d19ec6355ca752c62858f1381)
   so it is still necessary to use a websocket/socket bridge. See
   js/bittorrent.common.js, in the configuration there is the variable
   "bittorrent_proxy" for which you can use

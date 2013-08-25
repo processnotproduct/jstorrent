@@ -1411,17 +1411,19 @@ function main() {
 
 
 
-        setInterval( function() {
+        function updatePct() {
             navigator.webkitTemporaryStorage.queryUsageAndQuota( function(used, avail) {
-
-
                 console.log('disk usage now',used, avail, used/avail)
-                var pct = Math.floor(used/avail * 100)
+                var pct = (used/avail * 100).toFixed(4)
                 $('#disk-usage').attr('width',pct +'%');
+                $('#disk-usage-str').text( pct +'%')
 
             });
-
+        }
+        setInterval( function() {
+            updatePct()
         }, 20000)
+        updatePct()
 
     });
 

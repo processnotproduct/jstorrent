@@ -1298,6 +1298,8 @@ function main() {
         } else if (q_url_args.q) {
             // via protocol handler!
             jsclient.add_unknown(q_url_args.q);
+        } else if (window.packaged_app_launch_url) {
+            jsclient.add_unknown(packaged_app_launch_url)
         }
     });
 

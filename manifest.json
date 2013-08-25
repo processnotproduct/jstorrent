@@ -1,7 +1,8 @@
 {
     "name": "JSTorrent",
     "description": "Javascript Torrent Client",
-    "version": "0.3.4",
+    "key": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCvpsh4qvVEOcUZPeucJJ5VASn8fIOGsoQIXnIewzRcqi3Nwj/4WttouI8Fp2OlNxjH6rkaFOSaUPv5n0j20M7clmTjFPmJtbdKKBdVnE5g1jRpkzwMPMV8fpP5IyyTy0hSkK1FAWuxnlBmOMLSAeqCsVH4cYO9s2ilFMNMEG04wIDAQAB",
+    "version": "0.3.5",
     "manifest_version": 2,
     "minimum_chrome_version": "24",
     "offline_enabled": true,
@@ -13,10 +14,9 @@
             "extensions": [
                 "torrent"
             ],
-            "title": "Torrent downloader"
+            "title": "Open with JSTorrent"
         }
     },
-    "key": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCvpsh4qvVEOcUZPeucJJ5VASn8fIOGsoQIXnIewzRcqi3Nwj/4WttouI8Fp2OlNxjH6rkaFOSaUPv5n0j20M7clmTjFPmJtbdKKBdVnE5g1jRpkzwMPMV8fpP5IyyTy0hSkK1FAWuxnlBmOMLSAeqCsVH4cYO9s2ilFMNMEG04wIDAQAB",
     "permissions": [
         {"fileSystem":["write"]},
         {"socket":[
@@ -26,9 +26,9 @@
             "udp-send-to::"
         ]},
         "storage",
-        "experimental",
         "http://*/",
         "https://*/",
+        "https://www.google-analytics.com/",
         "https://www.googleapis.com/"
     ],
     "oauth2": {
@@ -36,16 +36,6 @@
         "scopes": ["https://www.googleapis.com/auth/drive.file",
                    "https://www.googleapis.com/auth/drive.install"
                   ]
-    },
-    "intents": {
-        "http://webintents.org/view" : [{
-            "title" : "BitTorrent File Viewing, Streaming and Downloading",
-            "type" : ["application/x-bittorrent"]
-        }],
-        "http://webintents.org/share" : [{
-            "title" : "BitTorrent File Sharing",
-            "type" : ["image/*","video/*","*"]
-        }]
     },
     "app": {
         "background": {

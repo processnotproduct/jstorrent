@@ -69,10 +69,12 @@
         init_filesystems: function(callback) {
             if (window.webkitRequestFileSystem && ! config.disable_filesystem) {
 
+                // webkitStorageInfo is deprecated
+
                 var types = ['persistent','temporary'];
 
-                var fns = [ { fn: window.webkitRequestFileSystem, arguments: [webkitStorageInfo.PERSISTENT, this.fs_sizes['persistent']], callbacks: [2,3], error:3 },
-                            { fn: window.webkitRequestFileSystem, arguments: [webkitStorageInfo.TEMPORARY, this.fs_sizes['temporary']], callbacks: [2,3], error:3 } ];
+                var fns = [ { fn: window.webkitRequestFileSystem, arguments: [PERSISTENT, this.fs_sizes['persistent']], callbacks: [2,3], error:3 },
+                            { fn: window.webkitRequestFileSystem, arguments: [TEMPORARY, this.fs_sizes['temporary']], callbacks: [2,3], error:3 } ];
                 
                 new Multi(fns).sequential( _.bind(function(result) {
                     if (result.error) {
@@ -96,20 +98,18 @@
             }
         },
         get_quotas: function(callback) {
-            var fns = [ { fn: webkitStorageInfo.queryUsageAndQuota, fnthis:webkitStorageInfo, arguments: [webkitStorageInfo.PERSISTENT], callbacks: [1,2], error:2 },
-                        { fn: webkitStorageInfo.queryUsageAndQuota, fnthis:webkitStorageInfo,arguments: [webkitStorageInfo.TEMPORARY], callbacks: [1,2], error:2 } ];
-            new Multi(fns).sequential( _.bind(function(result) {
-                if (result.error) {
-                    callback({error:true})
-                } else {
-                    var quotas = {'persistent': {used:result.called[0].data[0], capacity:result.called[0].data[1]},
-                                  'temporary': {used:result.called[1].data[0], capacity:result.called[1].data[0]}};
+            var _this = this;
+            var temp = navigator.webkitTemporaryStorage
+            var pers = navigator.webkitPersistentStorage
+            temp.queryUsageAndQuota( function(tused, tavail) {
+                pers.queryUsageAndQuota( function(pused, pavail) {
+                    var quotas = {'persistent': {used:pused, capacity:pavail},
+                                  'temporary': {used:tused, capacity:tavail}};
                     mylog(LOGMASK.disk, 'got quotas', quotas);
-                    this.set('quotas',quotas);
+                    _this.set('quotas',quotas);
                     callback(quotas);
-                }
-            },this));
-
+                })
+            })
         },
         get_file_by_path: function(path, callback, area, opts) {
             if (config.disable_filesystem) {

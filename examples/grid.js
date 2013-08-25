@@ -1415,7 +1415,7 @@ function main() {
             navigator.webkitTemporaryStorage.queryUsageAndQuota( function(used, avail) {
                 console.log('disk usage now',used, avail, used/avail)
                 var pct = (used/avail * 100).toFixed(4)
-                $('#disk-usage').attr('width',pct +'%');
+                $('#disk-usage').width(pct +'%');
                 $('#disk-usage-str').text( pct +'%')
 
             });

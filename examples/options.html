@@ -1,0 +1,79 @@
+<html>
+<head>
+
+  <script src="../js/deps/jquery-1.7.2.min.js"></script>
+  <script src="../js/deps/underscore.js"></script> 
+  <script src="../js/deps/backbone.js"></script>  
+  <script src="../js/bittorrent.common.js"></script>
+  <script src="../js/bittorrent.mime.js"></script>
+  <script src="../js/bittorrent.helpers.js"></script>
+  <script src="../js/bittorrent.clouddrive.js"></script>
+
+
+  <script src="../js/bittorrent.storage.js"></script>
+  <script src="options.js"></script>
+
+    <!--script type="text/javascript" src="https://apis.google.com/js/client.js?onload=gdriveloaded"></script-->
+</head>
+<body>
+<h3>JSTorrent Options</h3>
+
+<style>
+table { border-collapse:collapse }
+table td { border: 1px solid black; padding: 4px }
+</style>
+
+<h3>Sandbox Files Storage<h3>
+<table>
+  <th>
+    <tr>
+      <td>Storage Location</td><td>Used Space</td><td>Available Space</td>
+    </tr>
+  </th>
+  <tr>
+    <td>Temporary</td> <td id="temporary-used"></td> <td id="temporary-avail">
+  </tr>
+  <!--tr>
+    <td>Persistent</td> <td id="persistent-used"></td> <td id="persistent-avail">
+  </tr-->
+  <tr><td colspan="3"><p style="font-size:80%">Files by default save into a "sandbox". Once torrents are completed, they can be accessed by downloading them from the files pane. It is not possible yet to save torrents larger than your temporary available space, unless you enable saving to Google Drive, below</p></td></tr>
+</table>
+
+
+
+<h3>Save to Google Drive</h3>
+<p>It is possible to save files directly to your Google Drive account. To do so, you will need to authorize this app access to create files in your Google Drive
+
+<button id="gdrive-authorize">Authorize JSTorrent to create files in your Google Drive</button>
+
+<span id="gdrive-authorize-info"></span>
+
+<h3>New Torrents will be saved in</h3>
+Select where new torrent files will be saved
+<ul>
+<li> <input id="radio-sandbox" checked="checked" type="radio" name="save_location" value="sandbox" /> Sandbox </li>
+<li> <input id="radio-gdrive" disabled="disabled" type="radio" name="save_location" value="gdrive" /> Google Drive (need to authorize, above)</li>
+<li> <input disabled="disabled" type="radio" name="save_location" value="gdrive" /> Select a folder <i>Not yet possible</i></li>
+
+</ul>
+
+
+<h3>Select Download Folder</h3>
+<p>It is not yet possible to select a download location. Files are saved into this application's <i>sandbox</i>. This option will be enabled in future versions of Chrome, (likely version 31).
+
+
+
+<!--h4>Request Additional Persistent Storage</h4>
+
+<p>To be able to store more torrents or download larger torrents, you
+will need to authorize this applicaiton to store persistent data.</p>
+
+<button id="persistent-store">Authorize Persistent Storage</button>
+-->
+
+
+
+
+
+</body>
+</html>

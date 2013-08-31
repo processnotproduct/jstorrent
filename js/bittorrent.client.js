@@ -16,8 +16,13 @@
             this.threadhasher = new jstorrent.ThreadHasher();
             this.streamparser = null;
             //this.worker.postMessage();
-            this.set('id',"DefaultClient");
+            //this.set('id',"DefaultClient");
             //this.fetch();
+
+            this.set('id',"jsclient");
+            this.fetch();
+
+
             //this.torrents = {};
             this.bytecounters = { sent: new jstorrent.ByteCounter({}),
                                   received: new jstorrent.ByteCounter({}) };
@@ -123,6 +128,9 @@
             },this));
             jstorrent.database.open();
         },
+        get_storage_key: function() {
+            return 'jsclient'
+        },
         get_streamparser: function() {
             if (! this.streamparser) {
                 this.streamparser = new jstorrent.StreamParser;
@@ -200,6 +208,7 @@
         },
         add_torrent_to_collection: function(torrent, opts) {
             if (! this.torrents.contains(torrent)) {
+                torrent.set('storage_area', torrent.get_storage_area())
                 torrent.newid = torrent.id;
                 torrent.id = null; // make sure backbone.Model.isNew evals to true
                 assert( ! torrent.id );
@@ -260,6 +269,9 @@
         },
         notify_filesystem_full: function() {
             mylog(LOGMASK.error,'filesystem is FULL!!!');
+
+            // TODO -- notify the user
+
             //var bytes = 1024 * 1024 * 1024; // gigabyte
 
             // TODO -- request more than before!!

@@ -113,6 +113,8 @@
                 idx++;
             }
             var pct = c/t;
+            this.set('percent_complete', pct)
+
             return pct;
         },
         complete_array_to_own_bytes: function(idx1, idx2) {
@@ -373,6 +375,9 @@
         },
         write_piece_data: function(piece, byte_range) {
             // TODO -- handle filesystem errors.
+
+            this.get_percent_complete(); // forces update of table view
+
             TorrentFile._write_queue.push( [piece, byte_range, this] );
             TorrentFile.process_write_queue();
         },

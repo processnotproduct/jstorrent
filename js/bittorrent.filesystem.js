@@ -140,7 +140,11 @@
             }
 
 
-            next(this.fss[area].root);
+            if (area == 'sandbox') {
+                area = 'temporary'
+            }
+            var fs = this.fss[area]
+            next(fs.root);
         },
         read_entries: function(area) {
             area = area || 'temporary'

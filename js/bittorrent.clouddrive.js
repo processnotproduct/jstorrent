@@ -505,6 +505,10 @@
             this._token_revoked = false; // set this to true when we had access but then we lost it (due to user destroying the app's access)
 
             this._gdrive_loaded = false;
+            if (config.packaged_app) {
+                this._gdrive_loaded = true
+                _.defer( _.bind(this.gdrive_onload,this) )
+            }
 
             this._after_auth_queue = [];
 
@@ -514,6 +518,8 @@
             }
 
             this.on('authorized', function() { 
+                // dont do this...
+/*
                 this.list_files( function(result) {
                     if (result.error) {
                         console.error('check hostname, likely not authorized in developer console');
@@ -521,6 +527,8 @@
                         console.log('authorized, show files list',result);
                     }
                 });
+*/
+
             });
         },
         list_files: function(callback) {
@@ -602,15 +610,15 @@
                     }
                 }
                 xhr.setRequestHeader('Authorization', 'Bearer ' + this.get_token());
-                xhr.onload = function(evt) {
-                    if (xhr.responseText) {
-                        callback(JSON.parse(xhr.responseText), evt);
-                    } else {
-                        callback(null, evt);
-                    }
-                };
-                xhr.onerror = function(evt) {
-                    if (xhr.status == 0 && opts.nocors) {
+                xhr.onload = xhr.onerror = function(evt) {
+
+                    if (xhr.status == 200) {
+                        if (xhr.responseText) {
+                            callback(JSON.parse(xhr.responseText), evt);
+                        } else {
+                            callback(null, evt);
+                        }
+                    } else if (xhr.status == 0 && opts.nocors) {
                         // was expecting server to fuck up with CORS,
                         // though this error could also be due to
                         // something else. having no CORS headers is
@@ -621,7 +629,14 @@
                     } else if (xhr.status == 401) {
                         // token expired
                         console.warn('token expired?')
-                        callback({error:true}, evt);
+                        function ondone() {
+                            callback({error:true}, evt);
+                        }
+                        if (config.packaged_app) {
+                            chrome.identity.removeCachedAuthToken({token:_this._token}, ondone)
+                        } else {
+                            ondone()
+                        }
                     } else if (xhr.status == 503) {
                         // start exponential random backoff shit
                         debugger;
@@ -685,7 +700,7 @@
             var _this = this;
             if (config.packaged_app) {
 
-                var identity = chrome.experimental.identity || chrome.identity;
+                var identity = chrome.identity || chrome.experimental.identity;
 
                 identity.getAuthToken( {interactive: true}, function(token) {
                     _this._fetching_token = false;

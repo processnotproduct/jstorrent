@@ -198,6 +198,7 @@ var SuperTableView = Backbone.View.extend({
 
             for (var key in attributes.changes) {
 
+
                 if (this.dependentAttributes[key]) {
                     for (j=0; j<this.dependentAttributes[key].length; j++) {
                         var i = this.columnByAttribute[this.dependentAttributes[key][j]];
@@ -241,6 +242,7 @@ var TorrentTableView = SuperTableView.extend({
             {id: "name", name: "Name", field: "name", sortable: true, width:500 },
             {id: "size", unit: 'bytes', name: "Size", field: "size", sortable: true, width:80 },
             {id: "state", name: "State", field: "state", sortable: true },
+//            {id: "%", name: "% Complete", field: "complete", sortable: true },
             {id: "%", name: "% Complete", field: "complete", sortable: true },
             {id: "bytes_sent", unit:'bytes',name: "Bytes sent", field: "bytes_sent", sortable: true},
             {id: "send_rate", unit:'bytes',name: "Up Speed", field: "send_rate", sortable: true},
@@ -254,6 +256,7 @@ var TorrentTableView = SuperTableView.extend({
         this.options.el.height(this.default_height);
         //var progress_template = jstorrent.tmpl("progress_template");
         var progress_template = $('#progress_template')
+
         this.dependentAttributes = { 'bytes_sent': ['send_rate'],
                                      'bytes_received': ['receive_rate']
                                    };
@@ -536,10 +539,10 @@ var FileTableView = SuperTableView.extend({
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
 
 //            {id: "upload", name: "upload", field: "upload", sortable: false, width:500 },
-            {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false },
+            {id: "%", name: "% Complete", field: "percent_complete", sortable: true, attribute:false },
             {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderFileDownload, formatter: waitingFormatter },
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
-//            {id: "gdrive_uploaded", name: "gdrive_uploaded", field: "gdrive_uploaded", width:80 },
+            {id: "gdrive_uploaded", name: "gdrive_uploaded", field: "gdrive_uploaded", width:80 },
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
             {id: "first_piece", name: "first_piece", field: "first_piece", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
@@ -573,7 +576,7 @@ var FileTableView = SuperTableView.extend({
                             return '';
                         }
                     }
-                } else if (column.field == 'complete') {
+                } else if (column.field == 'percent_complete') {
                     return function(row,cell,value,col,data) {
                         //var isactive = (data.torrent.get('state') == 'started' && data.get_percent_complete() != 1)?'active':''
                         return data.get_percent_complete()*100 + '%';
@@ -920,17 +923,6 @@ var GeneralDetailView = BaseView.extend({
     }
 });
 
-var JSTorrentClientViewSettings = Backbone.Model.extend({
-    //localStorage: new Store('JSTorrentClientViewSettings'),
-    database: jstorrent.storage,
-    storeName: 'setting',
-    initialize: function() {
-    },
-    get_storage_key: function() {
-        return this.get('id');
-    },
-    
-});
 
 var JSTorrentClientView = BaseView.extend({
     initialize: function(opts) {
@@ -1013,6 +1005,16 @@ var JSTorrentClientView = BaseView.extend({
                                                      defaultHeight: 500 }
                                                   );
             
+        });
+
+        $('#option-button').click( function() {
+            filesystem_window = chrome.app.window.create('examples/options.html',
+                                                   { defaultWidth: 600,
+                                                     id:'options',
+                                                     minHeight: 400,
+                                                     defaultHeight: 400 }
+                                                  );
+
         });
 
 /*
@@ -1392,7 +1394,7 @@ function main() {
 
         // horrible hack :_)
         setInterval( function() {
-            console.log('1 sec tick on ready')
+            //console.log('1 sec tick on ready')
             if (window._please_load_this_as_a_torrent) {
                 console.log('located _please_load_this_as_a_torrent!')
                 var data = window._please_load_this_as_a_torrent
@@ -1413,7 +1415,7 @@ function main() {
 
         function updatePct() {
             navigator.webkitTemporaryStorage.queryUsageAndQuota( function(used, avail) {
-                console.log('disk usage now',used, avail, used/avail)
+                //console.log('disk usage now',used, avail, used/avail)
                 var pct = (used/avail * 100).toFixed(4)
                 $('#disk-usage').width(pct +'%');
                 $('#disk-usage-str').text( pct +'%')
@@ -1426,6 +1428,19 @@ function main() {
         updatePct()
 
     });
+
+    if (config.packaged_app) {
+        chrome.runtime.onMessage.addListener( function(evt, source, cb) {
+            console.log('got chrome runtime message',evt, cb)
+            if (evt.event == 'query_setting') {
+                cb({name:'default_storage_area', value:jsclient.get('default_storage_area')})
+            } else if (evt.event == 'set_setting') {
+                jsclient.set(evt.name, evt.value)
+                jsclient.save()
+            }
+        })
+    }
+
 
     jsclient.on('slightly_supported', function() {
         var msg = 'This website requires a browser implementing the HTML5 FileSystem APIs. Yours does not support these features and you will not be able to view the files after downloading them. Please try using Google Chrome. Or continue with crippled functionality.'

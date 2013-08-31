@@ -1,5 +1,6 @@
 {
     "name": "JSTorrent (Beta)",
+    "key":"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3MtwY08T8DXpZPb3HdDIj7hmrI31G5gTEXEfPmrPHtFs7JpgUUcd1Xj+BOjCybTWywzJDKVI8oZG2uXALMLPIPfFvq9VARdzQMXJK23FJnoxhIk6mwqGiev2AXtTzO/br3r82Ujz/7bgT8WrxbjsSLYfK2GVg8C6MgKAHZLC7WwIDAQAB",
     "description": "Javascript Torrent Client (Beta version)",
     "version": "0.3.7.111",
     "manifest_version": 2,

@@ -1,0 +1,18 @@
+{
+    "name": "JSTorrent contextmenu extension",
+    "key":"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC86AHTjKpKcEelQF50ifTV9H5uOE3fPnvIw1QeStr3aTHbknE5XmvwJY2zjw+iILOvqyaC5iLXFgiOh2guRvFLWpDq/YGIGH+ZRwEr4Vs0ulN95crCvbQHr5jNuXFcnLix5ehBQ6lTkmyILdnHtCB1UOfGYFv6DDTvUXa+vUG3pwIDAQAB",
+    "description": "Javascript Torrent Client helper extension",
+    "version": "0.0.2",
+    "manifest_version": 2,
+    "permissions": [
+        "contextMenus"
+    ],
+    "background": {
+        "scripts": ["background.js"]
+    },
+    "icons": { 
+        "16": "icon16.png", 
+        "48": "icon48.png", 
+        "128": "icon128.png" 
+    }
+}

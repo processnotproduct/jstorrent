@@ -131,6 +131,7 @@
             }
             this.set('name',this.get_name());
             this.set('id',this.hash_hex);
+            this.set('storage_area', this.get_storage_area())
         },
         get_storage_key: function() {
             return 'torrent-' + this.get_infohash('hex');
@@ -666,8 +667,12 @@
              */
             if (this.collection.client.get_filesystem().unsupported) {
                 return 'gdrive';
+            } else if (this.get('storage_area')) {
+                return this.get('storage_area');
+            } else if (this.collection.client.get('default_storage_area')) {
+                return this.collection.client.get('default_storage_area')
             } else {
-                return this.get('storage_area') || 'temporary';
+                return 'temporary'
             }
         },
         try_add_peers: function() {

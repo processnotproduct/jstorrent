@@ -31,7 +31,7 @@ window.config = {
     //bittorrent_proxy: 'kzahel.dyndns.org:8030' // torrent proxy service
 }
 if (config.packaged_app) {
-    //config.disable_filesystem = false;
+    config.disable_filesystem = false;
     //config.debug_torrent_client = null;
 }
 

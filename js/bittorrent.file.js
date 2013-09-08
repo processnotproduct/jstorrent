@@ -113,6 +113,8 @@
                 idx++;
             }
             var pct = c/t;
+            this.set('percent_complete', pct)
+
             return pct;
         },
         complete_array_to_own_bytes: function(idx1, idx2) {
@@ -373,6 +375,9 @@
         },
         write_piece_data: function(piece, byte_range) {
             // TODO -- handle filesystem errors.
+
+            this.get_percent_complete(); // forces update of table view
+
             TorrentFile._write_queue.push( [piece, byte_range, this] );
             TorrentFile.process_write_queue();
         },
@@ -491,7 +496,8 @@
             }
         },
         save_as: function() {
-            _gaq.push(['_trackEvent', 'FileSaveAs']);
+            //_gaq.push(['_trackEvent', 'FileSaveAs']);
+            gatracker.sendAppView('FileSaveAs');
             function errorHandler(){console.error('saveas error handler')}
             var _this = this;
             chrome.fileSystem.chooseEntry({type: 'saveFile', suggestedName: this.get_name()}, function(writableFileEntry) {
@@ -499,7 +505,8 @@
                     writableFileEntry.createWriter(function(writer) {
                         writer.onerror = errorHandler;
                         writer.onwriteend = function(e) {
-                            _gaq.push(['_trackEvent', 'FileSaveAsComplete']);
+                            //_gaq.push(['_trackEvent', 'FileSaveAsComplete']);
+                            gatracker.sendAppView('FileSaveAsComplete');
                             console.log('write complete');
                         };
                         _this.filesystem_entry.file( function(f) {

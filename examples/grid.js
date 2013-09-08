@@ -11,6 +11,42 @@ function try_register_protocol() {
     mylog(1,'result register',result);
 }
 
+
+function setup_chrome_context_menu() {
+    /* ah fuck, this only creates a context menu in the app itself.
+       I was hoping to add one to the browser.
+
+       So I'll have to do something like this in an extension and hope
+       people install that. */
+
+    var menu = chrome.contextMenus.create({
+	"title": "Download with JSTorrent",
+	"contexts": ["all"],
+	"id": "JSTorrent"
+    }, function(ondone) {
+	console.log("setup chrome context menu result", ondone, "error?", chrome.runtime.lastError);
+    });
+
+    chrome.contextMenus.onClicked.addListener(function(info, tab) {
+	console.log('user clicked on context menu',info,tab);
+    });
+
+
+}
+
+function check_is_torrent(buf) {
+    var s = arr2str(new Uint8Array(buf));
+    try {
+        var decoded = bdecode(s);
+    } catch(e) {
+        return false
+    }
+    return decoded
+}
+
+
+//if (config.packaged_app) { setup_chrome_context_menu(); }
+
 var BaseView = Backbone.View.extend({
     destroy: function() {
         this.undelegateEvents();
@@ -69,7 +105,8 @@ var CommandsView = BaseView.extend({
                 //mylog(1,'click on action',tabname);
                 this.options.table.notify_action(tabname);
 
-                _gaq.push(['_trackEvent', 'CommandClick', tabname]);
+                //_gaq.push(['_trackEvent', 'CommandClick', tabname]);
+                gatracker.sendEvent('CommandClick', tabname);
 
                 //jsclientview.set_tab(tabname);
             },this));
@@ -95,7 +132,8 @@ var AddView = BaseView.extend({
         var url = this.$('.url').val();
         this.$('.url').val('');
 
-        _gaq.push(['_trackEvent', 'do_add', 'AddView']);
+        //_gaq.push(['_trackEvent', 'do_add', 'AddView']);
+        gatracker.sendEvent('do_add', 'AddView');
 
         jsclient.add_unknown(url);
     }
@@ -160,6 +198,7 @@ var SuperTableView = Backbone.View.extend({
 
             for (var key in attributes.changes) {
 
+
                 if (this.dependentAttributes[key]) {
                     for (j=0; j<this.dependentAttributes[key].length; j++) {
                         var i = this.columnByAttribute[this.dependentAttributes[key][j]];
@@ -203,6 +242,7 @@ var TorrentTableView = SuperTableView.extend({
             {id: "name", name: "Name", field: "name", sortable: true, width:500 },
             {id: "size", unit: 'bytes', name: "Size", field: "size", sortable: true, width:80 },
             {id: "state", name: "State", field: "state", sortable: true },
+//            {id: "%", name: "% Complete", field: "complete", sortable: true },
             {id: "%", name: "% Complete", field: "complete", sortable: true },
             {id: "bytes_sent", unit:'bytes',name: "Bytes sent", field: "bytes_sent", sortable: true},
             {id: "send_rate", unit:'bytes',name: "Up Speed", field: "send_rate", sortable: true},
@@ -216,6 +256,7 @@ var TorrentTableView = SuperTableView.extend({
         this.options.el.height(this.default_height);
         //var progress_template = jstorrent.tmpl("progress_template");
         var progress_template = $('#progress_template')
+
         this.dependentAttributes = { 'bytes_sent': ['send_rate'],
                                      'bytes_received': ['receive_rate']
                                    };
@@ -303,7 +344,9 @@ var TorrentTableView = SuperTableView.extend({
     bind_events: function() {
         this.grid.onClick.subscribe( _.bind(function(evt, data) {
 
-            _gaq.push(['_trackEvent', 'TorrentClickRow', data.row]);
+            //_gaq.push(['_trackEvent', 'TorrentClickRow', data.row]);
+            gatracker.sendEvent('TorrentClickRow', data.row);
+
 
             var torrent = this.grid.getDataItem(data.row);
             mylog(LOGMASK.ui,'click on torrent',torrent);
@@ -496,14 +539,15 @@ var FileTableView = SuperTableView.extend({
             {id: "name", name: "name", field: "name", sortable: true, width:500 },
 
 //            {id: "upload", name: "upload", field: "upload", sortable: false, width:500 },
-
+            {id: "%", name: "% Complete", field: "percent_complete", sortable: true, attribute:false },
+            {id:'actions', name:'actions', field:'actions', width:120, asyncPostRender: renderFileDownload, formatter: waitingFormatter },
             {id: "size", unit: 'bytes', name: "size", field: "size", sortable: true, width:80 },
             {id: "gdrive_uploaded", name: "gdrive_uploaded", field: "gdrive_uploaded", width:80 },
             {id: "pieces", name: "pieces", field: "pieces", sortable: true},
             {id: "first_piece", name: "first_piece", field: "first_piece", sortable: true},
 //            {id: "path", unit: 'path', name: "path", field: "path", sortable: true, width:80 },
-            {id:'actions', name:'actions', field:'actions', width:320, asyncPostRender: renderFileDownload, formatter: waitingFormatter },
-            {id: "%", name: "% Complete", field: "complete", sortable: true, attribute:false },
+
+
             {id: "priority", name: "priority", field: "priority", sortable: true, editor: editor, options:'Normal,Skip' }
         ];
         //var progress_template = jstorrent.tmpl("progress_template");
@@ -532,7 +576,7 @@ var FileTableView = SuperTableView.extend({
                             return '';
                         }
                     }
-                } else if (column.field == 'complete') {
+                } else if (column.field == 'percent_complete') {
                     return function(row,cell,value,col,data) {
                         //var isactive = (data.torrent.get('state') == 'started' && data.get_percent_complete() != 1)?'active':''
                         return data.get_percent_complete()*100 + '%';
@@ -879,17 +923,6 @@ var GeneralDetailView = BaseView.extend({
     }
 });
 
-var JSTorrentClientViewSettings = Backbone.Model.extend({
-    //localStorage: new Store('JSTorrentClientViewSettings'),
-    database: jstorrent.storage,
-    storeName: 'setting',
-    initialize: function() {
-    },
-    get_storage_key: function() {
-        return this.get('id');
-    },
-    
-});
 
 var JSTorrentClientView = BaseView.extend({
     initialize: function(opts) {
@@ -964,11 +997,33 @@ var JSTorrentClientView = BaseView.extend({
             try_register_protocol();
         });
 
+        $('#filesystem_open').click( function() {
+            filesystem_window = chrome.app.window.create('html5_filesystem_explorer/popup.html',
+                                                   { defaultWidth: 300,
+                                                     id:'filesystem',
+                                                     minHeight: 500,
+                                                     defaultHeight: 500 }
+                                                  );
+            
+        });
+
+        $('#option-button').click( function() {
+            filesystem_window = chrome.app.window.create('examples/options.html',
+                                                   { defaultWidth: 600,
+                                                     id:'options',
+                                                     minHeight: 400,
+                                                     defaultHeight: 400 }
+                                                  );
+
+        });
+
 /*
+  // look in bittorrent.clouddrive
         $('#setup-storage').click( function() {
             debugger;
         });
 */
+
 
         this.init_detailview();
     },
@@ -1018,7 +1073,8 @@ var JSTorrentClientView = BaseView.extend({
         }
     },
     set_tab: function(tabtype) {
-        _gaq.push(['_trackEvent', 'set_tab', 'DetailView', tabtype]);
+        //_gaq.push(['_trackEvent', 'set_tab', 'DetailView', tabtype]);
+        gatracker.sendEvent('set_tab', 'DetailView', tabtype);
         this.tabs.$('li').removeClass('active')
         this.tabs.$('.' + tabtype).addClass('active');
         this.settings.set('tab',tabtype);
@@ -1110,7 +1166,10 @@ function main() {
         }
 
     }
-    $(document).on('paste', function(evt) {
+
+    // paste?? huh
+
+    function onpaste(evt) {
         return; // doesn't work in my chrome... returns a prefab image, always a PNG
         var data = evt.originalEvent.clipboardData;
         
@@ -1127,24 +1186,26 @@ function main() {
                 var fr = new FileReader();
                 fr.onload = function(e) {
                     debugger;
-/*
-                    var buf = e.target.result;
-                    mylog(1,'pasted--',ab2str(new Uint8Array(e.target.result,0,50)))
-*/
+                    /*
+                      var buf = e.target.result;
+                      mylog(1,'pasted--',ab2str(new Uint8Array(e.target.result,0,50)))
+                    */
                     var img = document.createElement('img');
                     img.src = e.target.result;
                     document.body.appendChild(img);
 
                 };
                 //fr.readAsArrayBuffer(d.blob);
-                fr.readAsDataURL(d.blob);
 
                 
             }
         }
 
 
-    });
+    }    
+
+
+    $(document).on('paste', onpaste);
     $(document.body).on("dragenter", function(evt){mylog(1,'dragenter');});
     $(document.body).on("dragleave", function(evt){mylog(1,'dragleave');});
 
@@ -1158,27 +1219,57 @@ function main() {
     function onDropPackagedApp(evt) {
         mylog(1,'ondroppackagedapp');
         var e = evt.originalEvent;
+        var fs = jsclient.get_filesystem().fss['temporary'];
 
         e.preventDefault();
         e.stopPropagation();
         if (isValid(e.dataTransfer)) {
             mylog(1,'ondroppackagedapp isvalid');
 
+
+            function oncopy(a,b,c) {
+            }
+
+
             if (e.dataTransfer.types.indexOf('Files') >= 0) {
                 mylog(1,'ondroppackagedapp had files ...');
+                //var item=evt.originalEvent.dataTransfer.items[0]
+                //var entry = item.webkitGetAsEntry() // when i grab the entry, i lose the file~!! lame
+                //entry.copyTo( fs.root, null, _.bind(copy_success, this, entry), _.bind(copy_success, this, entry) );
+
+                var file = evt.originalEvent.dataTransfer.files[0]
+                var fr = new FileReader
+                fr.onload = function(evt) {
+                    var ab = evt.target.result
+                    var result = check_is_torrent(ab)
+                    if (result) {
+                        jsclient.add_torrent( { metadata: result } );
+                    }
+                }
+                fr.readAsArrayBuffer(file)
+
+
+
+            }
+
+/*
                 var files = e.dataTransfer.files;
                 for (var i = 0; i < files.length; i++) {
                     mylog(1,'ondroppackged app had files iter files',i);
                     var text = files[i].name+', '+files[i].size+' bytes';
-                    model.addTodo(text, false, {file: files[i]});
+
+                    debugger;
+
+                    //model.addTodo(text, false, {file: files[i]});
                 }
             } else { // uris
                 mylog(1,'no files yet');
                 var uri=e.dataTransfer.getData("text/uri-list");
                 model.addTodo(uri, false, {uri: uri});
             }
-
+*/
         }
+
 
     }
 
@@ -1187,6 +1278,18 @@ function main() {
 
         var files = evt.originalEvent.dataTransfer.files;
         var items = evt.originalEvent.dataTransfer.items;
+
+        if (config.packaged_app) {
+            // they changed the interface several times aurgh
+
+            var file = files[0]
+
+            
+
+        }
+
+
+
         if (items) {
             for (var i=0; i<items.length; i++) {
                 if (items[i].webkitGetAsEntry) {
@@ -1236,7 +1339,8 @@ function main() {
         evt.preventDefault();
 
         if (isValid(evt.originalEvent.dataTransfer) && config.packaged_app) {
-            _gaq.push(['_trackEvent', 'DropFiles', 'body']);
+            //_gaq.push(['_trackEvent', 'DropFiles', 'body']);
+            gatracker.sendEvent('DropFiles', 'body');
             mylog(1,'dragover had file?',evt.originalEvent.dataTransfer);
 
             onDropPackagedApp(evt);
@@ -1246,13 +1350,18 @@ function main() {
     });
     $(document.body).on('drop', function(evt) {
 
-        _gaq.push(['_trackEvent', 'DropFiles', 'body']);
+        //_gaq.push(['_trackEvent', 'DropFiles', 'body']);
+        gatracker.sendEvent('DropFiles', 'body');
 
         mylog(1,'DROP!');
         evt.originalEvent.stopPropagation();
         evt.originalEvent.preventDefault();
 
-        onDrop(evt);
+        if (config.packaged_app) {
+            onDropPackagedApp(evt)
+        } else {
+            onDrop(evt);
+        }
 
     });
 
@@ -1263,7 +1372,12 @@ function main() {
 
     jsclient.on('ready', function() {
         //jstorrent.database.clean('torrent', function(k) { return k.length != 40; });
+
+
+        gatracker.sendAppView('ClientViewInit');
         window.jsclientview = new JSTorrentClientView({el:$('#client')});
+
+
         var url_args = decode_url_arguments('hash');
         var q_url_args = decode_url_arguments('search');
         if (url_args.q) {
@@ -1273,8 +1387,60 @@ function main() {
         } else if (q_url_args.q) {
             // via protocol handler!
             jsclient.add_unknown(q_url_args.q);
+        } else if (window.packaged_app_launch_url) {
+            jsclient.add_unknown(packaged_app_launch_url)
         }
+
+
+        // horrible hack :_)
+        setInterval( function() {
+            //console.log('1 sec tick on ready')
+            if (window._please_load_this_as_a_torrent) {
+                console.log('located _please_load_this_as_a_torrent!')
+                var data = window._please_load_this_as_a_torrent
+                window._please_load_this_as_a_torrent = undefined;
+
+                var result = check_is_torrent(data)
+                if (result) {
+                    jsclient.add_torrent( { metadata: result } );
+                    window._please_load_this_as_a_torrent
+                } else {
+                    console.log('unable to add torrent, wasnt valid')
+                }
+            }
+
+        }, 1000);
+
+
+
+        function updatePct() {
+            navigator.webkitTemporaryStorage.queryUsageAndQuota( function(used, avail) {
+                //console.log('disk usage now',used, avail, used/avail)
+                var pct = (used/avail * 100).toFixed(4)
+                $('#disk-usage').width(pct +'%');
+                $('#disk-usage-str').text( pct +'%')
+
+            });
+        }
+        setInterval( function() {
+            updatePct()
+        }, 20000)
+        updatePct()
+
     });
+
+    if (config.packaged_app) {
+        chrome.runtime.onMessage.addListener( function(evt, source, cb) {
+            console.log('got chrome runtime message',evt, cb)
+            if (evt.event == 'query_setting') {
+                cb({name:'default_storage_area', value:jsclient.get('default_storage_area')})
+            } else if (evt.event == 'set_setting') {
+                jsclient.set(evt.name, evt.value)
+                jsclient.save()
+            }
+        })
+    }
+
 
     jsclient.on('slightly_supported', function() {
         var msg = 'This website requires a browser implementing the HTML5 FileSystem APIs. Yours does not support these features and you will not be able to view the files after downloading them. Please try using Google Chrome. Or continue with crippled functionality.'
@@ -1292,7 +1458,8 @@ function main() {
     });
 
     $('#js-add_example').click( function() { 
-        _gaq.push(['_trackEvent', 'add_example_torrent']);
+        //_gaq.push(['_trackEvent', 'add_example_torrent']);
+        gatracker.sendEvent('add_example_torrent');
         jsclient.add_example_torrent(); 
     } );
     //jsclient.add_random_torrent();

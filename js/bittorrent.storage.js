@@ -447,3 +447,16 @@ if (false && window.indexedDB) {
 
     }
 }
+
+
+var JSTorrentClientViewSettings = Backbone.Model.extend({
+    //localStorage: new Store('JSTorrentClientViewSettings'),
+    database: jstorrent.storage,
+    storeName: 'setting',
+    initialize: function() {
+    },
+    get_storage_key: function() {
+        return this.get('id');
+    },
+    
+});

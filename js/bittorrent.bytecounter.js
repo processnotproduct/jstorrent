@@ -31,6 +31,8 @@
             this.parent = parent;
         },
         sample: function(bytes, t, s, opts) {
+            //console.log('sample bytes',bytes)
+            //if (! (opts && opts.internal) && bytes == 0) { debugger }
             this.totalbytes += bytes;
             // takes a sample at time t of some bytes
             if (this.nodate && t === undefined) {
@@ -48,7 +50,7 @@
                 assert( isInteger(buckets_elapsed), {throw:true} );
 */
 
-                var maxiter = Math.max( this.numsamples, buckets_elapsed-1 );
+                var maxiter = Math.min( this.numsamples, buckets_elapsed-1 );
                 //assert(maxiter > 0);
                 for (var i=0; i<maxiter; i++) {
                     var zeroat = (this.cpos+1+i)%this.numsamples;
@@ -66,7 +68,7 @@
             if (this.parent) {
                 if (opts && opts.noparent) {
                 } else {
-                    this.parent.sample(bytes, t, s);
+                    this.parent.sample(bytes, t, s, opts);
                 }
             }
         },
@@ -74,6 +76,8 @@
             return this.totalbytes;
         },
         recent: function(t, s, opts) {
+            //if (! opts) { opts = {} }
+            //opts.internal = true
             this.sample(0, t, s, opts);
             var sum = 0;
             assert( isInteger(this.numsamples), {throw:true} );
@@ -107,7 +111,7 @@
 
 
 
-    if (config.unit_tests) {
+    if (config.unit_tests || true) {
         var bc = new jstorrent.ByteCounter({samples:4, nodate:true});
         bc.sample(1, 1000);
         assert(arrayEq(bc.cbuf, [1,0,0,0]));

@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="SlickGrid/css/smoothness/jquery-ui-1.8.16.custom.css" type="text/css" />
     <title>JSTorrent</title>
 
+    <script src="../cpa/google-analytics-bundle.js"></script>
+    <script src="../cpa/jstorrent.js"></script>
+
     <script src="../js/deps/jquery-1.7.2.min.js"></script>
     <script src="../js/deps/underscore.js"></script> 
     <script src="../js/deps/backbone.js"></script>  
@@ -64,12 +67,13 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
 
     <!--script src="https://apis.google.com/js/client.js"></script-->
 
-    <script src="../embedded_ga_host.js"></script>
+    <!--script src="../embedded_ga_host.js"></script-->
     <!--script src="//cdnjs.cloudflare.com/ajax/libs/dropbox.js/0.9.0/dropbox.min.js"></script-->
-    <script src="../js/bittorrent.dropbox.js"></script>
+    <!--script src="../js/bittorrent.dropbox.js"></script-->
     <!--script src="https://apis.google.com/js/api.js"></script-->
-    <script src="../js/gapiload.js">
-    </script>
+
+
+    <!--script src="../js/gapiload.js"></script-->
     <!--script type="text/javascript" src="https://apis.google.com/js/client.js?onload=gdriveloaded"></script-->
 
 
@@ -192,9 +196,12 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
 
 
       <div style="margin-left:10px; margin-right:10px">
-        <h1>jstorrent</h1>
-        <p >Welcome to jstorrent! Copy a torrent URL from the web or <a class="js-add-example-torrent" href="#">add some example torrents!</a></p>
-        <a style="display:none" id="setup-storage" href="#">setup storage</a>
+        <h1>jstorrent</h1> <button style="float:right" href="#" id="option-button">Options</button>
+        <p >Welcome to jstorrent! Copy a torrent URL from the web or <a class="js-add-example-torrent" href="#">add some example torrents!</a>. <strong>New feature</strong>: <a id="filesystem_open" href="#">File inspector (clean up disk space)</a></p>
+        <a  id="setup-storage" style="display:none" href="#">setup storage</a>
+<div style="float:right;background:#fff; border: 1px solid black; width:400px; height:8px">
+  <div id="disk-usage" style="background:#7f7; height:8px; width:0%; font-size:80%">disk usage <span id="disk-usage-str"></span></div>
+</div>
 
         <div class="pane-top">
           <div style="position:relative; height:50px;">
@@ -256,10 +263,10 @@ var WEB_SOCKET_SWF_LOCATION = "../js/deps/polyfill/web-socket-js/WebSocketMain.s
       .selected { border: 2px solid blue; }
       .torrentlist { background:#eff; }
     </style>
-    <link rel="stylesheet" media="all" href="../embedded_ga_host.css"></link>
+    <!--link rel="stylesheet" media="all" href="../embedded_ga_host.css"></link-->
   </head>
   <body style="background:#ccc">
-    <iframe id="embedded_ga" seamless="seamless" src="../embedded_ga_host.html"></iframe>
+    <!--iframe id="embedded_ga" seamless="seamless" src="../embedded_ga_host.html"></iframe-->
 
 
 
